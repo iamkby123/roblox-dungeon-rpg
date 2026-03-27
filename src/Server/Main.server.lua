@@ -161,15 +161,27 @@ local function BuildLobby()
 		local fi = Instance.new("Fire"); fi.Size=3; fi.Heat=5; fi.Parent=torch
 	end
 
-	-- ===== AMBIENT LIGHTING =====
+	-- ===== AMBIENT LIGHTING (dark dungeon atmosphere) =====
 	local lighting = game:GetService("Lighting")
-	lighting.Ambient = Color3.fromRGB(40, 35, 50)
-	lighting.OutdoorAmbient = Color3.fromRGB(40, 35, 50)
-	lighting.Brightness = 0.5
-	lighting.FogEnd = 800
-	lighting.FogStart = 100
-	lighting.FogColor = Color3.fromRGB(20, 15, 30)
+	lighting.Ambient = Color3.fromRGB(15, 12, 20)
+	lighting.OutdoorAmbient = Color3.fromRGB(15, 12, 20)
+	lighting.Brightness = 0.2
+	lighting.FogEnd = 400
+	lighting.FogStart = 50
+	lighting.FogColor = Color3.fromRGB(10, 8, 15)
 	lighting.ClockTime = 0 -- midnight for dungeon atmosphere
+	lighting.GlobalShadows = true
+	lighting.ShadowSoftness = 0.3
+
+	-- Atmosphere for depth/haze
+	local atmosphere = Instance.new("Atmosphere")
+	atmosphere.Density = 0.35
+	atmosphere.Offset = 0.1
+	atmosphere.Color = Color3.fromRGB(20, 15, 30)
+	atmosphere.Decay = Color3.fromRGB(10, 8, 15)
+	atmosphere.Glare = 0
+	atmosphere.Haze = 6
+	atmosphere.Parent = lighting
 end
 
 BuildLobby()

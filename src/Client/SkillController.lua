@@ -46,6 +46,12 @@ function SkillController.UseEquippedWeapon(direction)
 	if not weaponData then return end
 	cooldowns[weaponId] = os.clock() + weaponData.Cooldown
 
+	-- Trigger viewmodel attack animation
+	local ok, vmc = pcall(require, script.Parent:FindFirstChild("ViewmodelController"))
+	if ok and vmc and vmc.PlayAttackAnimation then
+		vmc.PlayAttackAnimation()
+	end
+
 	-- Fire to server (still uses "UseSkill" remote, sends weaponId)
 	local remote = Remotes:GetEvent("UseSkill")
 	if remote then

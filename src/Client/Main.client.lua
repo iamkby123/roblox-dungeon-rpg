@@ -17,6 +17,8 @@ local InputController = require(script.Parent:WaitForChild("InputController"))
 local DamageNumbers = require(script.Parent:WaitForChild("DamageNumbers"))
 local CombatController = require(script.Parent:WaitForChild("CombatController"))
 local UIController = require(script.Parent:WaitForChild("UIController"))
+local ViewmodelController = require(script.Parent:WaitForChild("ViewmodelController"))
+local FootstepController = require(script.Parent:WaitForChild("FootstepController"))
 
 -- Create the HUD
 local hud = MainHUD.Create()
@@ -28,6 +30,8 @@ InputController.Init(SkillController)
 DamageNumbers.Init()
 CombatController.Init(hud)
 UIController.Init(hud, SkillController)
+ViewmodelController.Init(SkillController)
+FootstepController.Init()
 
 -- Disable default Roblox health bar
 pcall(function()

@@ -501,10 +501,10 @@ function UIController.ShowRoomNotification(eventType, roomIndex, roomName, keyCo
 	})
 	fadeIn:Play()
 
-	-- Hold then fade out (longer for key messages)
-	local holdTime = (eventType == "KeySpawned" or eventType == "KeyPickedUp") and 5 or 3
+	-- Hold then fade out (shorter for room cleared, longer for key messages)
+	local holdTime = (eventType == "KeySpawned" or eventType == "KeyPickedUp") and 3 or 1.5
 	task.delay(holdTime, function()
-		local fadeOut = TweenService:Create(roomNotif, TweenInfo.new(1), {
+		local fadeOut = TweenService:Create(roomNotif, TweenInfo.new(0.5), {
 			TextTransparency = 1,
 		})
 		fadeOut:Play()

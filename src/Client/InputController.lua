@@ -4,6 +4,9 @@ local Players = game:GetService("Players")
 local InputController = {}
 
 local SkillController -- set via Init
+local isSprinting = false
+local WALK_SPEED = 16
+local SPRINT_SPEED = 24
 
 local keyMap = {
 	[Enum.KeyCode.One] = 1,
@@ -32,9 +35,26 @@ function InputController.Init(skillCtrl)
 			return
 		end
 
-		-- Scroll wheel to cycle weapons
-		if input.UserInputType == Enum.UserInputType.MouseWheel then
-			-- Handled via InputChanged instead
+		-- Shift to sprint
+		if input.KeyCode == Enum.KeyCode.LeftShift then
+			isSprinting = true
+			local character = Players.LocalPlayer.Character
+			local humanoid = character and character:FindFirstChild("Humanoid")
+			if humanoid then
+				humanoid.WalkSpeed = SPRINT_SPEED
+			end
+			return
+		end
+	end)
+
+	UserInputService.InputEnded:Connect(function(input, gameProcessed)
+		if input.KeyCode == Enum.KeyCode.LeftShift then
+			isSprinting = false
+			local character = Players.LocalPlayer.Character
+			local humanoid = character and character:FindFirstChild("Humanoid")
+			if humanoid then
+				humanoid.WalkSpeed = WALK_SPEED
+			end
 		end
 	end)
 

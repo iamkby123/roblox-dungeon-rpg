@@ -127,14 +127,14 @@ function DungeonService.BuildEntranceRoom(parent, origin)
 	makePart({Size=Vector3.new(t,h,d), Position=origin+Vector3.new(w/2+t/2,h/2,0), Material=mat, BrickColor=col, Parent=f})
 	makePart({Size=Vector3.new(w+t*2,h,t), Position=origin+Vector3.new(0,h/2,d/2+t/2), Material=mat, BrickColor=col, Parent=f})
 
-	-- Lighting
-	local light = Instance.new("PointLight"); light.Color=Color3.fromRGB(255,220,150); light.Range=50; light.Brightness=2; light.Parent=ceil
+	-- Lighting (dimmer entrance)
+	local light = Instance.new("PointLight"); light.Color=Color3.fromRGB(255,200,120); light.Range=35; light.Brightness=0.8; light.Parent=ceil
 
 	-- Torches
 	for _, xOff in ipairs({-w/4, w/4}) do
 		local torch = makePart({Name="Torch", Size=Vector3.new(1,2,1), Position=origin+Vector3.new(xOff,h*0.6,0), Material=Enum.Material.Wood, BrickColor=BrickColor.new("Brown"), Parent=f})
-		local tl = Instance.new("PointLight"); tl.Color=Color3.fromRGB(255,180,80); tl.Range=15; tl.Parent=torch
-		local fi = Instance.new("Fire"); fi.Size=3; fi.Heat=5; fi.Parent=torch
+		local tl = Instance.new("PointLight"); tl.Color=Color3.fromRGB(255,150,50); tl.Range=12; tl.Brightness=0.7; tl.Parent=torch
+		local fi = Instance.new("Fire"); fi.Size=2; fi.Heat=4; fi.Parent=torch
 	end
 
 	-- Info sign
@@ -174,7 +174,7 @@ function DungeonService.BuildEntranceRoom(parent, origin)
 			signPart.Material = Enum.Material.SmoothPlastic; signPart.BrickColor = BrickColor.new("Really black")
 			signPart.Parent = f
 
-			local signGui = Instance.new("SurfaceGui"); signGui.Face = Enum.NormalId.Front; signGui.Parent = signPart
+			local signGui = Instance.new("SurfaceGui"); signGui.Face = Enum.NormalId.Back; signGui.Parent = signPart
 			local nameLabel = Instance.new("TextLabel")
 			nameLabel.Size = UDim2.new(1,0,0.4,0); nameLabel.BackgroundTransparency = 1
 			nameLabel.Text = classData.Name
@@ -265,10 +265,10 @@ function DungeonService.BuildRoom(parent, config, origin, roomIndex, openings)
 	buildWall("Front")
 	buildWall("Back")
 
-	-- Lighting
-	local light = Instance.new("PointLight"); light.Color=config.LightColor; light.Range=size.X; light.Brightness=1.5; light.Parent=ceil
+	-- Lighting (dimmer for dungeon atmosphere)
+	local light = Instance.new("PointLight"); light.Color=config.LightColor; light.Range=size.X*0.5; light.Brightness=0.6; light.Parent=ceil
 
-	-- Torches in corners
+	-- Torches in corners (main light source, flickering)
 	for _, offset in ipairs({
 		Vector3.new(-size.X/3, size.Y*0.6, -size.Z/3),
 		Vector3.new(size.X/3, size.Y*0.6, -size.Z/3),
@@ -276,8 +276,8 @@ function DungeonService.BuildRoom(parent, config, origin, roomIndex, openings)
 		Vector3.new(size.X/3, size.Y*0.6, size.Z/3),
 	}) do
 		local torch = makePart({Name="Torch", Size=Vector3.new(1,2,1), Position=origin+offset, Material=Enum.Material.Wood, BrickColor=BrickColor.new("Brown"), Parent=roomFolder})
-		local tl = Instance.new("PointLight"); tl.Color=Color3.fromRGB(255,180,80); tl.Range=25; tl.Brightness=1; tl.Parent=torch
-		local fi = Instance.new("Fire"); fi.Size=3; fi.Heat=5; fi.Parent=torch
+		local tl = Instance.new("PointLight"); tl.Color=Color3.fromRGB(255,150,50); tl.Range=18; tl.Brightness=0.7; tl.Parent=torch
+		local fi = Instance.new("Fire"); fi.Size=2; fi.Heat=4; fi.Parent=torch
 	end
 
 	return roomFolder
@@ -306,7 +306,7 @@ local function buildCorridorZ(parent, x, fromZ, toZ, originY, mat, col, floorCol
 
 	-- Torch
 	local torch = makePart({Name="Torch", Size=Vector3.new(1,2,1), Position=Vector3.new(x, originY+ch*0.7, centerZ), Material=Enum.Material.Wood, BrickColor=BrickColor.new("Brown"), Parent=f})
-	local tl = Instance.new("PointLight"); tl.Color=Color3.fromRGB(255,150,50); tl.Range=20; tl.Brightness=1.5; tl.Parent=torch
+	local tl = Instance.new("PointLight"); tl.Color=Color3.fromRGB(255,130,40); tl.Range=14; tl.Brightness=0.6; tl.Parent=torch
 	local fi = Instance.new("Fire"); fi.Size=2; fi.Heat=3; fi.Parent=torch
 	return f
 end
@@ -329,7 +329,7 @@ local function buildCorridorX(parent, z, fromX, toX, originY, mat, col, floorCol
 
 	-- Torch
 	local torch = makePart({Name="Torch", Size=Vector3.new(1,2,1), Position=Vector3.new(centerX, originY+ch*0.7, z), Material=Enum.Material.Wood, BrickColor=BrickColor.new("Brown"), Parent=f})
-	local tl = Instance.new("PointLight"); tl.Color=Color3.fromRGB(255,150,50); tl.Range=20; tl.Brightness=1.5; tl.Parent=torch
+	local tl = Instance.new("PointLight"); tl.Color=Color3.fromRGB(255,130,40); tl.Range=14; tl.Brightness=0.6; tl.Parent=torch
 	local fi = Instance.new("Fire"); fi.Size=2; fi.Heat=3; fi.Parent=torch
 	return f
 end
