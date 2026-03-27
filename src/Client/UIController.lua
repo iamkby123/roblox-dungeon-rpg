@@ -462,14 +462,25 @@ function UIController.ShowRoomNotification(eventType, roomIndex, roomName, keyCo
 		text = "DUNGEON COMPLETE!"
 		color = Color3.fromRGB(255, 200, 50)
 	elseif eventType == "KeySpawned" then
-		text = (roomName or "A Key") .. " dropped! Pick it up!"
+		local keyName = roomName or "A Key"
+		text = keyName .. " dropped! Walk over it to pick up!"
 		if keyColor and type(keyColor) == "table" then
 			color = Color3.new(keyColor[1], keyColor[2], keyColor[3])
 		else
 			color = Color3.fromRGB(255, 220, 50)
 		end
 	elseif eventType == "KeyPickedUp" then
-		text = (roomName or "Key") .. " collected! Door opening..."
+		local keyName = roomName or "Key"
+		-- Add directional hint based on key type
+		local hint = "Find the matching door!"
+		if keyName == "Iron Key" then
+			hint = "The Iron Door is on the left branch!"
+		elseif keyName == "Gold Key" then
+			hint = "The Gold Door is on the right branch!"
+		elseif keyName == "Shadow Key" then
+			hint = "Collect both Shadow Keys to reach the BOSS!"
+		end
+		text = keyName .. " collected! " .. hint
 		if keyColor and type(keyColor) == "table" then
 			color = Color3.new(keyColor[1], keyColor[2], keyColor[3])
 		else
@@ -490,8 +501,9 @@ function UIController.ShowRoomNotification(eventType, roomIndex, roomName, keyCo
 	})
 	fadeIn:Play()
 
-	-- Hold then fade out
-	task.delay(3, function()
+	-- Hold then fade out (longer for key messages)
+	local holdTime = (eventType == "KeySpawned" or eventType == "KeyPickedUp") and 5 or 3
+	task.delay(holdTime, function()
 		local fadeOut = TweenService:Create(roomNotif, TweenInfo.new(1), {
 			TextTransparency = 1,
 		})

@@ -289,18 +289,20 @@ end
 local CORRIDOR_OVERLAP = 10
 
 -- Build a straight corridor segment along Z axis
+-- Uses openingW (cw+4) to match room wall openings exactly
 local function buildCorridorZ(parent, x, fromZ, toZ, originY, mat, col, floorCol)
 	local cw = DungeonConfig.CorridorWidth
+	local ow = cw + 4 -- match room opening width exactly
 	local ch = DungeonConfig.CorridorHeight
 	local t = 4
 	local length = math.abs(fromZ - toZ)
 	local centerZ = (fromZ + toZ) / 2
 
 	local f = Instance.new("Folder"); f.Name = "CorridorZ"; f.Parent = parent
-	makePart({Name="Floor", Size=Vector3.new(cw,t,length), Position=Vector3.new(x, originY-t/2, centerZ), Material=Enum.Material.Cobblestone, BrickColor=floorCol, Parent=f})
-	makePart({Name="Ceiling", Size=Vector3.new(cw,t,length), Position=Vector3.new(x, originY+ch+t/2, centerZ), Material=mat, BrickColor=col, Parent=f})
-	makePart({Size=Vector3.new(t,ch,length), Position=Vector3.new(x-cw/2-t/2, originY+ch/2, centerZ), Material=mat, BrickColor=col, Parent=f})
-	makePart({Size=Vector3.new(t,ch,length), Position=Vector3.new(x+cw/2+t/2, originY+ch/2, centerZ), Material=mat, BrickColor=col, Parent=f})
+	makePart({Name="Floor", Size=Vector3.new(ow,t,length), Position=Vector3.new(x, originY-t/2, centerZ), Material=Enum.Material.Cobblestone, BrickColor=floorCol, Parent=f})
+	makePart({Name="Ceiling", Size=Vector3.new(ow,t,length), Position=Vector3.new(x, originY+ch+t/2, centerZ), Material=mat, BrickColor=col, Parent=f})
+	makePart({Size=Vector3.new(t,ch,length), Position=Vector3.new(x-ow/2-t/2, originY+ch/2, centerZ), Material=mat, BrickColor=col, Parent=f})
+	makePart({Size=Vector3.new(t,ch,length), Position=Vector3.new(x+ow/2+t/2, originY+ch/2, centerZ), Material=mat, BrickColor=col, Parent=f})
 
 	-- Torch
 	local torch = makePart({Name="Torch", Size=Vector3.new(1,2,1), Position=Vector3.new(x, originY+ch*0.7, centerZ), Material=Enum.Material.Wood, BrickColor=BrickColor.new("Brown"), Parent=f})
@@ -310,18 +312,20 @@ local function buildCorridorZ(parent, x, fromZ, toZ, originY, mat, col, floorCol
 end
 
 -- Build a straight corridor segment along X axis
+-- Uses openingW (cw+4) to match room wall openings exactly
 local function buildCorridorX(parent, z, fromX, toX, originY, mat, col, floorCol)
 	local cw = DungeonConfig.CorridorWidth
+	local ow = cw + 4 -- match room opening width exactly
 	local ch = DungeonConfig.CorridorHeight
 	local t = 4
 	local length = math.abs(fromX - toX)
 	local centerX = (fromX + toX) / 2
 
 	local f = Instance.new("Folder"); f.Name = "CorridorX"; f.Parent = parent
-	makePart({Name="Floor", Size=Vector3.new(length,t,cw), Position=Vector3.new(centerX, originY-t/2, z), Material=Enum.Material.Cobblestone, BrickColor=floorCol, Parent=f})
-	makePart({Name="Ceiling", Size=Vector3.new(length,t,cw), Position=Vector3.new(centerX, originY+ch+t/2, z), Material=mat, BrickColor=col, Parent=f})
-	makePart({Size=Vector3.new(length,ch,t), Position=Vector3.new(centerX, originY+ch/2, z-cw/2-t/2), Material=mat, BrickColor=col, Parent=f})
-	makePart({Size=Vector3.new(length,ch,t), Position=Vector3.new(centerX, originY+ch/2, z+cw/2+t/2), Material=mat, BrickColor=col, Parent=f})
+	makePart({Name="Floor", Size=Vector3.new(length,t,ow), Position=Vector3.new(centerX, originY-t/2, z), Material=Enum.Material.Cobblestone, BrickColor=floorCol, Parent=f})
+	makePart({Name="Ceiling", Size=Vector3.new(length,t,ow), Position=Vector3.new(centerX, originY+ch+t/2, z), Material=mat, BrickColor=col, Parent=f})
+	makePart({Size=Vector3.new(length,ch,t), Position=Vector3.new(centerX, originY+ch/2, z-ow/2-t/2), Material=mat, BrickColor=col, Parent=f})
+	makePart({Size=Vector3.new(length,ch,t), Position=Vector3.new(centerX, originY+ch/2, z+ow/2+t/2), Material=mat, BrickColor=col, Parent=f})
 
 	-- Torch
 	local torch = makePart({Name="Torch", Size=Vector3.new(1,2,1), Position=Vector3.new(centerX, originY+ch*0.7, z), Material=Enum.Material.Wood, BrickColor=BrickColor.new("Brown"), Parent=f})
@@ -340,6 +344,7 @@ function DungeonService.BuildGridCorridor(parent, roomAOrigin, roomASize, roomBO
 	local col = BrickColor.new("Really black")
 	local floorCol = BrickColor.new("Dark stone grey")
 	local cw = DungeonConfig.CorridorWidth
+	local ow = cw + 4 -- match room opening width
 	local ch = DungeonConfig.CorridorHeight
 	local t = 4
 
@@ -354,7 +359,7 @@ function DungeonService.BuildGridCorridor(parent, roomAOrigin, roomASize, roomBO
 		if keyType then
 			local centerX = (fromX + toX) / 2
 			local doorPos = Vector3.new(centerX, originY + ch / 2, z)
-			return DungeonService._BuildCorridorDoor(parent, doorPos, Vector3.new(4, ch, cw), keyType)
+			return DungeonService._BuildCorridorDoor(parent, doorPos, Vector3.new(4, ch, ow), keyType)
 		end
 
 	elseif dir == "Down" then
@@ -368,7 +373,7 @@ function DungeonService.BuildGridCorridor(parent, roomAOrigin, roomASize, roomBO
 		if keyType then
 			local centerZ = (fromZ + toZ) / 2
 			local doorPos = Vector3.new(x, originY + ch / 2, centerZ)
-			return DungeonService._BuildCorridorDoor(parent, doorPos, Vector3.new(cw, ch, 4), keyType)
+			return DungeonService._BuildCorridorDoor(parent, doorPos, Vector3.new(ow, ch, 4), keyType)
 		end
 	end
 
