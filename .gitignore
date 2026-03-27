@@ -1,0 +1,18 @@
+# Rojo binary
+rojo.exe
+
+# Roblox plugin binary
+*.rbxm
+*.rbxl
+*.rbxlx
+
+# Debug/preview output
+debug/
+preview/
+
+# Claude internal
+.claude/
+
+# OS files
+Thumbs.db
+.DS_Store
