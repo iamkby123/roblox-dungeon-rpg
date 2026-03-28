@@ -552,6 +552,62 @@ function DungeonService.StartDungeon(player)
 		end
 	end
 
+	-- Add ProximityPrompts to locked doors (player presses E to open with key)
+	for ci, corrData in pairs(dungeonData.CorridorDoors) do
+		if corrData.Door and corrData.KeyType then
+			local keyData = DungeonConfig.KeyTypes[corrData.KeyType]
+			if keyData then
+				local prompt = Instance.new("ProximityPrompt")
+				prompt.ActionText = "Use " .. keyData.Name
+				prompt.ObjectText = keyData.Name .. " Door"
+				prompt.KeyboardKeyCode = Enum.KeyCode.E
+				prompt.HoldDuration = 0.3
+				prompt.MaxActivationDistance = 15
+				prompt.RequiresLineOfSight = false
+				prompt.Parent = corrData.Door
+
+				local capturedCi = ci
+				prompt.Triggered:Connect(function(trigPlayer)
+					if trigPlayer ~= player then return end
+					local cd = dungeonData.CorridorDoors[capturedCi]
+					if not cd or not cd.Door or not cd.Door.Parent then return end
+
+					local kt = cd.KeyType
+					-- Check if player has the required key
+					if cd.RequiresBothShadow then
+						if (dungeonData.ShadowKeysCollected or 0) < 2 then
+							local r = Remotes:GetEvent("DungeonStateChanged")
+							if r then r:FireClient(player, "DoorLocked", 0, "You need 2 Shadow Keys!") end
+							return
+						end
+					else
+						if not dungeonData.PlayerKeys[kt] then
+							local r = Remotes:GetEvent("DungeonStateChanged")
+							if r then r:FireClient(player, "DoorLocked", 0, "You need the " .. keyData.Name .. "!") end
+							return
+						end
+					end
+
+					-- Open the door
+					DungeonService.OpenSlidingDoor(cd.Door)
+					cd.Door = nil
+
+					-- Activate destination room
+					local toRoomIndex = getRoomIndex(cd.ToRoom)
+					if toRoomIndex and dungeonData.RoomStates[toRoomIndex] ~= "Active" and dungeonData.RoomStates[toRoomIndex] ~= "Cleared" then
+						dungeonData.RoomStates[toRoomIndex] = "Active"
+						DungeonService.SpawnRoomEnemies(dungeonData, toRoomIndex)
+						local r = Remotes:GetEvent("DungeonStateChanged")
+						if r then
+							local rc = getRoomById(cd.ToRoom)
+							r:FireClient(player, "RoomActivated", toRoomIndex, rc and rc.Name or "Room")
+						end
+					end
+				end)
+			end
+		end
+	end
+
 	-- Unlock first room and spawn enemies only in Room 1
 	dungeonData.RoomStates[1] = "Active"
 	DungeonService.SpawnRoomEnemies(dungeonData, 1)
@@ -645,19 +701,26 @@ function DungeonService.SpawnRoomEnemies(dungeonData, roomIndex)
 		roomOrigin = floorPart.Position + Vector3.new(0, floorPart.Size.Y/2, 0)
 	end
 	local roomSize = roomConfig.Size
-	local totalEnemies = 0
 
+	-- Count total enemies for even circular distribution
+	local totalCount = 0
+	for _, e in ipairs(roomConfig.Enemies) do totalCount = totalCount + e.Count end
+
+	local enemyIndex = 0
 	for _, enemyEntry in ipairs(roomConfig.Enemies) do
 		for i = 1, enemyEntry.Count do
-			local angle = (i / enemyEntry.Count) * math.pi * 2
+			enemyIndex = enemyIndex + 1
+			local angle = (enemyIndex / totalCount) * math.pi * 2
 			local radius = roomSize.X * 0.3
 			local spawnOffset = Vector3.new(math.cos(angle) * radius, 3, math.sin(angle) * radius * 0.5)
-			DungeonService.SpawnSingleEnemy(enemyEntry.Id, roomOrigin + spawnOffset, roomFolder)
-			totalEnemies = totalEnemies + 1
+			local model = DungeonService.SpawnSingleEnemy(enemyEntry.Id, roomOrigin + spawnOffset, roomFolder)
+			if model and enemyEntry.DropsKey then
+				model:SetAttribute("DropsKey", enemyEntry.DropsKey)
+			end
 		end
 	end
 
-	dungeonData.RoomEnemyCounts[roomIndex] = totalEnemies
+	dungeonData.RoomEnemyCounts[roomIndex] = enemyIndex
 end
 
 function DungeonService.SpawnSingleEnemy(enemyId, spawnPos, parentFolder)
@@ -751,16 +814,22 @@ end
 function DungeonService.OnEnemyDied(enemyModel)
 	local enemyId = enemyModel:GetAttribute("EnemyId")
 	local isBoss = enemyModel:GetAttribute("IsBoss")
+	local dropsKey = enemyModel:GetAttribute("DropsKey")
 
 	for player, data in pairs(activeDungeons) do
 		for roomIndex, roomFolder in pairs(data.RoomFolders) do
 			if enemyModel:IsDescendantOf(roomFolder) then
 				if LootService then LootService.GrantLoot(player, enemyId, isBoss) end
 
+				-- Miniboss drops its key on death
+				if dropsKey then
+					DungeonService.SpawnMinibossKey(player, data, roomIndex, enemyModel, dropsKey)
+				end
+
 				data.RoomEnemyCounts[roomIndex] = (data.RoomEnemyCounts[roomIndex] or 1) - 1
 
 				if data.RoomEnemyCounts[roomIndex] <= 0 then
-					DungeonService.SpawnRoomKeys(player, data, roomIndex, enemyModel)
+					DungeonService.RoomCleared(player, data, roomIndex)
 				end
 				return
 			end
@@ -769,164 +838,91 @@ function DungeonService.OnEnemyDied(enemyModel)
 end
 
 --------------------------------------------------------------------------------
--- SPAWN TYPED KEYS
+-- SPAWN KEY FROM MINIBOSS DEATH
 --------------------------------------------------------------------------------
-function DungeonService.SpawnRoomKeys(player, data, roomIndex, enemyModel)
-	local roomConfig = DungeonConfig.Rooms[roomIndex]
-	if not roomConfig then return end
+function DungeonService.SpawnMinibossKey(player, data, roomIndex, enemyModel, keyTypeId)
+	local keyData = DungeonConfig.KeyTypes[keyTypeId]
+	if not keyData then return end
 
-	-- Boss rooms clear immediately
-	if roomConfig.IsBossRoom then
-		DungeonService.RoomCleared(player, data, roomIndex)
-		return
-	end
-
-	local keysToSpawn = roomConfig.DropsKeys
-	if not keysToSpawn or #keysToSpawn == 0 then
-		DungeonService.RoomCleared(player, data, roomIndex)
-		return
-	end
-
-	-- Get drop position
 	local dropPos = Vector3.new(0, 5, 0)
 	local rootPart = enemyModel:FindFirstChild("HumanoidRootPart")
 	if rootPart then dropPos = rootPart.Position end
 
-	-- Track how many keys need to be picked up
-	data.PendingKeys = data.PendingKeys or {}
-	data.PendingKeys[roomIndex] = #keysToSpawn
+	local keyPos = dropPos + Vector3.new(0, 2, 0)
 
-	for ki, keyTypeId in ipairs(keysToSpawn) do
-		local keyData = DungeonConfig.KeyTypes[keyTypeId]
-		if not keyData then continue end
+	local key = Instance.new("Part")
+	key.Name = "Key_" .. keyTypeId
+	key.Size = Vector3.new(2.5, 2.5, 2.5)
+	key.Position = keyPos
+	key.Anchored = true
+	key.CanCollide = false
+	key.Shape = Enum.PartType.Ball
+	key.Material = Enum.Material.Neon
+	key.BrickColor = keyData.BrickColor
+	key.Parent = data.RoomFolders[roomIndex]
 
-		-- Offset multiple keys so they don't overlap
-		local offset = Vector3.new((ki - 1) * 5 - (#keysToSpawn - 1) * 2.5, 2, 0)
-		local keyPos = dropPos + offset
+	-- Glow
+	local light = Instance.new("PointLight")
+	light.Color = keyData.Color; light.Range = 20; light.Brightness = 3; light.Parent = key
 
-		local key = Instance.new("Part")
-		key.Name = "Key_" .. keyTypeId
-		key.Size = Vector3.new(2.5, 2.5, 2.5)
-		key.Position = keyPos
-		key.Anchored = true
-		key.CanCollide = false
-		key.Shape = Enum.PartType.Ball
-		key.Material = Enum.Material.Neon
-		key.BrickColor = keyData.BrickColor
-		key.Parent = data.RoomFolders[roomIndex]
+	-- Sparkles
+	local sparkle = Instance.new("Sparkles")
+	sparkle.SparkleColor = keyData.Color; sparkle.Parent = key
 
-		-- Glow
-		local light = Instance.new("PointLight")
-		light.Color = keyData.Color; light.Range = 20; light.Brightness = 3; light.Parent = key
+	-- Label
+	local bb = Instance.new("BillboardGui")
+	bb.Size = UDim2.new(0, 140, 0, 45)
+	bb.StudsOffset = Vector3.new(0, 3, 0); bb.AlwaysOnTop = true; bb.Parent = key
+	local lbl = Instance.new("TextLabel")
+	lbl.Size = UDim2.new(1,0,1,0); lbl.BackgroundTransparency = 1
+	lbl.Text = keyData.Name
+	lbl.TextColor3 = keyData.Color
+	lbl.TextStrokeTransparency = 0; lbl.TextStrokeColor3 = Color3.fromRGB(0,0,0)
+	lbl.TextScaled = true; lbl.Font = Enum.Font.GothamBold; lbl.Parent = bb
 
-		-- Sparkles
-		local sparkle = Instance.new("Sparkles")
-		sparkle.SparkleColor = keyData.Color; sparkle.Parent = key
+	-- Bobbing
+	local bobUp = TweenService:Create(key, TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
+		Position = keyPos + Vector3.new(0, 2, 0)
+	})
+	bobUp:Play()
 
-		-- Label
-		local bb = Instance.new("BillboardGui")
-		bb.Size = UDim2.new(0, 140, 0, 45)
-		bb.StudsOffset = Vector3.new(0, 3, 0); bb.AlwaysOnTop = true; bb.Parent = key
-		local lbl = Instance.new("TextLabel")
-		lbl.Size = UDim2.new(1,0,1,0); lbl.BackgroundTransparency = 1
-		lbl.Text = keyData.Name
-		lbl.TextColor3 = keyData.Color
-		lbl.TextStrokeTransparency = 0; lbl.TextStrokeColor3 = Color3.fromRGB(0,0,0)
-		lbl.TextScaled = true; lbl.Font = Enum.Font.GothamBold; lbl.Parent = bb
+	-- Touch hitbox
+	local hitbox = Instance.new("Part")
+	hitbox.Name = "KeyHitbox"; hitbox.Size = Vector3.new(8, 8, 8)
+	hitbox.Position = keyPos + Vector3.new(0, 2, 0)
+	hitbox.Anchored = true; hitbox.CanCollide = false; hitbox.Transparency = 1
+	hitbox.Parent = key
 
-		-- Bobbing
-		local bobUp = TweenService:Create(key, TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
-			Position = keyPos + Vector3.new(0, 2, 0)
-		})
-		bobUp:Play()
+	hitbox.Touched:Connect(function(hit)
+		local character = hit.Parent
+		local humanoid = character and character:FindFirstChild("Humanoid")
+		if not humanoid then return end
+		local touchPlayer = Players:GetPlayerFromCharacter(character)
+		if touchPlayer ~= player then return end
+		if key:GetAttribute("PickedUp") then return end
+		key:SetAttribute("PickedUp", true)
 
-		-- Touch hitbox
-		local hitbox = Instance.new("Part")
-		hitbox.Name = "KeyHitbox"; hitbox.Size = Vector3.new(8, 8, 8)
-		hitbox.Position = keyPos + Vector3.new(0, 2, 0)
-		hitbox.Anchored = true; hitbox.CanCollide = false; hitbox.Transparency = 1
-		hitbox.Parent = key
+		-- Add key to player's collection
+		data.PlayerKeys[keyTypeId] = true
 
-		hitbox.Touched:Connect(function(hit)
-			local character = hit.Parent
-			local humanoid = character and character:FindFirstChild("Humanoid")
-			if not humanoid then return end
-			local touchPlayer = Players:GetPlayerFromCharacter(character)
-			if touchPlayer ~= player then return end
-			if key:GetAttribute("PickedUp") then return end
-			key:SetAttribute("PickedUp", true)
+		-- Track shadow keys
+		if keyTypeId == "Shadow" then
+			data.ShadowKeysCollected = (data.ShadowKeysCollected or 0) + 1
+		end
 
-			-- Add key to player's collection
-			data.PlayerKeys[keyTypeId] = true
-
-			-- Track shadow keys
-			if keyTypeId == "Shadow" then
-				data.ShadowKeysCollected = (data.ShadowKeysCollected or 0) + 1
-			end
-
-			-- Notify client
-			local remote = Remotes:GetEvent("DungeonStateChanged")
-			if remote then
-				remote:FireClient(player, "KeyPickedUp", roomIndex, keyData.Name, {keyData.Color.R, keyData.Color.G, keyData.Color.B})
-			end
-
-			key:Destroy()
-
-			-- Open matching doors
-			DungeonService.OpenMatchingDoors(data, keyTypeId)
-
-			-- Check if all keys from this room are collected
-			data.PendingKeys[roomIndex] = (data.PendingKeys[roomIndex] or 1) - 1
-			if data.PendingKeys[roomIndex] <= 0 then
-				DungeonService.RoomCleared(player, data, roomIndex)
-			end
-		end)
-
-		-- Notify client
+		-- Notify client (key goes to inventory, does NOT auto-open doors)
 		local remote = Remotes:GetEvent("DungeonStateChanged")
 		if remote then
-			remote:FireClient(player, "KeySpawned", roomIndex, keyData.Name, {keyData.Color.R, keyData.Color.G, keyData.Color.B})
+			remote:FireClient(player, "KeyPickedUp", roomIndex, keyData.Name, {keyData.Color.R, keyData.Color.G, keyData.Color.B})
 		end
-	end
-end
 
---------------------------------------------------------------------------------
--- OPEN MATCHING DOORS
---------------------------------------------------------------------------------
-function DungeonService.OpenMatchingDoors(data, keyTypeId)
-	for ci, corrData in pairs(data.CorridorDoors) do
-		if corrData.KeyType == keyTypeId and corrData.Door and corrData.Door.Parent then
-			if corrData.RequiresBothShadow then
-				-- Boss doors need both shadow keys
-				if data.ShadowKeysCollected >= 2 then
-					DungeonService.OpenSlidingDoor(corrData.Door)
-					corrData.Door = nil
+		key:Destroy()
+	end)
 
-					-- Activate the destination room
-					local toRoomIndex = nil
-					for i, rc in ipairs(DungeonConfig.Rooms) do
-						if rc.RoomId == corrData.ToRoom then toRoomIndex = i; break end
-					end
-					if toRoomIndex and data.RoomStates[toRoomIndex] ~= "Active" and data.RoomStates[toRoomIndex] ~= "Cleared" then
-						data.RoomStates[toRoomIndex] = "Active"
-						DungeonService.SpawnRoomEnemies(data, toRoomIndex)
-					end
-				end
-			else
-				DungeonService.OpenSlidingDoor(corrData.Door)
-				corrData.Door = nil
-
-				-- Activate the destination room
-				local toRoomIndex = nil
-				for i, rc in ipairs(DungeonConfig.Rooms) do
-					if rc.RoomId == corrData.ToRoom then toRoomIndex = i; break end
-				end
-				if toRoomIndex and data.RoomStates[toRoomIndex] ~= "Active" and data.RoomStates[toRoomIndex] ~= "Cleared" then
-					data.RoomStates[toRoomIndex] = "Active"
-					DungeonService.SpawnRoomEnemies(data, toRoomIndex)
-				end
-			end
-		end
+	-- Notify client that key dropped
+	local remote = Remotes:GetEvent("DungeonStateChanged")
+	if remote then
+		remote:FireClient(player, "KeySpawned", roomIndex, keyData.Name, {keyData.Color.R, keyData.Color.G, keyData.Color.B})
 	end
 end
 
@@ -988,6 +984,29 @@ function DungeonService.RoomCleared(player, data, roomIndex)
 		if floorPart then chestOrigin = floorPart.Position + Vector3.new(0, floorPart.Size.Y/2, 0) end
 	end
 	DungeonService.SpawnChest(data, chestOrigin, roomIndex, player)
+
+	-- Activate adjacent rooms connected without doors
+	if roomConfig then
+		local roomId = roomConfig.RoomId
+		for _, corr in ipairs(DungeonConfig.Corridors) do
+			if not corr.DoorKey then
+				local neighborId = nil
+				if corr.FromRoom == roomId then neighborId = corr.ToRoom end
+				if corr.ToRoom == roomId then neighborId = corr.FromRoom end
+				if neighborId then
+					local neighborIndex = getRoomIndex(neighborId)
+					if neighborIndex and data.RoomStates[neighborIndex] == "Locked" then
+						data.RoomStates[neighborIndex] = "Active"
+						DungeonService.SpawnRoomEnemies(data, neighborIndex)
+						if remote then
+							local neighborConfig = getRoomById(neighborId)
+							remote:FireClient(player, "RoomActivated", neighborIndex, neighborConfig and neighborConfig.Name or "Room")
+						end
+					end
+				end
+			end
+		end
+	end
 end
 
 --------------------------------------------------------------------------------

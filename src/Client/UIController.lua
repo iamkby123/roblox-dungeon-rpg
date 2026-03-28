@@ -472,11 +472,15 @@ function UIController.ShowRoomNotification(eventType, roomIndex, roomName, keyCo
 	elseif eventType == "KeyPickedUp" then
 		local keyName = roomName or "Key"
 		-- Add directional hint based on key type
-		local hint = "Find the matching door!"
+		local hint = "Press E at the matching door to open it!"
 		if keyName == "Iron Key" then
-			hint = "The Iron Door is on the left branch!"
+			hint = "Press E at the Iron Door (left branch)!"
 		elseif keyName == "Gold Key" then
-			hint = "The Gold Door is on the right branch!"
+			hint = "Press E at the Gold Door (right branch)!"
+		elseif keyName == "Crimson Key" then
+			hint = "Press E at the Crimson Door to go deeper!"
+		elseif keyName == "Emerald Key" then
+			hint = "Press E at the Emerald Door to go deeper!"
 		elseif keyName == "Shadow Key" then
 			hint = "Collect both Shadow Keys to reach the BOSS!"
 		end
@@ -486,6 +490,12 @@ function UIController.ShowRoomNotification(eventType, roomIndex, roomName, keyCo
 		else
 			color = Color3.fromRGB(100, 255, 100)
 		end
+	elseif eventType == "DoorLocked" then
+		text = roomName or "You need the right key!"
+		color = Color3.fromRGB(255, 80, 80)
+	elseif eventType == "RoomActivated" then
+		text = "New area unlocked: " .. (roomName or "Room " .. roomIndex)
+		color = Color3.fromRGB(100, 200, 255)
 	elseif eventType == "BossPhase" then
 		text = roomName
 		color = Color3.fromRGB(255, 80, 80)
@@ -502,7 +512,7 @@ function UIController.ShowRoomNotification(eventType, roomIndex, roomName, keyCo
 	fadeIn:Play()
 
 	-- Hold then fade out (shorter for room cleared, longer for key messages)
-	local holdTime = (eventType == "KeySpawned" or eventType == "KeyPickedUp") and 3 or 1.5
+	local holdTime = (eventType == "KeySpawned" or eventType == "KeyPickedUp" or eventType == "DoorLocked") and 3 or 1.5
 	task.delay(holdTime, function()
 		local fadeOut = TweenService:Create(roomNotif, TweenInfo.new(0.5), {
 			TextTransparency = 1,
@@ -668,8 +678,8 @@ end
 local KEY_DEFS = {
 	{ Id = "Iron",    Name = "Iron Key",    Color = Color3.fromRGB(180, 180, 190) },
 	{ Id = "Gold",    Name = "Gold Key",    Color = Color3.fromRGB(255, 215, 0) },
-	{ Id = "Crystal", Name = "Crystal Key", Color = Color3.fromRGB(100, 200, 255) },
-	{ Id = "Blood",   Name = "Blood Key",   Color = Color3.fromRGB(200, 30, 30) },
+	{ Id = "Crimson", Name = "Crimson Key", Color = Color3.fromRGB(200, 30, 30) },
+	{ Id = "Emerald", Name = "Emerald Key", Color = Color3.fromRGB(30, 200, 60) },
 	{ Id = "Shadow",  Name = "Shadow Key",  Color = Color3.fromRGB(120, 50, 200) },
 }
 
