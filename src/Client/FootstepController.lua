@@ -8,8 +8,8 @@ local player = Players.LocalPlayer
 
 -- Heavy stone footstep sound IDs (Roblox library sounds)
 local FOOTSTEP_SOUNDS = {
-	"rbxassetid://9126491885", -- heavy stone step 1
-	"rbxassetid://9126491885", -- heavy stone step 2 (same, pitch varied)
+	"rbxassetid://9116367332", -- concrete/stone step 1
+	"rbxassetid://9116367596", -- concrete/stone step 2
 }
 
 local WALK_INTERVAL = 0.38 -- seconds between steps while walking
