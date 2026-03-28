@@ -94,100 +94,154 @@ local function BuildLobby()
 
 	-- ===== GROUND LAYERS (raised above Y=0 to avoid z-fighting) =====
 	-- Large dirt ground
-	mp({Name="DirtGround", Size=Vector3.new(250, 6, 250), Position=Vector3.new(0, -2.5, 0),
+	mp({Name="DirtGround", Size=Vector3.new(300, 6, 300), Position=Vector3.new(0, -2.5, 0),
 		Material=Enum.Material.Ground, Color=Color3.fromRGB(80, 55, 35)})
-	-- Cobblestone path area (center, slightly raised)
-	mp({Name="StonePath", Size=Vector3.new(50, 1, 80), Position=Vector3.new(0, 0.8, -10),
+	-- Worn cobblestone path leading to cave
+	mp({Name="StonePath", Size=Vector3.new(24, 0.5, 90), Position=Vector3.new(0, 0.8, -15),
 		Material=Enum.Material.Cobblestone, BrickColor=BrickColor.new("Dark stone grey")})
-	-- Wider stone clearing around spawn
-	mp({Name="SpawnClearing", Size=Vector3.new(70, 0.5, 40), Position=Vector3.new(0, 0.6, 15),
+	-- Wider clearing around spawn (campsite feel)
+	mp({Name="SpawnClearing", Size=Vector3.new(60, 0.5, 50), Position=Vector3.new(0, 0.6, 20),
+		Material=Enum.Material.Ground, Color=Color3.fromRGB(65, 50, 30)})
+	-- Stone circle around campfire/spawn
+	mp({Name="StoneCircle", Size=Vector3.new(20, 0.3, 20), Position=Vector3.new(0, 0.85, 20),
 		Material=Enum.Material.Cobblestone, BrickColor=BrickColor.new("Medium stone grey")})
 
-	-- Spawn location (slightly raised on the stone path)
+	-- Spawn location (hidden inside campsite)
 	local spawn = Instance.new("SpawnLocation")
-	spawn.Size = Vector3.new(8, 0.5, 8); spawn.Position = Vector3.new(0, 1.2, 15)
-	spawn.Anchored = true; spawn.Material = Enum.Material.SmoothPlastic
-	spawn.BrickColor = BrickColor.new("Bright blue"); spawn.Transparency = 0.5
+	spawn.Size = Vector3.new(8, 0.2, 8); spawn.Position = Vector3.new(0, 1.1, 20)
+	spawn.Anchored = true; spawn.Material = Enum.Material.Cobblestone
+	spawn.BrickColor = BrickColor.new("Medium stone grey"); spawn.Transparency = 1
 	spawn.Duration = 0; spawn.Parent = lobby
 
-	-- ===== DUNGEON ENTRANCE (cave/ruin style) =====
-	-- Stone entrance frame — two heavy pillars + lintel
-	local entranceZ = -50
-	for _, xOff in ipairs({-10, 10}) do
-		-- Main pillars (rough stone)
-		mp({Name="EntrancePillar", Size=Vector3.new(6, 22, 6),
-			Position=Vector3.new(xOff, 11.5, entranceZ),
+	-- ===== CAMPFIRE at spawn =====
+	-- Fire pit rocks (ring of small rocks)
+	for i = 0, 7 do
+		local angle = (i / 8) * math.pi * 2
+		local rx, rz = math.cos(angle) * 3, math.sin(angle) * 3
+		mp({Name="FirePitRock", Size=Vector3.new(1.5, 1, 1.5),
+			Position=Vector3.new(rx, 1.2, 20 + rz),
 			Material=Enum.Material.Slate, BrickColor=BrickColor.new("Dark stone grey")})
-		-- Mossy accent at base
-		mp({Size=Vector3.new(7, 4, 7),
-			Position=Vector3.new(xOff, 2.5, entranceZ),
-			Material=Enum.Material.Grass, Color=Color3.fromRGB(40, 65, 30)})
 	end
-	-- Lintel (top beam, cracked stone)
-	mp({Name="Lintel", Size=Vector3.new(26, 4, 6),
-		Position=Vector3.new(0, 23.5, entranceZ),
-		Material=Enum.Material.Slate, BrickColor=BrickColor.new("Dark stone grey")})
-	-- Extra rubble on top of lintel (looks crumbling)
-	mp({Size=Vector3.new(8, 2, 4), Position=Vector3.new(-5, 26, entranceZ),
-		Material=Enum.Material.Slate, BrickColor=BrickColor.new("Dark stone grey")})
-	mp({Size=Vector3.new(5, 1.5, 3), Position=Vector3.new(6, 25.8, entranceZ),
-		Material=Enum.Material.Slate, BrickColor=BrickColor.new("Medium stone grey")})
+	-- Campfire
+	local campfire = mp({Name="Campfire", Size=Vector3.new(2, 1, 2), Position=Vector3.new(0, 1.2, 20),
+		Material=Enum.Material.Wood, BrickColor=BrickColor.new("Reddish brown")})
+	local cfLight = Instance.new("PointLight"); cfLight.Color=Color3.fromRGB(255,140,40)
+	cfLight.Range=40; cfLight.Brightness=3; cfLight.Parent=campfire
+	local cfFire = Instance.new("Fire"); cfFire.Size=8; cfFire.Heat=12; cfFire.Parent=campfire
 
-	-- Portal (neon glow inside the entrance)
-	local portal = mp({Name="DungeonPortal", Size=Vector3.new(14, 20, 2),
-		Position=Vector3.new(0, 11, entranceZ),
-		Material=Enum.Material.Neon, BrickColor=BrickColor.new("Bright violet"), Transparency=0.3})
+	-- Sitting logs around campfire
+	for _, logData in ipairs({
+		{pos=Vector3.new(-5, 1, 18), size=Vector3.new(6,1.5,2)},
+		{pos=Vector3.new(5, 1, 22), size=Vector3.new(6,1.5,2)},
+		{pos=Vector3.new(0, 1, 25), size=Vector3.new(5,1.5,2)},
+	}) do
+		mp({Name="SittingLog", Size=logData.size, Position=logData.pos,
+			Material=Enum.Material.Wood, BrickColor=BrickColor.new("Dark orange")})
+	end
 
-	-- Portal glow
-	local portalLight = Instance.new("PointLight")
-	portalLight.Color = Color3.fromRGB(150, 50, 255); portalLight.Range = 35
-	portalLight.Brightness = 3; portalLight.Parent = portal
-	-- Portal particles
-	local particles = Instance.new("ParticleEmitter")
-	particles.Color = ColorSequence.new(Color3.fromRGB(150, 50, 255), Color3.fromRGB(100, 0, 200))
-	particles.Size = NumberSequence.new(0.5, 0); particles.Lifetime = NumberRange.new(1, 2)
-	particles.Rate = 30; particles.Speed = NumberRange.new(1, 4); particles.Parent = portal
+	-- ===== CAVE ENTRANCE with iron door =====
+	local entranceZ = -55
+	local caveW = 18 -- cave opening width
+	local caveH = 16 -- cave opening height
 
-	-- Proximity prompt
+	-- Cave rock face (big rock wall the cave is carved into)
+	mp({Name="CaveFace", Size=Vector3.new(80, 30, 16), Position=Vector3.new(0, 15.5, entranceZ - 6),
+		Material=Enum.Material.Slate, Color=Color3.fromRGB(50, 45, 40)})
+	-- Top of cave face (rounded boulders on top)
+	for _, bx in ipairs({-25, -10, 5, 18, 30}) do
+		local bh = math.random(6, 12)
+		mp({Size=Vector3.new(math.random(10,16), bh, 14), Position=Vector3.new(bx, 30 + bh/2, entranceZ - 6),
+			Material=Enum.Material.Slate, Color=Color3.fromRGB(55, 50, 42)})
+	end
+
+	-- Cave opening (dark void behind door)
+	mp({Name="CaveVoid", Size=Vector3.new(caveW, caveH, 8), Position=Vector3.new(0, caveH/2 + 0.5, entranceZ - 4),
+		Material=Enum.Material.SmoothPlastic, Color=Color3.fromRGB(5, 3, 8)})
+
+	-- Cave arch — rough stone framing the opening
+	-- Left side
+	mp({Name="CaveArchL", Size=Vector3.new(6, caveH + 4, 10), Position=Vector3.new(-caveW/2 - 1, caveH/2 + 0.5, entranceZ),
+		Material=Enum.Material.Slate, Color=Color3.fromRGB(45, 40, 35)})
+	-- Right side
+	mp({Name="CaveArchR", Size=Vector3.new(6, caveH + 4, 10), Position=Vector3.new(caveW/2 + 1, caveH/2 + 0.5, entranceZ),
+		Material=Enum.Material.Slate, Color=Color3.fromRGB(45, 40, 35)})
+	-- Top arch
+	mp({Name="CaveArchTop", Size=Vector3.new(caveW + 12, 6, 10), Position=Vector3.new(0, caveH + 3.5, entranceZ),
+		Material=Enum.Material.Slate, Color=Color3.fromRGB(45, 40, 35)})
+	-- Mossy drip on arch sides
+	for _, xOff in ipairs({-caveW/2 - 1, caveW/2 + 1}) do
+		mp({Size=Vector3.new(4, 5, 6), Position=Vector3.new(xOff, 2.5, entranceZ + 2),
+			Material=Enum.Material.Grass, Color=Color3.fromRGB(35, 60, 25)})
+	end
+
+	-- ===== IRON DOOR =====
+	local door = mp({Name="DungeonDoor", Size=Vector3.new(caveW, caveH, 1.5),
+		Position=Vector3.new(0, caveH/2 + 0.5, entranceZ + 2),
+		Material=Enum.Material.DiamondPlate, Color=Color3.fromRGB(60, 55, 50)})
+	-- Door rivets/bars (horizontal iron bars across door)
+	for _, barY in ipairs({4, 8, 12}) do
+		mp({Name="DoorBar", Size=Vector3.new(caveW - 2, 0.8, 2),
+			Position=Vector3.new(0, barY + 0.5, entranceZ + 3),
+			Material=Enum.Material.Metal, Color=Color3.fromRGB(40, 38, 35)})
+	end
+	-- Door ring/handle
+	mp({Name="DoorHandle", Size=Vector3.new(2, 2, 1), Position=Vector3.new(4, 8, entranceZ + 3.5),
+		Material=Enum.Material.Metal, Color=Color3.fromRGB(80, 70, 55)})
+
+	-- Proximity prompt on door
 	local prompt = Instance.new("ProximityPrompt")
-	prompt.ObjectText = "Dungeon Entrance"; prompt.ActionText = "Enter Dungeon"
-	prompt.MaxActivationDistance = 14; prompt.HoldDuration = 0.5; prompt.Parent = portal
+	prompt.ObjectText = "Iron Door"; prompt.ActionText = "Enter Dungeon"
+	prompt.MaxActivationDistance = 14; prompt.HoldDuration = 0.8; prompt.Parent = door
 	prompt.Triggered:Connect(function(player)
 		DungeonService.StartDungeon(player)
 	end)
 
-	-- Skull/warning sign above entrance
+	-- Eerie glow seeping through door cracks
+	local glowLight = Instance.new("PointLight")
+	glowLight.Color = Color3.fromRGB(120, 40, 200); glowLight.Range = 20
+	glowLight.Brightness = 1.5; glowLight.Parent = door
+	-- Smoke/mist from cave
+	local smoke = Instance.new("Smoke")
+	smoke.Size = 6; smoke.Opacity = 0.15; smoke.RiseVelocity = 2
+	smoke.Color = Color3.fromRGB(80, 60, 100); smoke.Parent = door
+
+	-- Warning sign above cave
 	makeSign(
-		Vector3.new(0, 27.5, entranceZ + 3.5), Vector3.new(16, 4, 0.5), Enum.NormalId.Front,
+		Vector3.new(0, caveH + 8, entranceZ + 5), Vector3.new(18, 4, 0.5), Enum.NormalId.Front,
 		"DUNGEON RPG", Color3.fromRGB(255, 200, 50),
 		"Enter if you dare...", Color3.fromRGB(200, 80, 80)
 	)
 
-	-- ===== STONE WALLS flanking entrance (ruined walls) =====
-	-- Left ruin wall
-	mp({Size=Vector3.new(30, 10, 4), Position=Vector3.new(-35, 5.5, entranceZ),
-		Material=Enum.Material.Brick, BrickColor=BrickColor.new("Dark stone grey")})
-	mp({Size=Vector3.new(15, 6, 4), Position=Vector3.new(-42, 11, entranceZ),
-		Material=Enum.Material.Brick, BrickColor=BrickColor.new("Dark stone grey")})
-	-- Right ruin wall
-	mp({Size=Vector3.new(30, 10, 4), Position=Vector3.new(35, 5.5, entranceZ),
-		Material=Enum.Material.Brick, BrickColor=BrickColor.new("Dark stone grey")})
-	mp({Size=Vector3.new(15, 6, 4), Position=Vector3.new(42, 11, entranceZ),
-		Material=Enum.Material.Brick, BrickColor=BrickColor.new("Dark stone grey")})
+	-- ===== CAVE WALLS flanking entrance (rock formations) =====
+	-- Left rock formation
+	mp({Size=Vector3.new(20, 12, 12), Position=Vector3.new(-30, 6.5, entranceZ - 2),
+		Material=Enum.Material.Slate, Color=Color3.fromRGB(50, 45, 38)})
+	mp({Size=Vector3.new(12, 8, 10), Position=Vector3.new(-38, 4.5, entranceZ),
+		Material=Enum.Material.Slate, Color=Color3.fromRGB(55, 48, 40)})
+	-- Right rock formation
+	mp({Size=Vector3.new(20, 12, 12), Position=Vector3.new(30, 6.5, entranceZ - 2),
+		Material=Enum.Material.Slate, Color=Color3.fromRGB(50, 45, 38)})
+	mp({Size=Vector3.new(12, 8, 10), Position=Vector3.new(38, 4.5, entranceZ),
+		Material=Enum.Material.Slate, Color=Color3.fromRGB(55, 48, 40)})
 
-	-- ===== TREES =====
+	-- ===== TREES (more, denser forest) =====
 	local treePositions = {
-		-- Behind spawn (background forest)
+		-- Behind spawn (dense background forest)
 		Vector3.new(-50, 0.5, 50), Vector3.new(-35, 0.5, 60), Vector3.new(-15, 0.5, 55),
 		Vector3.new(20, 0.5, 58), Vector3.new(45, 0.5, 52), Vector3.new(60, 0.5, 45),
-		Vector3.new(-60, 0.5, 40),
-		-- Sides
-		Vector3.new(-55, 0.5, 10), Vector3.new(-60, 0.5, -20), Vector3.new(-50, 0.5, -40),
-		Vector3.new(55, 0.5, 10), Vector3.new(60, 0.5, -20), Vector3.new(50, 0.5, -40),
-		-- Near entrance (framing it)
-		Vector3.new(-65, 0.5, -55), Vector3.new(65, 0.5, -55),
+		Vector3.new(-60, 0.5, 40), Vector3.new(-25, 0.5, 65), Vector3.new(35, 0.5, 68),
+		Vector3.new(0, 0.5, 72), Vector3.new(-45, 0.5, 70), Vector3.new(55, 0.5, 65),
+		-- Sides (thick tree line)
+		Vector3.new(-55, 0.5, 10), Vector3.new(-60, 0.5, -10), Vector3.new(-50, 0.5, -30),
+		Vector3.new(-65, 0.5, 25), Vector3.new(-48, 0.5, -15), Vector3.new(-58, 0.5, 0),
+		Vector3.new(55, 0.5, 10), Vector3.new(60, 0.5, -10), Vector3.new(50, 0.5, -30),
+		Vector3.new(65, 0.5, 25), Vector3.new(48, 0.5, -15), Vector3.new(58, 0.5, 0),
+		-- Near cave entrance (framing it, overgrown)
+		Vector3.new(-55, 0.5, -50), Vector3.new(55, 0.5, -50),
+		Vector3.new(-48, 0.5, -60), Vector3.new(48, 0.5, -60),
 		-- Far back
-		Vector3.new(-70, 0.5, 70), Vector3.new(0, 0.5, 75), Vector3.new(70, 0.5, 70),
+		Vector3.new(-70, 0.5, 75), Vector3.new(0, 0.5, 80), Vector3.new(70, 0.5, 75),
+		Vector3.new(-80, 0.5, 55), Vector3.new(80, 0.5, 55),
 	}
 	for _, pos in ipairs(treePositions) do
 		makeTree(pos)
@@ -195,79 +249,111 @@ local function BuildLobby()
 
 	-- ===== ROCKS scattered around =====
 	local rockPositions = {
-		Vector3.new(-25, 0.5, -45), Vector3.new(22, 0.5, -48), Vector3.new(-8, 0.5, -55),
-		Vector3.new(-40, 0.5, 25), Vector3.new(38, 0.5, 30),
-		Vector3.new(-55, 0.5, -10), Vector3.new(52, 0.5, -5),
-		Vector3.new(-15, 0.5, 40), Vector3.new(15, 0.5, 45),
-		-- Rubble near entrance
-		Vector3.new(-18, 0.5, -52), Vector3.new(16, 0.5, -47), Vector3.new(0, 0.5, -42),
+		-- Near cave
+		Vector3.new(-20, 0.5, -48), Vector3.new(18, 0.5, -50), Vector3.new(-8, 0.5, -45),
+		Vector3.new(8, 0.5, -42), Vector3.new(-15, 0.5, -58), Vector3.new(14, 0.5, -55),
+		-- Around path
+		Vector3.new(-16, 0.5, 0), Vector3.new(14, 0.5, -5), Vector3.new(-18, 0.5, -20),
+		Vector3.new(16, 0.5, -18),
+		-- Around campsite
+		Vector3.new(-30, 0.5, 25), Vector3.new(28, 0.5, 28), Vector3.new(-25, 0.5, 12),
+		Vector3.new(22, 0.5, 15), Vector3.new(-10, 0.5, 35), Vector3.new(12, 0.5, 38),
 	}
 	for _, pos in ipairs(rockPositions) do
 		makeRock(pos, 1 + math.random() * 0.5)
 	end
 
-	-- ===== TORCHES along the path =====
-	for _, pos in ipairs({
-		Vector3.new(-12, 0.5, 0), Vector3.new(12, 0.5, 0),
-		Vector3.new(-12, 0.5, -25), Vector3.new(12, 0.5, -25),
-	}) do
-		-- Torch post
+	-- ===== TORCHES (lots, well lit area) =====
+	local function makeTorch(pos, range, size)
+		range = range or 30
+		size = size or 4
 		local post = mp({Name="TorchPost", Size=Vector3.new(2, 8, 2), Position=pos + Vector3.new(0, 4, 0),
 			Material=Enum.Material.Wood, BrickColor=BrickColor.new("Dark orange")})
-		-- Flame
-		local tl = Instance.new("PointLight"); tl.Color=Color3.fromRGB(255,160,50); tl.Range=25; tl.Brightness=2; tl.Parent=post
-		local fi = Instance.new("Fire"); fi.Size=4; fi.Heat=6; fi.Parent=post
+		local tl = Instance.new("PointLight"); tl.Color=Color3.fromRGB(255,160,50)
+		tl.Range=range; tl.Brightness=2.5; tl.Parent=post
+		local fi = Instance.new("Fire"); fi.Size=size; fi.Heat=8; fi.Parent=post
+		return post
 	end
 
-	-- ===== INFO SIGNS (wooden, on the path) =====
-	-- Controls sign post (left of path)
-	mp({Size=Vector3.new(2, 6, 2), Position=Vector3.new(-22, 3.5, 5),
+	-- Path torches (both sides, all the way to cave)
+	makeTorch(Vector3.new(-14, 0.5, 35))     -- behind campfire
+	makeTorch(Vector3.new(14, 0.5, 35))
+	makeTorch(Vector3.new(-14, 0.5, 10))      -- near spawn
+	makeTorch(Vector3.new(14, 0.5, 10))
+	makeTorch(Vector3.new(-14, 0.5, -5))       -- mid path
+	makeTorch(Vector3.new(14, 0.5, -5))
+	makeTorch(Vector3.new(-14, 0.5, -20))      -- closer to cave
+	makeTorch(Vector3.new(14, 0.5, -20))
+	makeTorch(Vector3.new(-14, 0.5, -35))      -- near cave
+	makeTorch(Vector3.new(14, 0.5, -35))
+
+	-- Cave entrance torches (bright, flanking the door)
+	makeTorch(Vector3.new(-12, 0.5, -48), 35, 5)
+	makeTorch(Vector3.new(12, 0.5, -48), 35, 5)
+
+	-- Campsite perimeter torches
+	makeTorch(Vector3.new(-20, 0.5, 30))
+	makeTorch(Vector3.new(20, 0.5, 30))
+	makeTorch(Vector3.new(-20, 0.5, 10))
+	makeTorch(Vector3.new(20, 0.5, 10))
+
+	-- Extra forest edge torches for visibility
+	makeTorch(Vector3.new(-35, 0.5, 20), 25)
+	makeTorch(Vector3.new(35, 0.5, 20), 25)
+	makeTorch(Vector3.new(-35, 0.5, -10), 25)
+	makeTorch(Vector3.new(35, 0.5, -10), 25)
+	makeTorch(Vector3.new(-35, 0.5, -40), 25)
+	makeTorch(Vector3.new(35, 0.5, -40), 25)
+
+	-- ===== INFO SIGNS (wooden, near campsite) =====
+	-- Controls sign post (left of camp)
+	mp({Size=Vector3.new(2, 6, 2), Position=Vector3.new(-18, 3.5, 8),
 		Material=Enum.Material.Wood, BrickColor=BrickColor.new("Dark orange")})
 	makeSign(
-		Vector3.new(-22, 7.5, 5), Vector3.new(12, 6, 1), Enum.NormalId.Front,
+		Vector3.new(-18, 7.5, 8), Vector3.new(12, 6, 1), Enum.NormalId.Front,
 		"CONTROLS", Color3.fromRGB(100, 200, 255),
 		"Click = Attack\n[1-4] = Switch Items\n[Tab] = Stats\n[E] = Interact", Color3.fromRGB(220, 220, 200)
 	)
 
-	-- How to Play sign post (right of path)
-	mp({Size=Vector3.new(2, 6, 2), Position=Vector3.new(22, 3.5, 5),
+	-- How to Play sign post (right of camp)
+	mp({Size=Vector3.new(2, 6, 2), Position=Vector3.new(18, 3.5, 8),
 		Material=Enum.Material.Wood, BrickColor=BrickColor.new("Dark orange")})
 	makeSign(
-		Vector3.new(22, 7.5, 5), Vector3.new(12, 6, 1), Enum.NormalId.Front,
+		Vector3.new(18, 7.5, 8), Vector3.new(12, 6, 1), Enum.NormalId.Front,
 		"HOW TO PLAY", Color3.fromRGB(255, 150, 50),
 		"Clear rooms of enemies\nCollect colored keys\nUnlock matching doors\nDefeat the BOSS!", Color3.fromRGB(220, 220, 200)
 	)
 
 	-- ===== INVISIBLE BOUNDARY (prevent falling off) =====
 	for _, w in ipairs({
-		{Size=Vector3.new(260, 40, 1), Pos=Vector3.new(0, 20, 130)},
-		{Size=Vector3.new(260, 40, 1), Pos=Vector3.new(0, 20, -130)},
-		{Size=Vector3.new(1, 40, 260), Pos=Vector3.new(130, 20, 0)},
-		{Size=Vector3.new(1, 40, 260), Pos=Vector3.new(-130, 20, 0)},
+		{Size=Vector3.new(300, 40, 1), Pos=Vector3.new(0, 20, 150)},
+		{Size=Vector3.new(300, 40, 1), Pos=Vector3.new(0, 20, -150)},
+		{Size=Vector3.new(1, 40, 300), Pos=Vector3.new(150, 20, 0)},
+		{Size=Vector3.new(1, 40, 300), Pos=Vector3.new(-150, 20, 0)},
 	}) do
 		mp({Size=w.Size, Position=w.Pos, Transparency=1, CanCollide=true, Name="Boundary"})
 	end
 
-	-- ===== AMBIENT LIGHTING (dark forest night) =====
+	-- ===== AMBIENT LIGHTING (torchlit forest night, brighter) =====
 	local lighting = game:GetService("Lighting")
-	lighting.Ambient = Color3.fromRGB(20, 18, 25)
-	lighting.OutdoorAmbient = Color3.fromRGB(25, 22, 30)
-	lighting.Brightness = 0.3
-	lighting.FogEnd = 500
-	lighting.FogStart = 80
-	lighting.FogColor = Color3.fromRGB(12, 10, 18)
+	lighting.Ambient = Color3.fromRGB(35, 30, 40)
+	lighting.OutdoorAmbient = Color3.fromRGB(40, 35, 45)
+	lighting.Brightness = 0.5
+	lighting.FogEnd = 600
+	lighting.FogStart = 120
+	lighting.FogColor = Color3.fromRGB(15, 12, 22)
 	lighting.ClockTime = 21.5 -- late night, slight moonlight
 	lighting.GlobalShadows = true
 	lighting.ShadowSoftness = 0.3
 
 	-- Atmosphere for depth/haze
 	local atmosphere = Instance.new("Atmosphere")
-	atmosphere.Density = 0.3
+	atmosphere.Density = 0.25
 	atmosphere.Offset = 0.1
-	atmosphere.Color = Color3.fromRGB(25, 20, 35)
-	atmosphere.Decay = Color3.fromRGB(12, 10, 18)
+	atmosphere.Color = Color3.fromRGB(30, 25, 40)
+	atmosphere.Decay = Color3.fromRGB(15, 12, 20)
 	atmosphere.Glare = 0
-	atmosphere.Haze = 5
+	atmosphere.Haze = 4
 	atmosphere.Parent = lighting
 end
 
