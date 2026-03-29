@@ -558,9 +558,8 @@ function DungeonMinimap.UpdatePlayerPosition(worldPos)
 	if camera and directionDot then
 		local lookVector = camera.CFrame.LookVector
 		-- Project onto XZ plane, get angle
-		local angle = math.atan2(lookVector.X, lookVector.Z)
-		-- On minimap: +Z = down, +X = right
-		-- Offset the dot in the direction the player is facing
+		-- Negate Z because world -Z maps to minimap +Y (down)
+		local angle = math.atan2(lookVector.X, -lookVector.Z)
 		local dotDist = PLAYER_ICON_SIZE / 2 + DIRECTION_DOT_SIZE / 2 + 2
 		local dotOffX = math.sin(angle) * dotDist
 		local dotOffY = math.cos(angle) * dotDist
