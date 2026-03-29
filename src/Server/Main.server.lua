@@ -100,7 +100,7 @@ local function BuildLobby()
 
 	-- ===== GROUND LAYERS (raised above Y=0 to avoid z-fighting) =====
 	-- Large dirt ground
-	mp({Name="DirtGround", Size=Vector3.new(300, 6, 300), Position=Vector3.new(0, -2.5, 0),
+	mp({Name="DirtGround", Size=Vector3.new(400, 6, 400), Position=Vector3.new(0, -2.5, 0),
 		Material=Enum.Material.Ground, Color=Color3.fromRGB(80, 55, 35)})
 	-- Worn cobblestone path leading to cave
 	mp({Name="StonePath", Size=Vector3.new(24, 0.5, 90), Position=Vector3.new(0, 0.8, -15),
@@ -332,15 +332,311 @@ local function BuildLobby()
 		"Clear rooms of enemies\nCollect colored keys\nUnlock matching doors\nDefeat the BOSS!", Color3.fromRGB(220, 220, 200)
 	)
 
-	-- ===== INVISIBLE BOUNDARY (prevent falling off) =====
-	for _, w in ipairs({
-		{Size=Vector3.new(300, 40, 1), Pos=Vector3.new(0, 20, 150)},
-		{Size=Vector3.new(300, 40, 1), Pos=Vector3.new(0, 20, -150)},
-		{Size=Vector3.new(1, 40, 300), Pos=Vector3.new(150, 20, 0)},
-		{Size=Vector3.new(1, 40, 300), Pos=Vector3.new(-150, 20, 0)},
-	}) do
-		mp({Size=w.Size, Position=w.Pos, Transparency=1, CanCollide=true, Name="Boundary"})
+	-- ===== MASSIVE RUN-DOWN COLOSSEUM =====
+	-- Inspired by Hypixel Skyblock dungeon hub — ancient, crumbling arena
+	local ARENA_RADIUS = 170        -- outer wall radius
+	local ARENA_INNER = 155         -- inner wall face
+	local WALL_HEIGHT = 65          -- total wall height
+	local WALL_THICKNESS = 15       -- wall depth
+	local SEGMENTS = 32             -- number of wall segments around the circle
+	local TIER_COUNT = 4            -- seating tiers
+	local TIER_HEIGHT = 8           -- height per tier step
+	local TIER_DEPTH = 10           -- depth per tier step
+	local PILLAR_COUNT = 24         -- pillars around the rim
+	local ARCH_COUNT = 12           -- arched openings in outer wall
+	local GROUND_Y = -2.5           -- ground level
+
+	local stoneColor = Color3.fromRGB(65, 58, 50)
+	local darkStone = Color3.fromRGB(45, 40, 35)
+	local mossColor = Color3.fromRGB(35, 55, 30)
+	local brickMat = Enum.Material.Brick
+	local slateMat = Enum.Material.Slate
+	local cobbMat = Enum.Material.Cobblestone
+
+	-- Outer arena floor ring (cobblestone apron around the dirt ground)
+	mp({Name="ArenaFloor", Size=Vector3.new(ARENA_RADIUS*2+20, 3, ARENA_RADIUS*2+20),
+		Position=Vector3.new(0, GROUND_Y-1.5, 0),
+		Material=cobbMat, Color=Color3.fromRGB(55, 50, 45)})
+
+	-- ---- CURVED OUTER WALL (segmented) ----
+	for i = 0, SEGMENTS - 1 do
+		local angle = (i / SEGMENTS) * math.pi * 2
+		local nextAngle = ((i + 1) / SEGMENTS) * math.pi * 2
+		local midAngle = (angle + nextAngle) / 2
+
+		-- Check if this segment is an arch opening
+		local isArch = false
+		for a = 0, ARCH_COUNT - 1 do
+			local archAngle = (a / ARCH_COUNT) * math.pi * 2
+			if math.abs(midAngle - archAngle) < (math.pi / SEGMENTS) then
+				isArch = true
+				break
+			end
+		end
+
+		local cx = math.cos(midAngle) * ARENA_RADIUS
+		local cz = math.sin(midAngle) * ARENA_RADIUS
+		local segWidth = 2 * ARENA_RADIUS * math.sin(math.pi / SEGMENTS) + 2
+
+		if isArch then
+			-- Arched opening: two pillars with a lintel on top
+			local archWidth = segWidth
+			local archHeight = 22
+			local pillarW = archWidth * 0.25
+
+			-- Left pillar
+			local lpAngle = midAngle - (math.pi / SEGMENTS) * 0.6
+			local lpx = math.cos(lpAngle) * ARENA_RADIUS
+			local lpz = math.sin(lpAngle) * ARENA_RADIUS
+			local lp = mp({Name="ArchPillarL", Size=Vector3.new(pillarW, archHeight, WALL_THICKNESS),
+				Position=Vector3.new(lpx, GROUND_Y + archHeight/2, lpz),
+				Material=brickMat, Color=stoneColor})
+			lp.CFrame = CFrame.new(lp.Position) * CFrame.Angles(0, -midAngle + math.pi/2, 0)
+
+			-- Right pillar
+			local rpAngle = midAngle + (math.pi / SEGMENTS) * 0.6
+			local rpx = math.cos(rpAngle) * ARENA_RADIUS
+			local rpz = math.sin(rpAngle) * ARENA_RADIUS
+			local rp = mp({Name="ArchPillarR", Size=Vector3.new(pillarW, archHeight, WALL_THICKNESS),
+				Position=Vector3.new(rpx, GROUND_Y + archHeight/2, rpz),
+				Material=brickMat, Color=stoneColor})
+			rp.CFrame = CFrame.new(rp.Position) * CFrame.Angles(0, -midAngle + math.pi/2, 0)
+
+			-- Lintel across the top
+			local lintel = mp({Name="ArchLintel", Size=Vector3.new(segWidth, 6, WALL_THICKNESS),
+				Position=Vector3.new(cx, GROUND_Y + archHeight + 3, cz),
+				Material=brickMat, Color=darkStone})
+			lintel.CFrame = CFrame.new(lintel.Position) * CFrame.Angles(0, -midAngle + math.pi/2, 0)
+
+			-- Upper wall above arch
+			local upperH = WALL_HEIGHT - archHeight - 6
+			if upperH > 0 then
+				local uw = mp({Name="ArchUpper", Size=Vector3.new(segWidth, upperH, WALL_THICKNESS),
+					Position=Vector3.new(cx, GROUND_Y + archHeight + 6 + upperH/2, cz),
+					Material=brickMat, Color=stoneColor})
+				uw.CFrame = CFrame.new(uw.Position) * CFrame.Angles(0, -midAngle + math.pi/2, 0)
+
+				-- Random crumble: remove top portion of some upper walls
+				if math.random() < 0.4 then
+					uw.Size = Vector3.new(segWidth, upperH * 0.5, WALL_THICKNESS)
+					uw.Position = Vector3.new(cx, GROUND_Y + archHeight + 6 + upperH*0.25, cz)
+					uw.CFrame = CFrame.new(uw.Position) * CFrame.Angles(0, -midAngle + math.pi/2, 0)
+				end
+			end
+		else
+			-- Solid wall segment
+			local wallH = WALL_HEIGHT
+			-- Random crumbling: some segments are shorter
+			if math.random() < 0.3 then
+				wallH = WALL_HEIGHT * (0.5 + math.random() * 0.35)
+			end
+
+			local wall = mp({Name="ColoWall", Size=Vector3.new(segWidth, wallH, WALL_THICKNESS),
+				Position=Vector3.new(cx, GROUND_Y + wallH/2, cz),
+				Material=brickMat, Color=stoneColor})
+			wall.CFrame = CFrame.new(wall.Position) * CFrame.Angles(0, -midAngle + math.pi/2, 0)
+
+			-- Moss patches on some wall segments (lower half)
+			if math.random() < 0.35 then
+				local mossH = wallH * (0.15 + math.random() * 0.15)
+				local mossCx = math.cos(midAngle) * (ARENA_RADIUS - WALL_THICKNESS/2 - 0.5)
+				local mossCz = math.sin(midAngle) * (ARENA_RADIUS - WALL_THICKNESS/2 - 0.5)
+				local moss = mp({Name="WallMoss", Size=Vector3.new(segWidth * 0.7, mossH, 1),
+					Position=Vector3.new(mossCx, GROUND_Y + mossH/2, mossCz),
+					Material=Enum.Material.Grass, Color=mossColor, CanCollide=false})
+				moss.CFrame = CFrame.new(moss.Position) * CFrame.Angles(0, -midAngle + math.pi/2, 0)
+			end
+		end
 	end
+
+	-- ---- TIERED SEATING (concentric rings stepping up) ----
+	for tier = 1, TIER_COUNT do
+		local tierRadius = ARENA_INNER - tier * TIER_DEPTH
+		local tierY = GROUND_Y + tier * TIER_HEIGHT
+		local tierSegs = math.floor(SEGMENTS * (tierRadius / ARENA_RADIUS))
+		if tierSegs < 12 then tierSegs = 12 end
+
+		for i = 0, tierSegs - 1 do
+			local angle = (i / tierSegs) * math.pi * 2
+			local nextAngle = ((i + 1) / tierSegs) * math.pi * 2
+			local midAngle = (angle + nextAngle) / 2
+
+			local cx = math.cos(midAngle) * tierRadius
+			local cz = math.sin(midAngle) * tierRadius
+			local segW = 2 * tierRadius * math.sin(math.pi / tierSegs) + 1
+
+			-- Bench/seat slab
+			local seat = mp({Name="TierSeat", Size=Vector3.new(segW, TIER_HEIGHT, TIER_DEPTH),
+				Position=Vector3.new(cx, tierY - TIER_HEIGHT/2, cz),
+				Material=cobbMat, Color=darkStone})
+			seat.CFrame = CFrame.new(seat.Position) * CFrame.Angles(0, -midAngle + math.pi/2, 0)
+
+			-- Random damage: some seats are broken/missing
+			if math.random() < 0.15 then
+				seat:Destroy()
+			elseif math.random() < 0.2 then
+				seat.Size = Vector3.new(segW * 0.6, TIER_HEIGHT * 0.7, TIER_DEPTH)
+				seat.CFrame = CFrame.new(seat.Position) * CFrame.Angles(0, -midAngle + math.pi/2, math.random() * 0.1)
+			end
+		end
+	end
+
+	-- ---- TALL PILLARS around the inner rim ----
+	for i = 0, PILLAR_COUNT - 1 do
+		local angle = (i / PILLAR_COUNT) * math.pi * 2
+		local pillarR = ARENA_INNER + 2
+		local px = math.cos(angle) * pillarR
+		local pz = math.sin(angle) * pillarR
+
+		-- Pillar height varies (some broken)
+		local pillarH = 50 + math.random(-15, 5)
+		local pillarW = 5
+
+		local pillar = mp({Name="ArenaPillar", Size=Vector3.new(pillarW, pillarH, pillarW),
+			Position=Vector3.new(px, GROUND_Y + pillarH/2, pz),
+			Material=slateMat, Color=stoneColor})
+
+		-- Capital (wider top block) on intact pillars
+		if pillarH > 40 then
+			mp({Name="PillarCap", Size=Vector3.new(pillarW + 3, 3, pillarW + 3),
+				Position=Vector3.new(px, GROUND_Y + pillarH + 1.5, pz),
+				Material=slateMat, Color=darkStone})
+		end
+
+		-- Rubble at the base of some pillars
+		if math.random() < 0.3 then
+			for _ = 1, math.random(2, 4) do
+				local rx = px + math.random(-6, 6)
+				local rz = pz + math.random(-6, 6)
+				local rs = math.random(2, 5)
+				mp({Name="PillarRubble", Size=Vector3.new(rs, rs*0.5, rs*0.7),
+					Position=Vector3.new(rx, GROUND_Y + rs*0.25, rz),
+					Material=slateMat, Color=darkStone})
+			end
+		end
+	end
+
+	-- ---- FALLEN RUBBLE & DEBRIS scattered around outer ring ----
+	for i = 1, 40 do
+		local angle = math.random() * math.pi * 2
+		local dist = ARENA_INNER - math.random(5, 30)
+		local rx = math.cos(angle) * dist
+		local rz = math.sin(angle) * dist
+		-- Skip if too close to center play area (radius < 90)
+		if math.sqrt(rx*rx + rz*rz) > 90 then
+			local rs = math.random(3, 8)
+			mp({Name="Rubble", Size=Vector3.new(rs, rs*0.4, rs*0.6),
+				Position=Vector3.new(rx, GROUND_Y + rs*0.2, rz),
+				Material=slateMat, Color=darkStone})
+		end
+	end
+
+	-- ---- GRAND ENTRANCE ARCHWAY (facing cave, south side) ----
+	-- A large broken archway at the south side connecting to the cave entrance
+	local archZ = -90
+	local archWidth = 30
+	local archHeight = 35
+
+	-- Left column
+	mp({Name="GrandArchL", Size=Vector3.new(10, archHeight, 12),
+		Position=Vector3.new(-archWidth/2 - 5, GROUND_Y + archHeight/2, archZ),
+		Material=brickMat, Color=stoneColor})
+	-- Right column
+	mp({Name="GrandArchR", Size=Vector3.new(10, archHeight, 12),
+		Position=Vector3.new(archWidth/2 + 5, GROUND_Y + archHeight/2, archZ),
+		Material=brickMat, Color=stoneColor})
+	-- Lintel (cracked, slightly tilted)
+	local grandLintel = mp({Name="GrandLintel", Size=Vector3.new(archWidth + 20, 5, 12),
+		Position=Vector3.new(0, GROUND_Y + archHeight + 2.5, archZ),
+		Material=brickMat, Color=darkStone})
+	grandLintel.CFrame = grandLintel.CFrame * CFrame.Angles(0, 0, math.rad(1.5))
+	-- Broken triangular pediment above
+	mp({Name="Pediment", Size=Vector3.new(archWidth + 10, 8, 8),
+		Position=Vector3.new(0, GROUND_Y + archHeight + 9, archZ),
+		Material=slateMat, Color=stoneColor})
+
+	-- ---- BANNER POLES around the top rim ----
+	for i = 0, 7 do
+		local angle = (i / 8) * math.pi * 2
+		local bpR = ARENA_RADIUS - 2
+		local bpx = math.cos(angle) * bpR
+		local bpz = math.sin(angle) * bpR
+
+		-- Tall pole
+		local poleH = WALL_HEIGHT + 12
+		mp({Name="BannerPole", Size=Vector3.new(2, poleH, 2),
+			Position=Vector3.new(bpx, GROUND_Y + poleH/2, bpz),
+			Material=Enum.Material.Wood, BrickColor=BrickColor.new("Dark orange")})
+
+		-- Tattered banner (simple rectangle, slightly rotated)
+		local bannerColors = {
+			Color3.fromRGB(140, 30, 30), Color3.fromRGB(30, 40, 120),
+			Color3.fromRGB(120, 80, 20), Color3.fromRGB(50, 100, 50),
+		}
+		local bannerColor = bannerColors[(i % #bannerColors) + 1]
+		local banner = mp({Name="Banner", Size=Vector3.new(8, 14, 0.5),
+			Position=Vector3.new(bpx, GROUND_Y + poleH - 10, bpz),
+			Material=Enum.Material.Fabric, Color=bannerColor, CanCollide=false})
+		banner.CFrame = CFrame.new(banner.Position) * CFrame.Angles(0, -angle + math.pi/2, math.rad(math.random(-5, 5)))
+	end
+
+	-- ---- WALL-MOUNTED TORCHES inside the colosseum ----
+	for i = 0, 15 do
+		local angle = (i / 16) * math.pi * 2
+		local tR = ARENA_INNER - 1
+		local tx = math.cos(angle) * tR
+		local tz = math.sin(angle) * tR
+		local torchY = GROUND_Y + 12
+
+		local tp = mp({Name="ColoTorch", Size=Vector3.new(2, 4, 2),
+			Position=Vector3.new(tx, torchY, tz),
+			Material=Enum.Material.Wood, BrickColor=BrickColor.new("Dark orange")})
+		local tl = Instance.new("PointLight"); tl.Color=Color3.fromRGB(255,160,50)
+		tl.Range=35; tl.Brightness=1.5; tl.Parent=tp
+		local fi = Instance.new("Fire"); fi.Size=4; fi.Heat=6; fi.Parent=tp
+	end
+
+	-- ---- UPPER RING TORCHES (higher up on walls) ----
+	for i = 0, 7 do
+		local angle = (i / 8) * math.pi * 2 + math.pi / 8
+		local tR = ARENA_RADIUS - WALL_THICKNESS/2
+		local tx = math.cos(angle) * tR
+		local tz = math.sin(angle) * tR
+		local torchY = GROUND_Y + 35
+
+		local tp = mp({Name="UpperTorch", Size=Vector3.new(2, 4, 2),
+			Position=Vector3.new(tx, torchY, tz),
+			Material=Enum.Material.Wood, BrickColor=BrickColor.new("Dark orange")})
+		local tl = Instance.new("PointLight"); tl.Color=Color3.fromRGB(255,140,40)
+		tl.Range=40; tl.Brightness=1.2; tl.Parent=tp
+		local fi = Instance.new("Fire"); fi.Size=5; fi.Heat=8; fi.Parent=tp
+	end
+
+	-- ---- CRUMBLED WALL SECTIONS with vines ----
+	for i = 1, 8 do
+		local angle = math.random() * math.pi * 2
+		local vineR = ARENA_INNER + math.random(-3, 3)
+		local vx = math.cos(angle) * vineR
+		local vz = math.sin(angle) * vineR
+		local vineH = math.random(8, 25)
+		local vine = mp({Name="WallVines", Size=Vector3.new(math.random(4, 10), vineH, 2),
+			Position=Vector3.new(vx, GROUND_Y + vineH/2, vz),
+			Material=Enum.Material.Grass, Color=Color3.fromRGB(30 + math.random(0,20), 50 + math.random(0,20), 25),
+			CanCollide=false})
+		vine.CFrame = CFrame.new(vine.Position) * CFrame.Angles(0, -angle + math.pi/2, 0)
+	end
+
+	-- ---- CENTRAL ARENA FLOOR DETAILS ----
+	-- Cracked stone ring pattern in the arena floor
+	mp({Name="ArenaRing", Size=Vector3.new(120, 0.3, 120), Position=Vector3.new(0, GROUND_Y + 3.2, 0),
+		Material=cobbMat, Color=Color3.fromRGB(70, 63, 55)})
+	-- Inner circle marking
+	mp({Name="ArenaCircle", Size=Vector3.new(80, 0.4, 80), Position=Vector3.new(0, GROUND_Y + 3.3, 0),
+		Material=Enum.Material.Limestone, Color=Color3.fromRGB(75, 68, 58), Shape=Enum.PartType.Cylinder})
+
+	-- ===== BOUNDARY (colosseum walls serve as boundary, add invisible ceiling cap) =====
+	mp({Size=Vector3.new(ARENA_RADIUS*2+40, 1, ARENA_RADIUS*2+40), Position=Vector3.new(0, GROUND_Y + WALL_HEIGHT + 10, 0),
+		Transparency=1, CanCollide=true, Name="Boundary"})
 
 	-- ===== AMBIENT LIGHTING (torchlit evening, visible but moody) =====
 	local lighting = game:GetService("Lighting")
