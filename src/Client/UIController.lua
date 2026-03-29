@@ -521,6 +521,10 @@ function UIController.ShowRoomNotification(eventType, roomIndex, roomName, keyCo
 	roomNotif.TextColor3 = color
 	roomNotif.TextTransparency = 0
 
+	-- Also show the stroke on fade-in
+	local stroke = roomNotif:FindFirstChildWhichIsA("UIStroke")
+	if stroke then stroke.Transparency = 0 end
+
 	-- Fade in
 	local fadeIn = TweenService:Create(roomNotif, TweenInfo.new(0.3), {
 		TextTransparency = 0,
@@ -534,6 +538,11 @@ function UIController.ShowRoomNotification(eventType, roomIndex, roomName, keyCo
 			TextTransparency = 1,
 		})
 		fadeOut:Play()
+		-- Fade the outline stroke too so it doesn't linger
+		local s = roomNotif:FindFirstChildWhichIsA("UIStroke")
+		if s then
+			TweenService:Create(s, TweenInfo.new(0.5), { Transparency = 1 }):Play()
+		end
 	end)
 end
 

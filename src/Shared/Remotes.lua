@@ -24,6 +24,9 @@ local remoteEvents = {
 	"RequestRespawn",
 	"CatacombsLevelUp",
 	"CatacombsXPSync",
+	"RoomDiscovered",
+	"MinimapRoomCleared",
+	"MinimapInit",
 }
 
 local remoteFunctions = {

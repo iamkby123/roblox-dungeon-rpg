@@ -694,6 +694,17 @@ function DungeonService.StartDungeon(player)
 end
 
 --------------------------------------------------------------------------------
+-- HP SCALING: enemies get tougher the deeper the room (based on grid row)
+-- Row 0 = 1.0×, each subsequent row adds 15% HP.
+--------------------------------------------------------------------------------
+local HP_SCALE_PER_ROW = 0.15
+
+local function getHPScale(roomConfig)
+	local row = roomConfig.Grid and roomConfig.Grid[2] or 0
+	return 1 + row * HP_SCALE_PER_ROW
+end
+
+--------------------------------------------------------------------------------
 -- SPAWN ENEMIES
 --------------------------------------------------------------------------------
 function DungeonService.SpawnRoomEnemies(dungeonData, roomIndex)
@@ -713,6 +724,7 @@ function DungeonService.SpawnRoomEnemies(dungeonData, roomIndex)
 		roomOrigin = floorPart.Position + Vector3.new(0, floorPart.Size.Y/2, 0)
 	end
 	local roomSize = roomConfig.Size
+	local hpScale = getHPScale(roomConfig)
 
 	-- Count total enemies for even circular distribution
 	local totalCount = 0
@@ -725,7 +737,7 @@ function DungeonService.SpawnRoomEnemies(dungeonData, roomIndex)
 			local angle = (enemyIndex / totalCount) * math.pi * 2
 			local radius = roomSize.X * 0.3
 			local spawnOffset = Vector3.new(math.cos(angle) * radius, 3, math.sin(angle) * radius * 0.5)
-			local model = DungeonService.SpawnSingleEnemy(enemyEntry.Id, roomOrigin + spawnOffset, roomFolder)
+			local model = DungeonService.SpawnSingleEnemy(enemyEntry.Id, roomOrigin + spawnOffset, roomFolder, hpScale)
 			if model and enemyEntry.DropsKey then
 				model:SetAttribute("DropsKey", enemyEntry.DropsKey)
 			end
@@ -735,7 +747,7 @@ function DungeonService.SpawnRoomEnemies(dungeonData, roomIndex)
 	dungeonData.RoomEnemyCounts[roomIndex] = enemyIndex
 end
 
-function DungeonService.SpawnSingleEnemy(enemyId, spawnPos, parentFolder)
+function DungeonService.SpawnSingleEnemy(enemyId, spawnPos, parentFolder, hpScale)
 	local config = EnemyConfig.Enemies[enemyId]
 	if not config then return end
 
@@ -786,15 +798,18 @@ function DungeonService.SpawnSingleEnemy(enemyId, spawnPos, parentFolder)
 	local rightLeg = makeEnemyPart("Right Leg", Vector3.new(1*scaleX, 2*scaleY, 1*scaleZ))
 	makeMotor6D("Right Hip", torso, rightLeg, CFrame.new(0.5*scaleX, -1*scaleY, 0), CFrame.new(0, 1*scaleY, 0))
 
+	hpScale = hpScale or 1
+	local scaledHealth = math.floor(config.Health * hpScale)
+
 	local humanoid = Instance.new("Humanoid")
-	humanoid.MaxHealth = config.Health; humanoid.Health = config.Health
+	humanoid.MaxHealth = scaledHealth; humanoid.Health = scaledHealth
 	humanoid.WalkSpeed = config.Speed; humanoid.Parent = model
 
 	model.PrimaryPart = rootPart
 
 	model:SetAttribute("IsEnemy", true); model:SetAttribute("IsDead", false)
-	model:SetAttribute("EnemyId", enemyId); model:SetAttribute("CurrentHP", config.Health)
-	model:SetAttribute("MaxHP", config.Health); model:SetAttribute("Defense", config.Defense)
+	model:SetAttribute("EnemyId", enemyId); model:SetAttribute("CurrentHP", scaledHealth)
+	model:SetAttribute("MaxHP", scaledHealth); model:SetAttribute("Defense", config.Defense)
 	model:SetAttribute("IsBoss", config.Behavior == "Boss")
 
 	local totalHeight = config.BodySize.Y + config.HeadSize.Y
