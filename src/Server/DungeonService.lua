@@ -294,19 +294,30 @@ function DungeonService.BuildRoom(parent, config, origin, roomIndex, openings)
 	buildWall("Front")
 	buildWall("Back")
 
-	-- Lighting (dimmer for dungeon atmosphere)
-	local light = Instance.new("PointLight"); light.Color=config.LightColor; light.Range=size.X*0.5; light.Brightness=0.6; light.Parent=ceil
+	-- Ceiling ambient light
+	local light = Instance.new("PointLight"); light.Color=config.LightColor; light.Range=size.X*0.6; light.Brightness=1; light.Parent=ceil
 
-	-- Torches in corners (main light source, flickering)
-	for _, offset in ipairs({
-		Vector3.new(-size.X/3, size.Y*0.6, -size.Z/3),
-		Vector3.new(size.X/3, size.Y*0.6, -size.Z/3),
-		Vector3.new(-size.X/3, size.Y*0.6, size.Z/3),
-		Vector3.new(size.X/3, size.Y*0.6, size.Z/3),
-	}) do
-		local torch = makePart({Name="Torch", Size=Vector3.new(1,2,1), Position=origin+offset, Material=Enum.Material.Wood, BrickColor=BrickColor.new("Brown"), Parent=roomFolder})
-		local tl = Instance.new("PointLight"); tl.Color=Color3.fromRGB(255,150,50); tl.Range=18; tl.Brightness=0.7; tl.Parent=torch
-		local fi = Instance.new("Fire"); fi.Size=2; fi.Heat=4; fi.Parent=torch
+	-- Wall-mounted torches (two per wall, evenly spaced)
+	local wallTorchY = size.Y * 0.6
+	local wallInset = 1 -- how far from the wall surface
+	local torchPositions = {
+		-- Left wall (-X)
+		Vector3.new(-size.X/2 + wallInset, wallTorchY, -size.Z/4),
+		Vector3.new(-size.X/2 + wallInset, wallTorchY, size.Z/4),
+		-- Right wall (+X)
+		Vector3.new(size.X/2 - wallInset, wallTorchY, -size.Z/4),
+		Vector3.new(size.X/2 - wallInset, wallTorchY, size.Z/4),
+		-- Back wall (-Z)
+		Vector3.new(-size.X/4, wallTorchY, -size.Z/2 + wallInset),
+		Vector3.new(size.X/4, wallTorchY, -size.Z/2 + wallInset),
+		-- Front wall (+Z)
+		Vector3.new(-size.X/4, wallTorchY, size.Z/2 - wallInset),
+		Vector3.new(size.X/4, wallTorchY, size.Z/2 - wallInset),
+	}
+	for _, offset in ipairs(torchPositions) do
+		local torch = makePart({Name="WallTorch", Size=Vector3.new(1,3,1), Position=origin+offset, Material=Enum.Material.Wood, BrickColor=BrickColor.new("Brown"), Parent=roomFolder})
+		local tl = Instance.new("PointLight"); tl.Color=config.LightColor or Color3.fromRGB(255,150,50); tl.Range=28; tl.Brightness=1.2; tl.Parent=torch
+		local fi = Instance.new("Fire"); fi.Size=3; fi.Heat=5; fi.Parent=torch
 	end
 
 	return roomFolder

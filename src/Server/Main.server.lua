@@ -131,9 +131,9 @@ local function BuildLobby()
 	-- Campfire
 	local campfire = mp({Name="Campfire", Size=Vector3.new(2, 1, 2), Position=Vector3.new(0, 1.2, 20),
 		Material=Enum.Material.Wood, BrickColor=BrickColor.new("Reddish brown")})
-	local cfLight = Instance.new("PointLight"); cfLight.Color=Color3.fromRGB(255,140,40)
-	cfLight.Range=40; cfLight.Brightness=3; cfLight.Parent=campfire
-	local cfFire = Instance.new("Fire"); cfFire.Size=8; cfFire.Heat=12; cfFire.Parent=campfire
+	local cfLight = Instance.new("PointLight"); cfLight.Color=Color3.fromRGB(255,150,50)
+	cfLight.Range=30; cfLight.Brightness=1.8; cfLight.Parent=campfire
+	local cfFire = Instance.new("Fire"); cfFire.Size=6; cfFire.Heat=8; cfFire.Parent=campfire
 
 	-- Sitting logs around campfire
 	for _, logData in ipairs({
@@ -204,13 +204,13 @@ local function BuildLobby()
 		DungeonService.StartDungeon(player)
 	end)
 
-	-- Eerie glow seeping through door cracks
+	-- Subtle glow seeping through door cracks
 	local glowLight = Instance.new("PointLight")
-	glowLight.Color = Color3.fromRGB(120, 40, 200); glowLight.Range = 20
-	glowLight.Brightness = 1.5; glowLight.Parent = door
-	-- Smoke/mist from cave
+	glowLight.Color = Color3.fromRGB(120, 40, 200); glowLight.Range = 12
+	glowLight.Brightness = 0.6; glowLight.Parent = door
+	-- Light mist from cave
 	local smoke = Instance.new("Smoke")
-	smoke.Size = 6; smoke.Opacity = 0.15; smoke.RiseVelocity = 2
+	smoke.Size = 4; smoke.Opacity = 0.08; smoke.RiseVelocity = 1.5
 	smoke.Color = Color3.fromRGB(80, 60, 100); smoke.Parent = door
 
 	-- Warning sign above cave
@@ -342,26 +342,26 @@ local function BuildLobby()
 		mp({Size=w.Size, Position=w.Pos, Transparency=1, CanCollide=true, Name="Boundary"})
 	end
 
-	-- ===== AMBIENT LIGHTING (torchlit forest night, brighter) =====
+	-- ===== AMBIENT LIGHTING (torchlit evening, visible but moody) =====
 	local lighting = game:GetService("Lighting")
-	lighting.Ambient = Color3.fromRGB(35, 30, 40)
-	lighting.OutdoorAmbient = Color3.fromRGB(40, 35, 45)
-	lighting.Brightness = 0.5
-	lighting.FogEnd = 600
-	lighting.FogStart = 120
-	lighting.FogColor = Color3.fromRGB(15, 12, 22)
-	lighting.ClockTime = 21.5 -- late night, slight moonlight
+	lighting.Ambient = Color3.fromRGB(60, 55, 65)
+	lighting.OutdoorAmbient = Color3.fromRGB(70, 65, 75)
+	lighting.Brightness = 1
+	lighting.FogEnd = 800
+	lighting.FogStart = 200
+	lighting.FogColor = Color3.fromRGB(25, 20, 35)
+	lighting.ClockTime = 20 -- early night, some moonlight
 	lighting.GlobalShadows = true
-	lighting.ShadowSoftness = 0.3
+	lighting.ShadowSoftness = 0.4
 
-	-- Atmosphere for depth/haze
+	-- Atmosphere for depth/haze (lighter)
 	local atmosphere = Instance.new("Atmosphere")
-	atmosphere.Density = 0.25
-	atmosphere.Offset = 0.1
-	atmosphere.Color = Color3.fromRGB(30, 25, 40)
-	atmosphere.Decay = Color3.fromRGB(15, 12, 20)
+	atmosphere.Density = 0.15
+	atmosphere.Offset = 0.05
+	atmosphere.Color = Color3.fromRGB(45, 40, 55)
+	atmosphere.Decay = Color3.fromRGB(25, 20, 35)
 	atmosphere.Glare = 0
-	atmosphere.Haze = 4
+	atmosphere.Haze = 2
 	atmosphere.Parent = lighting
 end
 

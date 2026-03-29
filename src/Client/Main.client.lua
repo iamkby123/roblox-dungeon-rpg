@@ -42,12 +42,12 @@ pcall(function()
 	StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Health, false)
 end)
 
--- Boost gamma so dungeon rooms are more visible (not fullbright)
+-- Boost gamma so dungeon rooms are clearly visible
 local cc = Instance.new("ColorCorrectionEffect")
 cc.Name = "DungeonGamma"
-cc.Brightness = 0.08
-cc.Contrast = 0.1
-cc.Saturation = 0.05
+cc.Brightness = 0.15
+cc.Contrast = 0.15
+cc.Saturation = 0.08
 cc.Parent = Lighting
 
 -- Listen for dungeon minimap initialization from server

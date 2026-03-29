@@ -37,7 +37,9 @@ local TWEEN_REVEAL = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirect
 -- STATE
 --------------------------------------------------------------------------------
 local grid = nil        -- reference to the layout grid table
-local gridN = 0         -- grid dimension
+local gridN = 0         -- grid dimension (max of rows/cols, for square compat)
+local gridRows = 0      -- actual number of rows
+local gridCols = 0      -- actual number of columns
 local tileSize = 200    -- world studs per tile
 local startOffsetX = 0  -- world X origin of grid col 0
 local startOffsetZ = 0  -- world Z origin of grid row 0
@@ -71,14 +73,27 @@ end
 
 local function getCellSize()
 	local usable = MINIMAP_SIZE - MINIMAP_PADDING * 2
-	local cellPx = math.floor(usable / gridN)
+	local maxDim = math.max(gridRows, gridCols)
+	local cellPx = math.floor(usable / maxDim)
 	return cellPx
+end
+
+-- Centering offsets for the smaller dimension
+local function getGridOffsets()
+	local cellPx = getCellSize()
+	local usable = MINIMAP_SIZE - MINIMAP_PADDING * 2
+	local offsetX = math.floor((usable - gridCols * cellPx) / 2)
+	local offsetY = math.floor((usable - gridRows * cellPx) / 2)
+	return offsetX, offsetY
 end
 
 local function getCellPosition(row, col)
 	local cellPx = getCellSize()
-	local x = MINIMAP_PADDING + (col - 1) * cellPx
-	local y = MINIMAP_PADDING + (row - 1) * cellPx
+	local offsetX, offsetY = getGridOffsets()
+	-- Flip vertically: entrance (row 1) at bottom, boss (last row) at top
+	local flippedRow = gridRows - row + 1
+	local x = MINIMAP_PADDING + offsetX + (col - 1) * cellPx
+	local y = MINIMAP_PADDING + offsetY + (flippedRow - 1) * cellPx
 	return x, y, cellPx
 end
 
@@ -143,10 +158,10 @@ local function createCells()
 	cellFrames = {}
 	cellStates = {}
 
-	for row = 1, gridN do
+	for row = 1, gridRows do
 		cellFrames[row] = {}
 		cellStates[row] = {}
-		for col = 1, gridN do
+		for col = 1, gridCols do
 			local cell = grid[row] and grid[row][col]
 			if not cell then
 				cellStates[row][col] = "empty"
@@ -394,15 +409,24 @@ function DungeonMinimap.Init(layoutGrid, tileSizeParam, corridorData, startOffse
 		startOffsetZ = startOffset.Z or 0
 	end
 
-	-- Determine grid dimension (find max row)
-	gridN = 0
+	-- Determine grid dimensions (find max row and max col)
+	gridRows = 0
+	gridCols = 0
 	for row, cols in pairs(grid) do
-		if type(row) == "number" and row > gridN then
-			gridN = row
+		if type(row) == "number" then
+			if row > gridRows then gridRows = row end
+			if type(cols) == "table" then
+				for col, _ in pairs(cols) do
+					if type(col) == "number" and col > gridCols then
+						gridCols = col
+					end
+				end
+			end
 		end
 	end
+	gridN = math.max(gridRows, gridCols)
 
-	if gridN == 0 then
+	if gridRows == 0 then
 		warn("[DungeonMinimap] Grid is empty")
 		return
 	end
@@ -419,7 +443,7 @@ function DungeonMinimap.Init(layoutGrid, tileSizeParam, corridorData, startOffse
 	-- Reveal adjacent rooms to start
 	for _, offset in ipairs({{-1,0},{1,0},{0,-1},{0,1}}) do
 		local nr, nc = 1 + offset[1], 1 + offset[2]
-		if nr >= 1 and nr <= gridN and nc >= 1 and nc <= gridN then
+		if nr >= 1 and nr <= gridRows and nc >= 1 and nc <= gridCols then
 			if grid[nr] and grid[nr][nc] then
 				DungeonMinimap.RevealRoom(nr, nc)
 			end
@@ -539,13 +563,17 @@ function DungeonMinimap.UpdatePlayerPosition(worldPos)
 	local col = (worldPos.X - startOffsetX) / tileSize + 1
 	local row = (startOffsetZ - worldPos.Z) / tileSize + 1
 
-	-- Convert grid coordinates to minimap pixel position
+	-- Convert grid coordinates to minimap pixel position (flipped vertically)
 	local cellPx = getCellSize()
 	local gap = math.max(1, math.floor(cellPx * 0.08))
 	local innerPx = cellPx - gap
+	local offsetX, offsetY = getGridOffsets()
 
-	local px = MINIMAP_PADDING + (col - 1) * cellPx + math.floor(gap / 2) + innerPx / 2
-	local py = MINIMAP_PADDING + (row - 1) * cellPx + math.floor(gap / 2) + innerPx / 2
+	-- Flip row: entrance at bottom, boss at top
+	local flippedRow = gridRows - row + 1
+
+	local px = MINIMAP_PADDING + offsetX + (col - 1) * cellPx + math.floor(gap / 2) + innerPx / 2
+	local py = MINIMAP_PADDING + offsetY + (flippedRow - 1) * cellPx + math.floor(gap / 2) + innerPx / 2
 
 	-- Clamp to minimap bounds
 	px = math.clamp(px, 0, MINIMAP_SIZE)
@@ -592,6 +620,8 @@ function DungeonMinimap.Destroy()
 	grid = nil
 	corridors = nil
 	gridN = 0
+	gridRows = 0
+	gridCols = 0
 	startOffsetX = 0
 	startOffsetZ = 0
 end

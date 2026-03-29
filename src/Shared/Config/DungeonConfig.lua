@@ -5,7 +5,7 @@ local DungeonConfig = {}
 DungeonConfig.GridSpacing = 180
 DungeonConfig.CorridorWidth = 16
 DungeonConfig.CorridorHeight = 16
-DungeonConfig.StartOffset = Vector3.new(-270, 5, -200)
+DungeonConfig.StartOffset = Vector3.new(-270, 5, -120)
 
 -- Layout (branching paths, miniboss keys, E to open doors):
 --
