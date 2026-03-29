@@ -4,14 +4,14 @@ local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 
 local Remotes = require(ReplicatedStorage:WaitForChild("Remotes"))
-local ScoreConfig = require(ReplicatedStorage:WaitForChild("Config"):WaitForChild("ScoreConfig"))
+local RunGrading = require(ReplicatedStorage:WaitForChild("Config"):WaitForChild("RunGrading"))
 
-local PuzzleSystem = {}
+local PuzzleEncounters = {}
 
-local DungeonService -- injected via Init
+local HollowBuilder -- injected via Init
 
-function PuzzleSystem.Init(dungeonSvc)
-	DungeonService = dungeonSvc
+function PuzzleEncounters.Init(dungeonSvc)
+	HollowBuilder = dungeonSvc
 end
 
 --------------------------------------------------------------------------------
@@ -93,16 +93,16 @@ local function getPlayersInRoom(roomFolder)
 end
 
 local function firePuzzleComplete(player)
-	local remote = Remotes:GetEvent("PuzzleComplete")
+	local remote = Remotes:GetEvent("PuzzleSolved")
 	if remote then
 		remote:FireAllClients(player.Name)
 	end
 end
 
 local function awardPuzzleBonus(player)
-	local data = DungeonService.GetActiveDungeon(player)
+	local data = HollowBuilder.GetActiveDungeon(player)
 	if data then
-		data.PuzzleScore = (data.PuzzleScore or 0) + (ScoreConfig.PuzzleBonus or 200)
+		data.PuzzleScore = (data.PuzzleScore or 0) + (RunGrading.PuzzleBonus or 200)
 	end
 end
 
@@ -126,7 +126,7 @@ local function completePuzzle(puzzleFolder, dungeonData, roomIndex, player, awar
 
 	-- Mark room cleared in dungeon
 	task.defer(function()
-		DungeonService.RoomCleared(player, dungeonData, roomIndex)
+		HollowBuilder.RoomCleared(player, dungeonData, roomIndex)
 	end)
 end
 
@@ -780,17 +780,17 @@ local PUZZLE_TYPES = { "Trivia", "BombDefuse", "IceWalk" }
 --- @param origin Vector3 — center of the room floor
 --- @param roomSize Vector3 — room dimensions
 --- @param dungeonData table — the active dungeon data for this player
---- @param roomIndex number — room index in DungeonConfig.Rooms
+--- @param roomIndex number — room index in HollowConfig.Chambers
 --- @param player Player — the dungeon owner
 --- @param puzzleType string|nil — force a type, or nil for random
-function PuzzleSystem.BuildPuzzle(roomFolder, origin, roomSize, dungeonData, roomIndex, player, puzzleType)
+function PuzzleEncounters.BuildPuzzle(roomFolder, origin, roomSize, dungeonData, roomIndex, player, puzzleType)
 	if not puzzleType then
 		puzzleType = PUZZLE_TYPES[math.random(#PUZZLE_TYPES)]
 	end
 
 	local builder = PUZZLE_BUILDERS[puzzleType]
 	if not builder then
-		warn("[PuzzleSystem] Unknown puzzle type: " .. tostring(puzzleType))
+		warn("[PuzzleEncounters] Unknown puzzle type: " .. tostring(puzzleType))
 		return nil
 	end
 
@@ -835,8 +835,8 @@ function PuzzleSystem.BuildPuzzle(roomFolder, origin, roomSize, dungeonData, roo
 end
 
 --- Get available puzzle types.
-function PuzzleSystem.GetPuzzleTypes()
+function PuzzleEncounters.GetPuzzleTypes()
 	return PUZZLE_TYPES
 end
 
-return PuzzleSystem
+return PuzzleEncounters

@@ -1,29 +1,29 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
-local StatConfig = require(ReplicatedStorage:WaitForChild("Config"):WaitForChild("StatConfig"))
+local StatSystem = require(ReplicatedStorage:WaitForChild("Config"):WaitForChild("StatSystem"))
 local SkillConfig = require(ReplicatedStorage:WaitForChild("Config"):WaitForChild("SkillConfig"))
 local Remotes = require(ReplicatedStorage:WaitForChild("Remotes"))
 
 local CombatService = {}
 
-local PlayerDataService -- set via Init to avoid circular require
-local DungeonService -- set via Init
-local CatacombsProgression -- set via Init
+local DelverDataService -- set via Init to avoid circular require
+local HollowBuilder -- set via Init
+local DelverProgression -- set via Init
 
 local cooldowns = {} -- [player][skillId] = expiryTime
 local activeConnections = {} -- [player] = { connection1, connection2, ... }
 
--- Miniboss enemy IDs (drop keys; use keeper XP tier)
-local KEEPER_IDS = {
+-- Warden creature IDs (drop seals; use warden XP tier)
+local WARDEN_IDS = {
 	IronKeeper = true, GoldGuardian = true, CrimsonSentinel = true,
 	EmeraldWarden = true, ShadowChampion = true,
 }
 
-function CombatService.Init(playerDataSvc, dungeonSvc, catacombsSvc)
-	PlayerDataService = playerDataSvc
-	DungeonService = dungeonSvc
-	CatacombsProgression = catacombsSvc
+function CombatService.Init(delverDataSvc, hollowBuilderSvc, delverProgSvc)
+	DelverDataService = delverDataSvc
+	HollowBuilder = hollowBuilderSvc
+	DelverProgression = delverProgSvc
 end
 
 local function trackConnection(player, conn)
@@ -47,7 +47,7 @@ function CombatService.ProcessSkill(player, skillId, direction)
 
 	-- Check mana
 	if skillData.ManaCost > 0 then
-		if not PlayerDataService.ConsumeMana(player, skillData.ManaCost) then
+		if not DelverDataService.ConsumeMana(player, skillData.ManaCost) then
 			return false
 		end
 	end
@@ -75,7 +75,7 @@ function CombatService.ProcessSkill(player, skillId, direction)
 end
 
 function CombatService.ExecuteSlash(player, rootPart, skillData, direction)
-	local stats = PlayerDataService.GetStats(player)
+	local stats = DelverDataService.GetStats(player)
 	if not stats then return end
 
 	local pos = rootPart.Position
@@ -95,7 +95,7 @@ function CombatService.ExecuteSlash(player, rootPart, skillData, direction)
 					-- Cone check: within 90 degrees of look direction
 					local dot = lookDir:Dot(toEnemy.Unit)
 					if dot > 0 then -- roughly 90 degree cone
-						local damage, isCrit = StatConfig.CalculateDamage(
+						local damage, isCrit = StatSystem.CalculateDamage(
 							stats.Strength,
 							skillData.Multiplier,
 							enemyModel:GetAttribute("Defense") or 0,
@@ -111,7 +111,7 @@ function CombatService.ExecuteSlash(player, rootPart, skillData, direction)
 end
 
 function CombatService.ExecuteFireball(player, rootPart, skillData, direction)
-	local stats = PlayerDataService.GetStats(player)
+	local stats = DelverDataService.GetStats(player)
 	if not stats then return end
 
 	local startPos = rootPart.Position + Vector3.new(0, 2, 0)
@@ -189,7 +189,7 @@ function CombatService.ExecuteFireball(player, rootPart, skillData, direction)
 
 			-- Damage all enemies in AoE radius
 			for _, enemyModel in ipairs(enemiesInRange) do
-				local damage, isCrit = StatConfig.CalculateDamage(
+				local damage, isCrit = StatSystem.CalculateDamage(
 					stats.Strength,
 					skillData.Multiplier,
 					enemyModel:GetAttribute("Defense") or 0,
@@ -256,7 +256,7 @@ function CombatService.ExecuteHeal(player, skillData)
 end
 
 function CombatService.ExecuteShield(player, skillData)
-	PlayerDataService.ApplyShieldBuff(player, skillData.DefenseBonus, skillData.Duration)
+	DelverDataService.ApplyShieldBuff(player, skillData.DefenseBonus, skillData.Duration)
 
 	-- Blue shield effect
 	local character = player.Character
@@ -300,8 +300,8 @@ function CombatService.DealDamageToEnemy(player, enemyModel, damage, isCrit)
 	enemyModel:SetAttribute("CurrentHP", currentHP)
 
 	-- Track total damage for score
-	if DungeonService then
-		DungeonService.AddDamageTracking(player, damage)
+	if HollowBuilder then
+		HollowBuilder.AddDamageTracking(player, damage)
 	end
 
 	-- Update health bar
@@ -333,13 +333,13 @@ function CombatService.OnEnemyDied(player, enemyModel)
 	enemyModel:SetAttribute("IsDead", true)
 
 	-- Award Catacombs XP for the kill
-	if CatacombsProgression then
+	if DelverProgression then
 		local enemyId = enemyModel:GetAttribute("EnemyId") or ""
 		local dropsKey = enemyModel:GetAttribute("DropsKey")
 		if dropsKey then
-			CatacombsProgression.OnKeeperKill(player, enemyId)
+			DelverProgression.OnWardenKill(player, enemyId)
 		elseif not enemyModel:GetAttribute("IsBoss") then
-			CatacombsProgression.OnMobKill(player, enemyId)
+			DelverProgression.OnCreatureKill(player, enemyId)
 		end
 		-- Boss XP is awarded via OnDungeonClear when the boss room clears
 	end
@@ -353,8 +353,8 @@ function CombatService.OnEnemyDied(player, enemyModel)
 	end
 
 	-- Notify dungeon service
-	if DungeonService then
-		DungeonService.OnEnemyDied(enemyModel)
+	if HollowBuilder then
+		HollowBuilder.OnEnemyDied(enemyModel)
 	end
 
 	-- Destroy after delay for death animation
@@ -371,7 +371,7 @@ function CombatService.DealDamageToPlayer(player, rawDamage)
 	local humanoid = character:FindFirstChild("Humanoid")
 	if not humanoid or humanoid.Health <= 0 then return end
 
-	local defense = PlayerDataService.GetEffectiveDefense(player)
+	local defense = DelverDataService.GetEffectiveDefense(player)
 	local reduction = defense / (defense + 100)
 	local finalDamage = math.floor(rawDamage * (1 - reduction))
 

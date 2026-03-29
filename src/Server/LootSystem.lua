@@ -3,30 +3,30 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ItemConfig = require(ReplicatedStorage:WaitForChild("Config"):WaitForChild("ItemConfig"))
 local Remotes = require(ReplicatedStorage:WaitForChild("Remotes"))
 
-local LootService = {}
+local LootSystem = {}
 
-local PlayerDataService -- set via Init
+local DelverDataService -- set via Init
 
-function LootService.Init(playerDataSvc)
-	PlayerDataService = playerDataSvc
+function LootSystem.Init(delverDataSvc)
+	DelverDataService = delverDataSvc
 end
 
-function LootService.RollLoot(enemyConfigId, isBoss)
+function LootSystem.RollLoot(creatureConfigId, isBoss)
 	local drops = {}
 
-	-- Boss always drops legendary + one random
+	-- Sanctum boss always drops legendary + one random
 	if isBoss then
 		table.insert(drops, ItemConfig.BossGuaranteedDrop)
-		local randomItem = LootService.WeightedRandom()
+		local randomItem = LootSystem.WeightedRandom()
 		if randomItem then
 			table.insert(drops, randomItem)
 		end
 		return drops
 	end
 
-	-- Normal enemy: chance-based
+	-- Normal creature: chance-based
 	if math.random() <= ItemConfig.DropChance then
-		local item = LootService.WeightedRandom()
+		local item = LootSystem.WeightedRandom()
 		if item then
 			table.insert(drops, item)
 		end
@@ -35,7 +35,7 @@ function LootService.RollLoot(enemyConfigId, isBoss)
 	return drops
 end
 
-function LootService.WeightedRandom()
+function LootSystem.WeightedRandom()
 	local totalWeight = 0
 	local candidates = {}
 
@@ -61,14 +61,12 @@ function LootService.WeightedRandom()
 	return candidates[#candidates].Id
 end
 
-function LootService.GrantLoot(player, enemyConfigId, isBoss)
-	local drops = LootService.RollLoot(enemyConfigId, isBoss)
+function LootSystem.GrantLoot(player, creatureConfigId, isBoss)
+	local drops = LootSystem.RollLoot(creatureConfigId, isBoss)
 
 	for _, itemId in ipairs(drops) do
-		-- Apply stat boosts
-		PlayerDataService.ApplyItem(player, itemId)
+		DelverDataService.ApplyItem(player, itemId)
 
-		-- Notify client
 		local itemData = ItemConfig.Items[itemId]
 		local remote = Remotes:GetEvent("ItemPickup")
 		if remote and itemData then
@@ -83,7 +81,7 @@ function LootService.GrantLoot(player, enemyConfigId, isBoss)
 	end
 end
 
-function LootService.GrantChestLoot(player, roomIndex)
+function LootSystem.GrantCacheLoot(player, roomIndex)
 	local ItemConfig = require(ReplicatedStorage:WaitForChild("Config"):WaitForChild("ItemConfig"))
 
 	local tierName = "Common"
@@ -96,9 +94,9 @@ function LootService.GrantChestLoot(player, roomIndex)
 	local numItems = math.random(tier.MinItems, tier.MaxItems)
 
 	for _ = 1, numItems do
-		local itemId = LootService.WeightedRandomByRarity(tier.RarityWeights)
+		local itemId = LootSystem.WeightedRandomByRarity(tier.RarityWeights)
 		if itemId then
-			PlayerDataService.ApplyItem(player, itemId)
+			DelverDataService.ApplyItem(player, itemId)
 			local itemData = ItemConfig.Items[itemId]
 			local remote = Remotes:GetEvent("ItemPickup")
 			if remote and itemData then
@@ -114,9 +112,8 @@ function LootService.GrantChestLoot(player, roomIndex)
 	end
 end
 
-function LootService.WeightedRandomByRarity(rarityWeights)
+function LootSystem.WeightedRandomByRarity(rarityWeights)
 	local ItemConfig = require(ReplicatedStorage:WaitForChild("Config"):WaitForChild("ItemConfig"))
-	-- Collect items matching the allowed rarities
 	local candidates = {}
 	local totalWeight = 0
 
@@ -139,4 +136,4 @@ function LootService.WeightedRandomByRarity(rarityWeights)
 	return candidates[#candidates].Id
 end
 
-return LootService
+return LootSystem

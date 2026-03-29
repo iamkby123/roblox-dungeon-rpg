@@ -1,8 +1,8 @@
-local MainHUD = {}
+local HollowHUD = {}
 
-function MainHUD.Create()
+function HollowHUD.Create()
 	local screenGui = Instance.new("ScreenGui")
-	screenGui.Name = "MainHUD"
+	screenGui.Name = "HollowHUD"
 	screenGui.ResetOnSpawn = false
 	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
@@ -136,14 +136,13 @@ function MainHUD.Create()
 		border.Thickness = 2
 		border.Parent = slot
 
-		-- Equipped indicator (bright glow behind slot)
 		local equippedGlow = Instance.new("Frame")
 		equippedGlow.Name = "EquippedGlow"
 		equippedGlow.Size = UDim2.new(1, 6, 1, 6)
 		equippedGlow.Position = UDim2.new(0.5, 0, 0.5, 0)
 		equippedGlow.AnchorPoint = Vector2.new(0.5, 0.5)
 		equippedGlow.BackgroundColor3 = weaponColors[i]
-		equippedGlow.BackgroundTransparency = i == 1 and 0.5 or 1 -- first slot equipped by default
+		equippedGlow.BackgroundTransparency = i == 1 and 0.5 or 1
 		equippedGlow.BorderSizePixel = 0
 		equippedGlow.ZIndex = 0
 		equippedGlow.Parent = slot
@@ -174,7 +173,6 @@ function MainHUD.Create()
 		keyLabel.Font = Enum.Font.Gotham
 		keyLabel.Parent = slot
 
-		-- "CLICK" hint for equipped weapon
 		local clickHint = Instance.new("TextLabel")
 		clickHint.Name = "ClickHint"
 		clickHint.Size = UDim2.new(1, 0, 0.2, 0)
@@ -186,7 +184,6 @@ function MainHUD.Create()
 		clickHint.Font = Enum.Font.GothamBold
 		clickHint.Parent = slot
 
-		-- Cooldown overlay (fills from top down)
 		local cooldownOverlay = Instance.new("Frame")
 		cooldownOverlay.Name = "CooldownOverlay"
 		cooldownOverlay.Size = UDim2.new(1, 0, 0, 0)
@@ -217,7 +214,7 @@ function MainHUD.Create()
 	-- ===== STAT PANEL (top-right, toggleable) =====
 	local statPanel = Instance.new("Frame")
 	statPanel.Name = "StatPanel"
-	statPanel.Size = UDim2.new(0, 200, 0, 250)
+	statPanel.Size = UDim2.new(0, 200, 0, 280)
 	statPanel.Position = UDim2.new(1, -220, 0, 60)
 	statPanel.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
 	statPanel.BackgroundTransparency = 0.2
@@ -239,10 +236,10 @@ function MainHUD.Create()
 	statTitle.Font = Enum.Font.GothamBold
 	statTitle.Parent = statPanel
 
-	local statNames = { "Health", "Mana", "Strength", "Defense", "Speed", "Crit Chance", "Crit Damage" }
+	local statNames = { "MaxHP", "Mana", "Strength", "Defense", "Speed", "CritChance", "CritDamage", "Arcana" }
 	for i, statName in ipairs(statNames) do
 		local label = Instance.new("TextLabel")
-		label.Name = statName:gsub(" ", "")
+		label.Name = statName
 		label.Size = UDim2.new(1, -20, 0, 28)
 		label.Position = UDim2.new(0, 10, 0, 30 + (i - 1) * 30)
 		label.BackgroundTransparency = 1
@@ -289,14 +286,13 @@ function MainHUD.Create()
 	invEmpty.Size = UDim2.new(1, -20, 0, 30)
 	invEmpty.Position = UDim2.new(0, 10, 0, 40)
 	invEmpty.BackgroundTransparency = 1
-	invEmpty.Text = "No items yet. Kill enemies to get loot!"
+	invEmpty.Text = "No items yet. Slay creatures to find loot!"
 	invEmpty.TextColor3 = Color3.fromRGB(150, 150, 150)
 	invEmpty.TextScaled = true
 	invEmpty.TextWrapped = true
 	invEmpty.Font = Enum.Font.Gotham
 	invEmpty.Parent = invPanel
 
-	-- Scrolling frame for items
 	local invScroll = Instance.new("ScrollingFrame")
 	invScroll.Name = "ItemList"
 	invScroll.Size = UDim2.new(1, -10, 1, -45)
@@ -339,7 +335,7 @@ function MainHUD.Create()
 	notifLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	notifLayout.Parent = notifications
 
-	-- ===== ROOM NOTIFICATION (center) =====
+	-- ===== CHAMBER NOTIFICATION (center) =====
 	local roomNotif = Instance.new("TextLabel")
 	roomNotif.Name = "RoomNotification"
 	roomNotif.Size = UDim2.new(0, 500, 0, 60)
@@ -358,7 +354,7 @@ function MainHUD.Create()
 	roomStroke.Thickness = 2
 	roomStroke.Parent = roomNotif
 
-	-- ===== DUNGEON TIMER (top-center) =====
+	-- ===== DESCENT TIMER (top-center) =====
 	local timerFrame = Instance.new("Frame")
 	timerFrame.Name = "TimerFrame"
 	timerFrame.Size = UDim2.new(0, 130, 0, 38)
@@ -399,7 +395,7 @@ function MainHUD.Create()
 	deathText.Size = UDim2.new(1, 0, 0.3, 0)
 	deathText.Position = UDim2.new(0, 0, 0.25, 0)
 	deathText.BackgroundTransparency = 1
-	deathText.Text = "YOU DIED"
+	deathText.Text = "YOU HAVE FALLEN"
 	deathText.TextColor3 = Color3.fromRGB(255, 50, 50)
 	deathText.TextScaled = true
 	deathText.Font = Enum.Font.GothamBold
@@ -446,30 +442,30 @@ function MainHUD.Create()
 	respawnStroke.Thickness = 2
 	respawnStroke.Parent = respawnBtn
 
-	-- ===== CLASS INDICATOR (top-left) =====
-	local classIndicator = Instance.new("Frame")
-	classIndicator.Name = "ClassIndicator"
-	classIndicator.Size = UDim2.new(0, 150, 0, 35)
-	classIndicator.Position = UDim2.new(0, 20, 0, 10)
-	classIndicator.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-	classIndicator.BackgroundTransparency = 0.3
-	classIndicator.BorderSizePixel = 0
-	classIndicator.Visible = false
-	classIndicator.Parent = screenGui
+	-- ===== VOCATION INDICATOR (top-left) =====
+	local vocationIndicator = Instance.new("Frame")
+	vocationIndicator.Name = "VocationIndicator"
+	vocationIndicator.Size = UDim2.new(0, 150, 0, 35)
+	vocationIndicator.Position = UDim2.new(0, 20, 0, 10)
+	vocationIndicator.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+	vocationIndicator.BackgroundTransparency = 0.3
+	vocationIndicator.BorderSizePixel = 0
+	vocationIndicator.Visible = false
+	vocationIndicator.Parent = screenGui
 
-	local classCorner = Instance.new("UICorner")
-	classCorner.CornerRadius = UDim.new(0, 8)
-	classCorner.Parent = classIndicator
+	local vocationCorner = Instance.new("UICorner")
+	vocationCorner.CornerRadius = UDim.new(0, 8)
+	vocationCorner.Parent = vocationIndicator
 
-	local classLabel = Instance.new("TextLabel")
-	classLabel.Name = "ClassLabel"
-	classLabel.Size = UDim2.new(1, 0, 1, 0)
-	classLabel.BackgroundTransparency = 1
-	classLabel.Text = ""
-	classLabel.TextColor3 = Color3.new(1, 1, 1)
-	classLabel.TextScaled = true
-	classLabel.Font = Enum.Font.GothamBold
-	classLabel.Parent = classIndicator
+	local vocationLabel = Instance.new("TextLabel")
+	vocationLabel.Name = "VocationLabel"
+	vocationLabel.Size = UDim2.new(1, 0, 1, 0)
+	vocationLabel.BackgroundTransparency = 1
+	vocationLabel.Text = ""
+	vocationLabel.TextColor3 = Color3.new(1, 1, 1)
+	vocationLabel.TextScaled = true
+	vocationLabel.Font = Enum.Font.GothamBold
+	vocationLabel.Parent = vocationIndicator
 
 	-- ===== SCORE OVERLAY =====
 	local scoreOverlay = Instance.new("Frame")
@@ -509,14 +505,14 @@ function MainHUD.Create()
 	scoreTitle.Size = UDim2.new(1, 0, 0, 30)
 	scoreTitle.Position = UDim2.new(0, 0, 0, 90)
 	scoreTitle.BackgroundTransparency = 1
-	scoreTitle.Text = "DUNGEON COMPLETE"
+	scoreTitle.Text = "DESCENT COMPLETE"
 	scoreTitle.TextColor3 = Color3.fromRGB(255, 200, 50)
 	scoreTitle.TextScaled = true
 	scoreTitle.Font = Enum.Font.GothamBold
 	scoreTitle.ZIndex = 26
 	scoreTitle.Parent = scoreOverlay
 
-	local scoreLines = {"Time: --", "Damage: --", "Rooms: --", "Deaths: --", "Total: --"}
+	local scoreLines = {"Time: --", "Damage: --", "Chambers: --", "Deaths: --", "Total: --"}
 	for i, line in ipairs(scoreLines) do
 		local lineLabel = Instance.new("TextLabel")
 		lineLabel.Name = "ScoreLine" .. i
@@ -573,4 +569,4 @@ function MainHUD.Create()
 	return screenGui
 end
 
-return MainHUD
+return HollowHUD

@@ -1,51 +1,52 @@
-local DungeonConfig = {}
+local HollowConfig = {}
 
--- Grid-based dungeon with BRANCHING PATH layout
--- Each cell = 180 studs apart (120 room + 60 corridor gap)
-DungeonConfig.GridSpacing = 180
-DungeonConfig.CorridorWidth = 16
-DungeonConfig.CorridorHeight = 16
-DungeonConfig.StartOffset = Vector3.new(-270, 5, -120)
+-- Grid-based hollow with BRANCHING PATH layout
+-- Each cell = 180 studs apart (120 chamber + 60 corridor gap)
+HollowConfig.GridSpacing = 180
+HollowConfig.CorridorWidth = 16
+HollowConfig.CorridorHeight = 16
+HollowConfig.StartOffset = Vector3.new(-270, 5, -120)
+HollowConfig.TileSize = 250 -- canonical tile size for procedural generation
 
--- Layout (branching paths, miniboss keys, E to open doors):
+-- Layout (branching paths, seal keys, E to unlock seals):
 --
 --            [Entrance]
 --               |
 --      C0      C1      C2      C3
--- R0 [Rm16]-[Rm1]--[Rm2]--[Rm14]
+-- R0 [Ch16]-[Ch1]--[Ch2]--[Ch14]
 --               |
--- R1  [Rm3]--[Rm4]--[Rm5]--[Rm15]
+-- R1  [Ch3]--[Ch4]--[Ch5]--[Ch15]
 --      |🔒Iron          |🔒Gold
--- R2  [Rm6]--[Rm7]  [Rm8]--[Rm9]
+-- R2  [Ch6]--[Ch7]  [Ch8]--[Ch9]
 --      |🔒Crimson        |🔒Emerald
--- R3 [Rm10]-[Rm11]-[Rm12]
+-- R3 [Ch10]-[Ch11]-[Ch12]
 --              |🔒Shadow×2
--- R4         [Rm18]
+-- R4         [Ch18]
 --              |
--- R5         [BOSS]
+-- R5         [SANCTUM]
 --
--- Rm16,Rm14,Rm15 = side rooms   |   Rm17 = Infernal Pit off Rm10
--- Miniboss in Rm3 drops Iron Key → opens Rm3→Rm6 door
--- Miniboss in Rm5 drops Gold Key → opens Rm5→Rm8 door
--- Miniboss in Rm6 drops Crimson Key → opens Rm6→Rm10 door
--- Miniboss in Rm8 drops Emerald Key → opens Rm8→Rm12 door
--- Miniboss in Rm10 drops Shadow Key #1
--- Miniboss in Rm12 drops Shadow Key #2
--- Both Shadow Keys → opens Rm11→Rm18 door → Rm18 → BOSS
+-- Ch16,Ch14,Ch15 = side chambers
+-- Warden in Ch3 drops Iron Seal → opens Ch3→Ch6 seal
+-- Warden in Ch5 drops Gold Seal → opens Ch5→Ch8 seal
+-- Warden in Ch6 drops Crimson Seal → opens Ch6→Ch10 seal
+-- Warden in Ch8 drops Emerald Seal → opens Ch8→Ch12 seal
+-- Warden in Ch10 drops Shadow Seal #1
+-- Warden in Ch12 drops Shadow Seal #2
+-- Both Shadow Seals → opens Ch11→Ch18 seal → Ch18 → SANCTUM
 
-DungeonConfig.KeyTypes = {
-	Iron    = { Name = "Iron Key",    Color = Color3.fromRGB(180, 180, 190), BrickColor = BrickColor.new("Medium stone grey") },
-	Gold    = { Name = "Gold Key",    Color = Color3.fromRGB(255, 215, 0),   BrickColor = BrickColor.new("Bright yellow") },
-	Crimson = { Name = "Crimson Key", Color = Color3.fromRGB(200, 30, 30),   BrickColor = BrickColor.new("Bright red") },
-	Emerald = { Name = "Emerald Key", Color = Color3.fromRGB(30, 200, 60),   BrickColor = BrickColor.new("Dark green") },
-	Shadow  = { Name = "Shadow Key",  Color = Color3.fromRGB(120, 50, 200),  BrickColor = BrickColor.new("Bright violet") },
+HollowConfig.SealTypes = {
+	Iron    = { Name = "Iron Seal",    Color = Color3.fromRGB(180, 180, 190), BrickColor = BrickColor.new("Medium stone grey") },
+	Gold    = { Name = "Gold Seal",    Color = Color3.fromRGB(255, 215, 0),   BrickColor = BrickColor.new("Bright yellow") },
+	Crimson = { Name = "Crimson Seal", Color = Color3.fromRGB(200, 30, 30),   BrickColor = BrickColor.new("Bright red") },
+	Emerald = { Name = "Emerald Seal", Color = Color3.fromRGB(30, 200, 60),   BrickColor = BrickColor.new("Dark green") },
+	Shadow  = { Name = "Shadow Seal",  Color = Color3.fromRGB(120, 50, 200),  BrickColor = BrickColor.new("Bright violet") },
 }
 
-DungeonConfig.Rooms = {
+HollowConfig.Chambers = {
 	-- ============ ROW 0 ============
 	{
 		RoomId = 1, Grid = {1, 0}, Name = "Crypt Entrance",
-		RoomType = "Combat", Size = Vector3.new(120, 22, 120),
+		RoomType = "Hall", Size = Vector3.new(120, 22, 120),
 		Enemies = {
 			{ Id = "Skeleton", Count = 4 },
 			{ Id = "Bat", Count = 3 },
@@ -57,7 +58,7 @@ DungeonConfig.Rooms = {
 	},
 	{
 		RoomId = 2, Grid = {2, 0}, Name = "Forgotten Library",
-		RoomType = "Combat", Size = Vector3.new(120, 22, 120),
+		RoomType = "Hall", Size = Vector3.new(120, 22, 120),
 		Enemies = {
 			{ Id = "Wraith", Count = 3 },
 			{ Id = "Mage", Count = 3 },
@@ -69,7 +70,7 @@ DungeonConfig.Rooms = {
 	},
 	{
 		RoomId = 14, Grid = {3, 0}, Name = "Riddle Chamber",
-		RoomType = "Puzzle", PuzzleVariant = "Trivia",
+		RoomType = "Shrine", PuzzleVariant = "Trivia",
 		Size = Vector3.new(120, 22, 120),
 		Enemies = {},
 		FloorMaterial = Enum.Material.Slate, WallMaterial = Enum.Material.Brick,
@@ -78,7 +79,7 @@ DungeonConfig.Rooms = {
 	},
 	{
 		RoomId = 16, Grid = {0, 0}, Name = "Forgotten Catacombs",
-		RoomType = "Combat", Size = Vector3.new(120, 22, 120),
+		RoomType = "Hall", Size = Vector3.new(120, 22, 120),
 		Enemies = {
 			{ Id = "Skeleton", Count = 4 },
 			{ Id = "Zombie", Count = 3 },
@@ -92,12 +93,12 @@ DungeonConfig.Rooms = {
 	-- ============ ROW 1 ============
 	{
 		RoomId = 3, Grid = {0, 1}, Name = "Spider Nest",
-		RoomType = "Combat", Size = Vector3.new(120, 22, 120),
+		RoomType = "Ambush", Size = Vector3.new(120, 22, 120),
 		Enemies = {
 			{ Id = "Spider", Count = 3 },
 			{ Id = "Bat", Count = 3 },
 			{ Id = "Zombie", Count = 2 },
-			{ Id = "IronKeeper", Count = 1, DropsKey = "Iron" }, -- MINIBOSS
+			{ Id = "IronKeeper", Count = 1, DropsKey = "Iron" }, -- WARDEN
 		},
 		FloorMaterial = Enum.Material.Slate, WallMaterial = Enum.Material.Brick,
 		FloorColor = BrickColor.new("Dark stone grey"), WallColor = BrickColor.new("Really black"),
@@ -105,7 +106,7 @@ DungeonConfig.Rooms = {
 	},
 	{
 		RoomId = 4, Grid = {1, 1}, Name = "Grand Hall",
-		RoomType = "Combat", Size = Vector3.new(120, 22, 120),
+		RoomType = "Hall", Size = Vector3.new(120, 22, 120),
 		Enemies = {
 			{ Id = "SkeletonKnight", Count = 3 },
 			{ Id = "Archer", Count = 3 },
@@ -117,12 +118,12 @@ DungeonConfig.Rooms = {
 	},
 	{
 		RoomId = 5, Grid = {2, 1}, Name = "Armory",
-		RoomType = "Combat", Size = Vector3.new(120, 22, 120),
+		RoomType = "Ambush", Size = Vector3.new(120, 22, 120),
 		Enemies = {
 			{ Id = "SkeletonKnight", Count = 3 },
 			{ Id = "Zombie", Count = 2 },
 			{ Id = "Archer", Count = 2 },
-			{ Id = "GoldGuardian", Count = 1, DropsKey = "Gold" }, -- MINIBOSS
+			{ Id = "GoldGuardian", Count = 1, DropsKey = "Gold" }, -- WARDEN
 		},
 		FloorMaterial = Enum.Material.Cobblestone, WallMaterial = Enum.Material.Granite,
 		FloorColor = BrickColor.new("Medium stone grey"), WallColor = BrickColor.new("Black"),
@@ -130,7 +131,7 @@ DungeonConfig.Rooms = {
 	},
 	{
 		RoomId = 15, Grid = {3, 1}, Name = "Cursed Chapel",
-		RoomType = "Combat", Size = Vector3.new(120, 22, 120),
+		RoomType = "Hall", Size = Vector3.new(120, 22, 120),
 		Enemies = {
 			{ Id = "Wraith", Count = 3 },
 			{ Id = "Mage", Count = 3 },
@@ -144,12 +145,12 @@ DungeonConfig.Rooms = {
 	-- ============ ROW 2 ============
 	{
 		RoomId = 6, Grid = {0, 2}, Name = "Blood Altar",
-		RoomType = "Combat", Size = Vector3.new(120, 22, 120),
+		RoomType = "Ambush", Size = Vector3.new(120, 22, 120),
 		Enemies = {
 			{ Id = "Zombie", Count = 3 },
 			{ Id = "Wraith", Count = 2 },
 			{ Id = "Mage", Count = 2 },
-			{ Id = "CrimsonSentinel", Count = 1, DropsKey = "Crimson" }, -- MINIBOSS
+			{ Id = "CrimsonSentinel", Count = 1, DropsKey = "Crimson" }, -- WARDEN
 		},
 		FloorMaterial = Enum.Material.Basalt, WallMaterial = Enum.Material.Granite,
 		FloorColor = BrickColor.new("Maroon"), WallColor = BrickColor.new("Really black"),
@@ -157,7 +158,7 @@ DungeonConfig.Rooms = {
 	},
 	{
 		RoomId = 7, Grid = {1, 2}, Name = "Bomb Vault",
-		RoomType = "Puzzle", PuzzleVariant = "BombDefuse",
+		RoomType = "Shrine", PuzzleVariant = "BombDefuse",
 		Size = Vector3.new(120, 22, 120),
 		Enemies = {},
 		FloorMaterial = Enum.Material.Cobblestone, WallMaterial = Enum.Material.Granite,
@@ -166,12 +167,12 @@ DungeonConfig.Rooms = {
 	},
 	{
 		RoomId = 8, Grid = {2, 2}, Name = "Mage Tower",
-		RoomType = "Combat", Size = Vector3.new(120, 22, 120),
+		RoomType = "Ambush", Size = Vector3.new(120, 22, 120),
 		Enemies = {
 			{ Id = "Mage", Count = 3 },
 			{ Id = "Wraith", Count = 2 },
 			{ Id = "SkeletonKnight", Count = 2 },
-			{ Id = "EmeraldWarden", Count = 1, DropsKey = "Emerald" }, -- MINIBOSS
+			{ Id = "EmeraldWarden", Count = 1, DropsKey = "Emerald" }, -- WARDEN
 		},
 		FloorMaterial = Enum.Material.SmoothPlastic, WallMaterial = Enum.Material.Granite,
 		FloorColor = BrickColor.new("Dark indigo"), WallColor = BrickColor.new("Really black"),
@@ -179,7 +180,7 @@ DungeonConfig.Rooms = {
 	},
 	{
 		RoomId = 9, Grid = {3, 2}, Name = "Frozen Passage",
-		RoomType = "Puzzle", PuzzleVariant = "IceWalk",
+		RoomType = "Shrine", PuzzleVariant = "IceWalk",
 		Size = Vector3.new(120, 22, 120),
 		Enemies = {},
 		FloorMaterial = Enum.Material.Ice, WallMaterial = Enum.Material.Granite,
@@ -190,12 +191,12 @@ DungeonConfig.Rooms = {
 	-- ============ ROW 3 ============
 	{
 		RoomId = 10, Grid = {0, 3}, Name = "Bone Pit",
-		RoomType = "Combat", Size = Vector3.new(120, 22, 120),
+		RoomType = "Ambush", Size = Vector3.new(120, 22, 120),
 		Enemies = {
 			{ Id = "Skeleton", Count = 3 },
 			{ Id = "SkeletonKnight", Count = 2 },
 			{ Id = "Zombie", Count = 2 },
-			{ Id = "ShadowChampion", Count = 1, DropsKey = "Shadow" }, -- MINIBOSS
+			{ Id = "ShadowChampion", Count = 1, DropsKey = "Shadow" }, -- WARDEN
 		},
 		FloorMaterial = Enum.Material.Limestone, WallMaterial = Enum.Material.Granite,
 		FloorColor = BrickColor.new("Brick yellow"), WallColor = BrickColor.new("Really black"),
@@ -203,7 +204,7 @@ DungeonConfig.Rooms = {
 	},
 	{
 		RoomId = 11, Grid = {1, 3}, Name = "Shadow Crypt",
-		RoomType = "Combat", Size = Vector3.new(120, 22, 120),
+		RoomType = "Hall", Size = Vector3.new(120, 22, 120),
 		Enemies = {
 			{ Id = "Wraith", Count = 4 },
 			{ Id = "SkeletonKnight", Count = 3 },
@@ -215,12 +216,12 @@ DungeonConfig.Rooms = {
 	},
 	{
 		RoomId = 12, Grid = {2, 3}, Name = "Knight's Barracks",
-		RoomType = "Combat", Size = Vector3.new(120, 22, 120),
+		RoomType = "Ambush", Size = Vector3.new(120, 22, 120),
 		Enemies = {
 			{ Id = "SkeletonKnight", Count = 3 },
 			{ Id = "Archer", Count = 2 },
 			{ Id = "Mage", Count = 2 },
-			{ Id = "ShadowChampion", Count = 1, DropsKey = "Shadow" }, -- MINIBOSS
+			{ Id = "ShadowChampion", Count = 1, DropsKey = "Shadow" }, -- WARDEN
 		},
 		FloorMaterial = Enum.Material.Cobblestone, WallMaterial = Enum.Material.Granite,
 		FloorColor = BrickColor.new("Medium stone grey"), WallColor = BrickColor.new("Black"),
@@ -228,7 +229,7 @@ DungeonConfig.Rooms = {
 	},
 	{
 		RoomId = 17, Grid = {0, 4}, Name = "Infernal Pit",
-		RoomType = "Combat", Size = Vector3.new(120, 22, 120),
+		RoomType = "Vault", Size = Vector3.new(120, 22, 120),
 		Enemies = {
 			{ Id = "SkeletonKnight", Count = 3 },
 			{ Id = "Zombie", Count = 3 },
@@ -239,10 +240,10 @@ DungeonConfig.Rooms = {
 		LightColor = Color3.fromRGB(255, 80, 20),
 	},
 
-	-- ============ ROW 4 (pre-boss) ============
+	-- ============ ROW 4 (pre-sanctum) ============
 	{
 		RoomId = 18, Grid = {1, 4}, Name = "Void Sanctum",
-		RoomType = "Combat", Size = Vector3.new(120, 24, 120),
+		RoomType = "Hall", Size = Vector3.new(120, 24, 120),
 		Enemies = {
 			{ Id = "SkeletonKnight", Count = 4 },
 			{ Id = "Mage", Count = 3 },
@@ -253,10 +254,10 @@ DungeonConfig.Rooms = {
 		LightColor = Color3.fromRGB(100, 50, 180),
 	},
 
-	-- ============ ROW 5 (BOSS) ============
+	-- ============ ROW 5 (SANCTUM BOSS) ============
 	{
 		RoomId = 13, Grid = {1, 5}, Name = "Golem's Throne",
-		RoomType = "Combat", Size = Vector3.new(120, 28, 120),
+		RoomType = "Sanctum", Size = Vector3.new(120, 28, 120),
 		Enemies = {
 			{ Id = "BossGolem", Count = 1 },
 			{ Id = "SkeletonKnight", Count = 4 },
@@ -270,49 +271,55 @@ DungeonConfig.Rooms = {
 }
 
 -- CORRIDORS: Dir "Right" = +X, "Down" = -Z
-DungeonConfig.Corridors = {
+HollowConfig.Corridors = {
 	-- Row 0 connections
-	{ FromRoom = 16, ToRoom = 1,  Dir = "Right" },               -- Catacombs → Crypt
-	{ FromRoom = 1,  ToRoom = 2,  Dir = "Right" },               -- Crypt → Library
-	{ FromRoom = 2,  ToRoom = 14, Dir = "Right" },               -- Library → Rat Warren
+	{ FromRoom = 16, ToRoom = 1,  Dir = "Right" },
+	{ FromRoom = 1,  ToRoom = 2,  Dir = "Right" },
+	{ FromRoom = 2,  ToRoom = 14, Dir = "Right" },
 
 	-- Row 0 → Row 1
-	{ FromRoom = 1,  ToRoom = 4,  Dir = "Down" },                -- Crypt → Grand Hall
+	{ FromRoom = 1,  ToRoom = 4,  Dir = "Down" },
 
 	-- Row 1 connections
-	{ FromRoom = 3,  ToRoom = 4,  Dir = "Right" },               -- Spider Nest ← Grand Hall
-	{ FromRoom = 4,  ToRoom = 5,  Dir = "Right" },               -- Grand Hall → Armory
-	{ FromRoom = 5,  ToRoom = 15, Dir = "Right" },               -- Armory → Cursed Chapel
+	{ FromRoom = 3,  ToRoom = 4,  Dir = "Right" },
+	{ FromRoom = 4,  ToRoom = 5,  Dir = "Right" },
+	{ FromRoom = 5,  ToRoom = 15, Dir = "Right" },
 
-	-- Row 1 → Row 2 (LOCKED DOORS)
-	{ FromRoom = 3,  ToRoom = 6,  Dir = "Down", DoorKey = "Iron" },     -- 🔒 Iron Door
-	{ FromRoom = 5,  ToRoom = 8,  Dir = "Down", DoorKey = "Gold" },     -- 🔒 Gold Door
+	-- Row 1 → Row 2 (SEALED PASSAGES)
+	{ FromRoom = 3,  ToRoom = 6,  Dir = "Down", DoorKey = "Iron" },
+	{ FromRoom = 5,  ToRoom = 8,  Dir = "Down", DoorKey = "Gold" },
 
 	-- Row 2 connections
-	{ FromRoom = 6,  ToRoom = 7,  Dir = "Right" },               -- Blood Altar → Haunted Gallery
-	{ FromRoom = 8,  ToRoom = 9,  Dir = "Right" },               -- Mage Tower → Crystal Cavern
+	{ FromRoom = 6,  ToRoom = 7,  Dir = "Right" },
+	{ FromRoom = 8,  ToRoom = 9,  Dir = "Right" },
 
-	-- Row 2 → Row 3 (LOCKED DOORS)
-	{ FromRoom = 6,  ToRoom = 10, Dir = "Down", DoorKey = "Crimson" },  -- 🔒 Crimson Door
-	{ FromRoom = 8,  ToRoom = 12, Dir = "Down", DoorKey = "Emerald" },  -- 🔒 Emerald Door
+	-- Row 2 → Row 3 (SEALED PASSAGES)
+	{ FromRoom = 6,  ToRoom = 10, Dir = "Down", DoorKey = "Crimson" },
+	{ FromRoom = 8,  ToRoom = 12, Dir = "Down", DoorKey = "Emerald" },
 
 	-- Row 3 connections
-	{ FromRoom = 10, ToRoom = 11, Dir = "Right" },               -- Bone Pit → Shadow Crypt
-	{ FromRoom = 11, ToRoom = 12, Dir = "Right" },               -- Shadow Crypt → Barracks
+	{ FromRoom = 10, ToRoom = 11, Dir = "Right" },
+	{ FromRoom = 11, ToRoom = 12, Dir = "Right" },
 
 	-- Row 3 → Row 4
-	{ FromRoom = 10, ToRoom = 17, Dir = "Down" },                -- Bone Pit → Infernal Pit
+	{ FromRoom = 10, ToRoom = 17, Dir = "Down" },
 
-	-- Row 3 → Row 4 (LOCKED DOOR - requires both Shadow Keys)
+	-- Row 3 → Row 4 (SEALED - requires both Shadow Seals)
 	{ FromRoom = 11, ToRoom = 18, Dir = "Down", DoorKey = "Shadow", RequiresBothShadow = true },
 
-	-- Row 4 → Row 5 (Boss)
-	{ FromRoom = 18, ToRoom = 13, Dir = "Down" },                -- Void Sanctum → Boss
+	-- Row 4 → Row 5 (Sanctum)
+	{ FromRoom = 18, ToRoom = 13, Dir = "Down" },
 }
 
-DungeonConfig.EntranceRoom = 1
+HollowConfig.EntranceRoom = 1
 
-DungeonConfig.LobbySpawn = Vector3.new(0, 5, 0)
-DungeonConfig.PortalPosition = Vector3.new(0, 5, -30)
+HollowConfig.LobbySpawn = Vector3.new(0, 5, 0)
+HollowConfig.PortalPosition = Vector3.new(0, 5, -30)
 
-return DungeonConfig
+-- Descent settings
+HollowConfig.MaxDescents = 6
+HollowConfig.SoulTokens = 3
+HollowConfig.MaxRank = 50
+HollowConfig.DefaultGrid = 5
+
+return HollowConfig

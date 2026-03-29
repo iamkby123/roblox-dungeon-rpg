@@ -12,7 +12,7 @@ local UIController = {}
 local hud -- the ScreenGui
 local SkillController -- for cooldown display
 local currentStats = nil
-local dungeonStartTime = nil
+local descentStartTime = nil
 
 function UIController.Init(mainHUD, skillCtrl)
 	hud = mainHUD
@@ -36,37 +36,37 @@ function UIController.Init(mainHUD, skillCtrl)
 	end
 
 	-- Listen for dungeon state changes
-	local dungeonRemote = Remotes:GetEvent("DungeonStateChanged")
+	local dungeonRemote = Remotes:GetEvent("DescentStateChanged")
 	if dungeonRemote then
-		dungeonRemote.OnClientEvent:Connect(function(eventType, roomIndex, roomName, keyColor)
-			UIController.ShowRoomNotification(eventType, roomIndex, roomName, keyColor)
-			if eventType == "DungeonStarted" then
-				dungeonStartTime = os.clock()
+		dungeonRemote.OnClientEvent:Connect(function(eventType, roomIndex, roomName, sealColor)
+			UIController.ShowRoomNotification(eventType, roomIndex, roomName, sealColor)
+			if eventType == "DescentStarted" then
+				descentStartTime = os.clock()
 				local timerFrame = hud:FindFirstChild("TimerFrame")
 				if timerFrame then timerFrame.Visible = true end
 				-- Show key inventory HUD
-				UIController.CreateKeyInventoryHUD()
-			elseif eventType == "DungeonComplete" then
-				dungeonStartTime = nil
+				UIController.CreateSealInventoryHUD()
+			elseif eventType == "DescentComplete" then
+				descentStartTime = nil
 				-- Hide key inventory
-				local keyHud = hud:FindFirstChild("KeyInventory")
+				local keyHud = hud:FindFirstChild("SealInventory")
 				if keyHud then keyHud.Visible = false end
 			elseif eventType == "KeyPickedUp" then
 				-- Light up the collected key in the HUD
-				UIController.UpdateKeySlot(roomName, keyColor) -- roomName = key name, keyColor = {R,G,B}
+				UIController.UpdateKeySlot(roomName, sealColor) -- roomName = key name, sealColor = {R,G,B}
 			end
 		end)
 	end
 
 	-- Listen for death/revive
-	local diedRemote = Remotes:GetEvent("PlayerDied")
+	local diedRemote = Remotes:GetEvent("FallenState")
 	if diedRemote then
 		diedRemote.OnClientEvent:Connect(function(deathCount, respawnTime)
 			UIController.ShowDeathOverlay(deathCount, respawnTime or 5)
 		end)
 	end
 
-	local revivedRemote = Remotes:GetEvent("PlayerRevived")
+	local revivedRemote = Remotes:GetEvent("RevivePlayer")
 	if revivedRemote then
 		revivedRemote.OnClientEvent:Connect(function()
 			UIController.HideDeathOverlay()
@@ -74,15 +74,15 @@ function UIController.Init(mainHUD, skillCtrl)
 	end
 
 	-- Listen for class selection
-	local classRemote = Remotes:GetEvent("ClassSelected")
+	local classRemote = Remotes:GetEvent("VocationSelected")
 	if classRemote then
 		classRemote.OnClientEvent:Connect(function(classId)
-			UIController.ShowClassIndicator(classId)
+			UIController.ShowVocationIndicator(classId)
 		end)
 	end
 
 	-- Listen for dungeon score
-	local scoreRemote = Remotes:GetEvent("DungeonScore")
+	local scoreRemote = Remotes:GetEvent("DescentScore")
 	if scoreRemote then
 		scoreRemote.OnClientEvent:Connect(function(scoreData)
 			UIController.ShowScoreOverlay(scoreData)
@@ -90,7 +90,7 @@ function UIController.Init(mainHUD, skillCtrl)
 	end
 
 	-- Listen for Catacombs XP updates (XP bar at bottom of screen)
-	local xpSyncRemote = Remotes:GetEvent("CatacombsXPSync")
+	local xpSyncRemote = Remotes:GetEvent("DelverXPSync")
 	if xpSyncRemote then
 		xpSyncRemote.OnClientEvent:Connect(function(data)
 			UIController.UpdateXPBar(data)
@@ -98,7 +98,7 @@ function UIController.Init(mainHUD, skillCtrl)
 	end
 
 	-- Listen for level-up (full-screen overlay)
-	local levelUpRemote = Remotes:GetEvent("CatacombsLevelUp")
+	local levelUpRemote = Remotes:GetEvent("RankUp")
 	if levelUpRemote then
 		levelUpRemote.OnClientEvent:Connect(function(data)
 			UIController.ShowLevelUpOverlay(data)
@@ -461,48 +461,48 @@ function UIController.ShowItemNotification(itemData)
 	end)
 end
 
-function UIController.ShowRoomNotification(eventType, roomIndex, roomName, keyColor)
+function UIController.ShowRoomNotification(eventType, roomIndex, roomName, sealColor)
 	local roomNotif = hud:FindFirstChild("RoomNotification")
 	if not roomNotif then return end
 
 	local text = ""
 	local color = Color3.fromRGB(255, 200, 50)
 
-	if eventType == "DungeonStarted" then
+	if eventType == "DescentStarted" then
 		text = "Entering: " .. (roomName or "Room " .. roomIndex)
 		color = Color3.fromRGB(100, 200, 255)
 	elseif eventType == "RoomCleared" then
 		text = "Room Cleared! " .. (roomName or "Room " .. roomIndex)
 		color = Color3.fromRGB(50, 255, 50)
-	elseif eventType == "DungeonComplete" then
-		text = "DUNGEON COMPLETE!"
+	elseif eventType == "DescentComplete" then
+		text = "DESCENT COMPLETE!"
 		color = Color3.fromRGB(255, 200, 50)
 	elseif eventType == "KeySpawned" then
-		local keyName = roomName or "A Key"
-		text = keyName .. " dropped! Walk over it to pick up!"
-		if keyColor and type(keyColor) == "table" then
-			color = Color3.new(keyColor[1], keyColor[2], keyColor[3])
+		local sealName = roomName or "A Key"
+		text = sealName .. " dropped! Walk over it to pick up!"
+		if sealColor and type(sealColor) == "table" then
+			color = Color3.new(sealColor[1], sealColor[2], sealColor[3])
 		else
 			color = Color3.fromRGB(255, 220, 50)
 		end
 	elseif eventType == "KeyPickedUp" then
-		local keyName = roomName or "Key"
+		local sealName = roomName or "Key"
 		-- Add directional hint based on key type
 		local hint = "Press E at the matching door to open it!"
-		if keyName == "Iron Key" then
+		if sealName == "Iron Key" then
 			hint = "Press E at the Iron Door (left branch)!"
-		elseif keyName == "Gold Key" then
+		elseif sealName == "Gold Key" then
 			hint = "Press E at the Gold Door (right branch)!"
-		elseif keyName == "Crimson Key" then
+		elseif sealName == "Crimson Key" then
 			hint = "Press E at the Crimson Door to go deeper!"
-		elseif keyName == "Emerald Key" then
+		elseif sealName == "Emerald Key" then
 			hint = "Press E at the Emerald Door to go deeper!"
-		elseif keyName == "Shadow Key" then
+		elseif sealName == "Shadow Key" then
 			hint = "Collect both Shadow Keys to reach the BOSS!"
 		end
-		text = keyName .. " collected! " .. hint
-		if keyColor and type(keyColor) == "table" then
-			color = Color3.new(keyColor[1], keyColor[2], keyColor[3])
+		text = sealName .. " collected! " .. hint
+		if sealColor and type(sealColor) == "table" then
+			color = Color3.new(sealColor[1], sealColor[2], sealColor[3])
 		else
 			color = Color3.fromRGB(100, 255, 100)
 		end
@@ -547,12 +547,12 @@ function UIController.ShowRoomNotification(eventType, roomIndex, roomName, keyCo
 end
 
 function UIController.UpdateTimer()
-	if not dungeonStartTime then return end
+	if not descentStartTime then return end
 	local timerFrame = hud:FindFirstChild("TimerFrame")
 	if not timerFrame then return end
 	local timerText = timerFrame:FindFirstChild("TimerText")
 	if not timerText then return end
-	local elapsed = os.clock() - dungeonStartTime
+	local elapsed = os.clock() - descentStartTime
 	local minutes = math.floor(elapsed / 60)
 	local seconds = math.floor(elapsed % 60)
 	timerText.Text = string.format("%02d:%02d", minutes, seconds)
@@ -614,10 +614,10 @@ function UIController.HideDeathOverlay()
 	if respawnBtn then respawnBtn.Visible = false end
 end
 
-function UIController.ShowClassIndicator(classId)
-	local indicator = hud:FindFirstChild("ClassIndicator")
+function UIController.ShowVocationIndicator(classId)
+	local indicator = hud:FindFirstChild("VocationIndicator")
 	if not indicator then return end
-	local label = indicator:FindFirstChild("ClassLabel")
+	local label = indicator:FindFirstChild("VocationLabel")
 	if label then
 		label.Text = classId:upper()
 	end
@@ -652,7 +652,7 @@ function UIController.ShowScoreOverlay(data)
 	-- Hide timer
 	local timerFrame = hud:FindFirstChild("TimerFrame")
 	if timerFrame then timerFrame.Visible = false end
-	dungeonStartTime = nil
+	descentStartTime = nil
 
 	-- Auto-hide after 7 seconds
 	task.delay(7, function()
@@ -708,13 +708,13 @@ local KEY_DEFS = {
 	{ Id = "Shadow",  Name = "Shadow Key",  Color = Color3.fromRGB(120, 50, 200) },
 }
 
-function UIController.CreateKeyInventoryHUD()
+function UIController.CreateSealInventoryHUD()
 	-- Remove existing
-	local existing = hud:FindFirstChild("KeyInventory")
+	local existing = hud:FindFirstChild("SealInventory")
 	if existing then existing:Destroy() end
 
 	local frame = Instance.new("Frame")
-	frame.Name = "KeyInventory"
+	frame.Name = "SealInventory"
 	frame.Size = UDim2.new(0, 300, 0, 50)
 	frame.Position = UDim2.new(0.5, -150, 0, 55)
 	frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
@@ -779,13 +779,13 @@ function UIController.CreateKeyInventoryHUD()
 	end
 end
 
-function UIController.UpdateKeySlot(keyName, keyColorArr)
-	local keyFrame = hud:FindFirstChild("KeyInventory")
+function UIController.UpdateKeySlot(sealName, sealColorArr)
+	local keyFrame = hud:FindFirstChild("SealInventory")
 	if not keyFrame then return end
 
 	-- Find matching slot by name
 	for _, keyDef in ipairs(KEY_DEFS) do
-		if keyDef.Name == keyName then
+		if keyDef.Name == sealName then
 			local slot = keyFrame:FindFirstChild("KeySlot_" .. keyDef.Id)
 			if slot then
 				-- Light up the slot

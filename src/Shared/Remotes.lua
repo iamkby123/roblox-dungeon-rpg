@@ -10,29 +10,37 @@ local remoteEvents = {
 	"EnemyDied",
 	"ItemPickup",
 	"StatsUpdated",
-	"DungeonStateChanged",
-	"EnterDungeon",
+	"DescentStateChanged",
+	"EnterHollow",
 	"ManaUpdated",
 	"InventoryUpdated",
-	"DungeonTimerSync",
-	"PlayerDied",
-	"PlayerRevived",
-	"ChestOpened",
-	"ClassSelected",
-	"DungeonScore",
+	"DescentTimerSync",
+	"FallenState",
+	"RevivePlayer",
+	"CacheOpened",
+	"VocationSelected",
+	"DescentScore",
 	"BossPhaseChanged",
 	"RequestRespawn",
-	"CatacombsLevelUp",
-	"CatacombsXPSync",
+	"RankUp",
+	"DelverXPSync",
 	"RoomDiscovered",
 	"MinimapRoomCleared",
 	"MinimapInit",
-	"PuzzleComplete",
+	"PuzzleSolved",
+	"SealUnlocked",
+	"UseVocation",
+	"VocationUsed",
+	"BossDefeated",
+	"CacheNearby",
+	"DescentComplete",
+	"HazardHit",
+	"AllWardensFelled",
 }
 
 local remoteFunctions = {
 	"GetStats",
-	"GetCatacombsProgression",
+	"GetDelverProgression",
 }
 
 local isServer = RunService:IsServer()
@@ -41,7 +49,7 @@ local folder
 
 if isServer then
 	folder = Instance.new("Folder")
-	folder.Name = "GameRemotes"
+	folder.Name = "HollowRemotes"
 	folder.Parent = ReplicatedStorage
 
 	for _, name in ipairs(remoteEvents) do
@@ -56,7 +64,7 @@ if isServer then
 		remote.Parent = folder
 	end
 else
-	folder = ReplicatedStorage:WaitForChild("GameRemotes", 10)
+	folder = ReplicatedStorage:WaitForChild("HollowRemotes", 10)
 end
 
 function Remotes:GetEvent(name)

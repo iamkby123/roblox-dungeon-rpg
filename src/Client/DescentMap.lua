@@ -5,7 +5,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Remotes = require(ReplicatedStorage:WaitForChild("Remotes"))
 
-local DungeonMinimap = {}
+local DescentMap = {}
 
 local player = Players.LocalPlayer
 
@@ -21,11 +21,11 @@ local CONNECTOR_THICKNESS = 4
 
 local ROOM_COLORS = {
 	start    = Color3.fromRGB(45, 106, 45),   -- #2d6a2d
-	normal   = Color3.fromRGB(74, 74, 74),    -- #4a4a4a
-	puzzle   = Color3.fromRGB(212, 160, 23),   -- #d4a017
-	trap     = Color3.fromRGB(200, 98, 26),    -- #c8621a
-	miniboss = Color3.fromRGB(139, 0, 0),      -- #8b0000
-	boss     = Color3.fromRGB(80, 0, 0),       -- #500000
+	hall   = Color3.fromRGB(74, 74, 74),    -- #4a4a4a
+	shrine   = Color3.fromRGB(212, 160, 23),   -- #d4a017
+	vault     = Color3.fromRGB(200, 98, 26),    -- #c8621a
+	warden = Color3.fromRGB(139, 0, 0),      -- #8b0000
+	sanctum     = Color3.fromRGB(80, 0, 0),       -- #500000
 }
 
 local UNDISCOVERED_COLOR = Color3.fromRGB(15, 15, 15)
@@ -68,7 +68,7 @@ local function brighten(color, amount)
 end
 
 local function getRoomColor(roomType)
-	return ROOM_COLORS[roomType] or ROOM_COLORS.normal
+	return ROOM_COLORS[roomType] or ROOM_COLORS.hall
 end
 
 local function getCellSize()
@@ -90,7 +90,7 @@ end
 local function getCellPosition(row, col)
 	local cellPx = getCellSize()
 	local offsetX, offsetY = getGridOffsets()
-	-- Flip vertically: entrance (row 1) at bottom, boss (last row) at top
+	-- Flip vertically: entrance (row 1) at bottom, sanctum (last row) at top
 	local flippedRow = gridRows - row + 1
 	local x = MINIMAP_PADDING + offsetX + (col - 1) * cellPx
 	local y = MINIMAP_PADDING + offsetY + (flippedRow - 1) * cellPx
@@ -362,7 +362,7 @@ local function updateConnectorVisibility()
 		if fromVisible and toVisible then
 			-- Both rooms discovered: show connector
 			local fromCell = grid[fr] and grid[fr][fc]
-			local color = fromCell and getRoomColor(fromCell.RoomType) or ROOM_COLORS.normal
+			local color = fromCell and getRoomColor(fromCell.RoomType) or ROOM_COLORS.hall
 			conn.BackgroundColor3 = color
 			conn.BackgroundTransparency = 0.2
 
@@ -392,12 +392,12 @@ end
 	                { FromRow, FromCol, ToRow, ToCol, Dir, DoorKey? }
 	startOffset   : (optional) { X, Z } world origin of grid col=0, row=0
 ]]
-function DungeonMinimap.Init(layoutGrid, tileSizeParam, corridorData, startOffset)
+function DescentMap.Init(layoutGrid, tileSizeParam, corridorData, startOffset)
 	-- Clean up any previous instance
-	DungeonMinimap.Destroy()
+	DescentMap.Destroy()
 
 	if not layoutGrid then
-		warn("[DungeonMinimap] Init called with nil grid")
+		warn("[DescentMap] Init called with nil grid")
 		return
 	end
 
@@ -427,7 +427,7 @@ function DungeonMinimap.Init(layoutGrid, tileSizeParam, corridorData, startOffse
 	gridN = math.max(gridRows, gridCols)
 
 	if gridRows == 0 then
-		warn("[DungeonMinimap] Grid is empty")
+		warn("[DescentMap] Grid is empty")
 		return
 	end
 
@@ -439,13 +439,13 @@ function DungeonMinimap.Init(layoutGrid, tileSizeParam, corridorData, startOffse
 	createPlayerIcon()
 
 	-- Pre-reveal the start room (1,1) and its immediate neighbors
-	DungeonMinimap.RevealRoom(1, 1)
+	DescentMap.RevealRoom(1, 1)
 	-- Reveal adjacent rooms to start
 	for _, offset in ipairs({{-1,0},{1,0},{0,-1},{0,1}}) do
 		local nr, nc = 1 + offset[1], 1 + offset[2]
 		if nr >= 1 and nr <= gridRows and nc >= 1 and nc <= gridCols then
 			if grid[nr] and grid[nr][nc] then
-				DungeonMinimap.RevealRoom(nr, nc)
+				DescentMap.RevealRoom(nr, nc)
 			end
 		end
 	end
@@ -456,21 +456,21 @@ function DungeonMinimap.Init(layoutGrid, tileSizeParam, corridorData, startOffse
 		if not character then return end
 		local rootPart = character:FindFirstChild("HumanoidRootPart")
 		if not rootPart then return end
-		DungeonMinimap.UpdatePlayerPosition(rootPart.Position)
+		DescentMap.UpdatePlayerPosition(rootPart.Position)
 	end)
 
 	-- Listen for server events
 	local discoverRemote = Remotes:GetEvent("RoomDiscovered")
 	if discoverRemote then
 		discoverRemote.OnClientEvent:Connect(function(row, col)
-			DungeonMinimap.RevealRoom(row, col)
+			DescentMap.RevealRoom(row, col)
 		end)
 	end
 
 	local clearRemote = Remotes:GetEvent("MinimapRoomCleared")
 	if clearRemote then
 		clearRemote.OnClientEvent:Connect(function(row, col)
-			DungeonMinimap.ClearRoom(row, col)
+			DescentMap.ClearRoom(row, col)
 		end)
 	end
 end
@@ -479,7 +479,7 @@ end
 	RevealRoom(row, col)
 	Transitions a cell from undiscovered to discovered with a tween.
 ]]
-function DungeonMinimap.RevealRoom(row, col)
+function DescentMap.RevealRoom(row, col)
 	if not cellFrames[row] or not cellFrames[row][col] then return end
 	if not cellStates[row] or cellStates[row][col] ~= "undiscovered" then return end
 
@@ -499,8 +499,8 @@ function DungeonMinimap.RevealRoom(row, col)
 	local typeLabel = frame:FindFirstChild("TypeLabel")
 	if typeLabel then
 		local abbrev = {
-			start = "S", boss = "B", miniboss = "M",
-			puzzle = "?", trap = "!", normal = "",
+			start = "S", sanctum = "B", warden = "M",
+			shrine = "?", vault = "!", hall = "",
 		}
 		local label = abbrev[cell.RoomType] or ""
 		if label ~= "" then
@@ -518,14 +518,14 @@ end
 	ClearRoom(row, col)
 	Brightens the cell and adds a checkmark.
 ]]
-function DungeonMinimap.ClearRoom(row, col)
+function DescentMap.ClearRoom(row, col)
 	if not cellFrames[row] or not cellFrames[row][col] then return end
 	local state = cellStates[row] and cellStates[row][col]
 	if state == "cleared" or state == "empty" then return end
 
 	-- If undiscovered, reveal first
 	if state == "undiscovered" then
-		DungeonMinimap.RevealRoom(row, col)
+		DescentMap.RevealRoom(row, col)
 	end
 
 	local frame = cellFrames[row][col]
@@ -554,7 +554,7 @@ end
 	UpdatePlayerPosition(worldPos)
 	Maps world position to minimap pixel coordinates and moves the player icon.
 ]]
-function DungeonMinimap.UpdatePlayerPosition(worldPos)
+function DescentMap.UpdatePlayerPosition(worldPos)
 	if not minimapFrame or not playerIcon then return end
 
 	-- Convert world position to grid coordinates
@@ -569,7 +569,7 @@ function DungeonMinimap.UpdatePlayerPosition(worldPos)
 	local innerPx = cellPx - gap
 	local offsetX, offsetY = getGridOffsets()
 
-	-- Flip row: entrance at bottom, boss at top
+	-- Flip row: entrance at bottom, sanctum at top
 	local flippedRow = gridRows - row + 1
 
 	local px = MINIMAP_PADDING + offsetX + (col - 1) * cellPx + math.floor(gap / 2) + innerPx / 2
@@ -600,7 +600,7 @@ end
 	Destroy()
 	Tears down all UI and disconnects the heartbeat loop.
 ]]
-function DungeonMinimap.Destroy()
+function DescentMap.Destroy()
 	if heartbeatConn then
 		heartbeatConn:Disconnect()
 		heartbeatConn = nil
@@ -626,4 +626,4 @@ function DungeonMinimap.Destroy()
 	startOffsetZ = 0
 end
 
-return DungeonMinimap
+return DescentMap

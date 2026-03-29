@@ -14,7 +14,7 @@ player.CameraMaxZoomDistance = 0.5
 -- Require modules
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Remotes = require(ReplicatedStorage:WaitForChild("Remotes"))
-local MainHUD = require(ReplicatedStorage:WaitForChild("MainHUD"))
+local HollowHUD = require(ReplicatedStorage:WaitForChild("HollowHUD"))
 local SkillController = require(script.Parent:WaitForChild("SkillController"))
 local InputController = require(script.Parent:WaitForChild("InputController"))
 local DamageNumbers = require(script.Parent:WaitForChild("DamageNumbers"))
@@ -22,10 +22,10 @@ local CombatController = require(script.Parent:WaitForChild("CombatController"))
 local UIController = require(script.Parent:WaitForChild("UIController"))
 local ViewmodelController = require(script.Parent:WaitForChild("ViewmodelController"))
 local FootstepController = require(script.Parent:WaitForChild("FootstepController"))
-local DungeonMinimap = require(script.Parent:WaitForChild("DungeonMinimap"))
+local DescentMap = require(script.Parent:WaitForChild("DescentMap"))
 
 -- Create the HUD
-local hud = MainHUD.Create()
+local hud = HollowHUD.Create()
 hud.Parent = player:WaitForChild("PlayerGui")
 
 -- Initialize all controllers
@@ -44,37 +44,37 @@ end)
 
 -- Client-side gamma lift so geometry stays readable in dark areas
 local cc = Instance.new("ColorCorrectionEffect")
-cc.Name = "DungeonGamma"
+cc.Name = "HollowGamma"
 cc.Brightness = 0.05
 cc.Contrast = 0.08
 cc.Saturation = -0.05   -- slightly muted to match torch-lit stone look
 cc.Parent = Lighting
 
--- Listen for dungeon minimap initialization from server
+-- Listen for descent minimap initialization from server
 local minimapInitRemote = Remotes:GetEvent("MinimapInit")
 if minimapInitRemote then
 	minimapInitRemote.OnClientEvent:Connect(function(data)
 		if data and data.Grid then
-			DungeonMinimap.Init(data.Grid, data.TileSize, data.Corridors, data.StartOffset)
+			DescentMap.Init(data.Grid, data.TileSize, data.Corridors, data.StartOffset)
 		end
 	end)
 end
 
--- Clean up minimap when dungeon ends
-local dungeonStateRemote = Remotes:GetEvent("DungeonStateChanged")
-if dungeonStateRemote then
-	dungeonStateRemote.OnClientEvent:Connect(function(eventType)
-		if eventType == "DungeonComplete" then
-			DungeonMinimap.Destroy()
+-- Clean up minimap when descent ends
+local descentStateRemote = Remotes:GetEvent("DescentStateChanged")
+if descentStateRemote then
+	descentStateRemote.OnClientEvent:Connect(function(eventType)
+		if eventType == "DescentComplete" then
+			DescentMap.Destroy()
 		end
 	end)
 end
 
 -- Listen for puzzle completion
-local puzzleCompleteRemote = Remotes:GetEvent("PuzzleComplete")
-if puzzleCompleteRemote then
-	puzzleCompleteRemote.OnClientEvent:Connect(function(solverName)
-		-- Show puzzle complete banner
+local puzzleSolvedRemote = Remotes:GetEvent("PuzzleSolved")
+if puzzleSolvedRemote then
+	puzzleSolvedRemote.OnClientEvent:Connect(function(solverName)
+		-- Show puzzle solved banner
 		local screenGui = Instance.new("ScreenGui")
 		screenGui.Name = "PuzzleBanner"
 		screenGui.ResetOnSpawn = false
@@ -107,4 +107,4 @@ if puzzleCompleteRemote then
 	end)
 end
 
-print("[DungeonRPG] Client initialized!")
+print("[The Hollow] Client initialized!")

@@ -1,21 +1,21 @@
 local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local EnemyConfig = require(ReplicatedStorage:WaitForChild("Config"):WaitForChild("EnemyConfig"))
+local CreatureConfig = require(ReplicatedStorage:WaitForChild("Config"):WaitForChild("CreatureConfig"))
 
-local MobSpawner = {}
+local CreatureSpawner = {}
 
-local DungeonService -- set via Init
-local EnemyAI -- set via Init
+local HollowBuilder -- set via Init
+local CreatureAI -- set via Init
 
 --------------------------------------------------------------------------------
 -- CONFIG
 --------------------------------------------------------------------------------
-local SPAWN_POINT_TAG = "MobSpawnPoint"
+local SPAWN_POINT_TAG = "CreatureSpawnPoint"
 local CLEAR_INDICATOR_TAG = "ClearIndicator"
 
 -- Basic mob pool for normal rooms (weighted)
-local BASIC_MOB_POOL = {
+local BASIC_CREATURE_POOL = {
 	{ Id = "Skeleton",       Weight = 5 },
 	{ Id = "Zombie",         Weight = 4 },
 	{ Id = "Bat",            Weight = 4 },
@@ -26,15 +26,15 @@ local BASIC_MOB_POOL = {
 	{ Id = "SkeletonKnight", Weight = 1 },
 }
 
-local BASIC_MOB_TOTAL_WEIGHT = 0
-local BASIC_MOB_CUMULATIVE = {}
-for _, entry in ipairs(BASIC_MOB_POOL) do
-	BASIC_MOB_TOTAL_WEIGHT = BASIC_MOB_TOTAL_WEIGHT + entry.Weight
-	table.insert(BASIC_MOB_CUMULATIVE, { Id = entry.Id, Cum = BASIC_MOB_TOTAL_WEIGHT })
+local BASIC_CREATURE_TOTAL_WEIGHT = 0
+local BASIC_CREATURE_CUMULATIVE = {}
+for _, entry in ipairs(BASIC_CREATURE_POOL) do
+	BASIC_CREATURE_TOTAL_WEIGHT = BASIC_CREATURE_TOTAL_WEIGHT + entry.Weight
+	table.insert(BASIC_CREATURE_CUMULATIVE, { Id = entry.Id, Cum = BASIC_CREATURE_TOTAL_WEIGHT })
 end
 
--- Keeper (miniboss) enemies mapped by room template name
-local KEEPER_MAP = {
+-- Keeper (warden) enemies mapped by room template name
+local WARDEN_MAP = {
 	["Iron Keep"]   = "IronKeeper",
 	["Gold Vault"]  = "GoldGuardian",
 	["Blood Altar"] = "CrimsonSentinel",
@@ -42,8 +42,8 @@ local KEEPER_MAP = {
 	["Bone Pit"]    = "ShadowChampion",
 }
 
-local NORMAL_MOB_MIN = 3
-local NORMAL_MOB_MAX = 6
+local NORMAL_CREATURE_MIN = 3
+local NORMAL_CREATURE_MAX = 6
 
 --------------------------------------------------------------------------------
 -- STATE
@@ -51,7 +51,7 @@ local NORMAL_MOB_MAX = 6
 -- Per-spawner instance state keyed by a session id
 -- {
 --   Rooms = { [roomKey] = RoomState },
---   MinibossesAlive = number,
+--   WardensAlive = number,
 --   BossRoomKey = string or nil,
 -- }
 --
@@ -71,14 +71,14 @@ local nextSessionId = 0
 --------------------------------------------------------------------------------
 -- HELPERS
 --------------------------------------------------------------------------------
-local function randomBasicMobId()
-	local roll = math.random() * BASIC_MOB_TOTAL_WEIGHT
-	for _, entry in ipairs(BASIC_MOB_CUMULATIVE) do
+local function randomBasicCreatureId()
+	local roll = math.random() * BASIC_CREATURE_TOTAL_WEIGHT
+	for _, entry in ipairs(BASIC_CREATURE_CUMULATIVE) do
 		if roll <= entry.Cum then
 			return entry.Id
 		end
 	end
-	return BASIC_MOB_POOL[#BASIC_MOB_POOL].Id
+	return BASIC_CREATURE_POOL[#BASIC_CREATURE_POOL].Id
 end
 
 -- Collect tagged SpawnPoint parts from a room instance, sorted by name for
@@ -191,29 +191,29 @@ end
 --------------------------------------------------------------------------------
 -- INIT
 --------------------------------------------------------------------------------
-function MobSpawner.Init(dungeonSvc, enemyAISvc)
-	DungeonService = dungeonSvc
-	EnemyAI = enemyAISvc
+function CreatureSpawner.Init(dungeonSvc, enemyAISvc)
+	HollowBuilder = dungeonSvc
+	CreatureAI = enemyAISvc
 end
 
 --------------------------------------------------------------------------------
 -- CreateSession(rooms)
 --
 -- rooms: array of { RoomType, Folder, TemplateName, DropsKey? }
---   RoomType: "normal" | "trap" | "miniboss" | "boss"
+--   RoomType: "normal" | "trap" | "warden" | "boss"
 --   Folder: the cloned room Instance in workspace
 --   TemplateName: the room template name (e.g. "Iron Keep") for keeper lookup
 --   DropsKey: (optional) key type string the keeper should drop
 --
--- Returns a sessionId that can be used with other MobSpawner functions.
+-- Returns a sessionId that can be used with other CreatureSpawner functions.
 --------------------------------------------------------------------------------
-function MobSpawner.CreateSession(rooms)
+function CreatureSpawner.CreateSession(rooms)
 	nextSessionId = nextSessionId + 1
 	local sessionId = nextSessionId
 
 	local session = {
 		Rooms = {},
-		MinibossesAlive = 0,
+		WardensAlive = 0,
 		BossRoomKey = nil,
 	}
 
@@ -230,8 +230,8 @@ function MobSpawner.CreateSession(rooms)
 		}
 		session.Rooms[roomKey] = roomState
 
-		if roomDef.RoomType == "miniboss" then
-			session.MinibossesAlive = session.MinibossesAlive + 1
+		if roomDef.RoomType == "warden" then
+			session.WardensAlive = session.WardensAlive + 1
 		elseif roomDef.RoomType == "boss" then
 			session.BossRoomKey = roomKey
 		end
@@ -247,10 +247,10 @@ end
 -- Spawns mobs for the given room based on its RoomType.
 -- Normal: 3–6 random basic mobs at SpawnPoints (or fallback circle positions).
 -- Trap: attaches a trigger — mobs spawn when a player touches a TrapTrigger part.
--- Miniboss: spawns one keeper enemy.
+-- Warden: spawns one keeper enemy.
 -- Boss: does nothing until ActivateBossRoom() is called.
 --------------------------------------------------------------------------------
-function MobSpawner.SpawnRoom(sessionId, roomIndex)
+function CreatureSpawner.SpawnRoom(sessionId, roomIndex)
 	local session = sessions[sessionId]
 	if not session then return end
 
@@ -263,11 +263,11 @@ function MobSpawner.SpawnRoom(sessionId, roomIndex)
 	local folder = room.Folder
 
 	if roomType == "normal" or roomType == "puzzle" then
-		MobSpawner._SpawnNormalRoom(session, room)
+		CreatureSpawner._SpawnNormalRoom(session, room)
 	elseif roomType == "trap" then
-		MobSpawner._SetupTrapRoom(session, room, sessionId, roomKey)
-	elseif roomType == "miniboss" then
-		MobSpawner._SpawnMinibossRoom(session, room)
+		CreatureSpawner._SetupTrapRoom(session, room, sessionId, roomKey)
+	elseif roomType == "warden" then
+		CreatureSpawner._SpawnWardenRoom(session, room)
 	end
 	-- boss: intentionally skipped — call ActivateBossRoom separately
 end
@@ -275,9 +275,9 @@ end
 --------------------------------------------------------------------------------
 -- ActivateBossRoom(sessionId)
 --
--- Called when all minibosses are dead. Spawns the boss in the boss room.
+-- Called when all wardenes are dead. Spawns the boss in the boss room.
 --------------------------------------------------------------------------------
-function MobSpawner.ActivateBossRoom(sessionId)
+function CreatureSpawner.ActivateBossRoom(sessionId)
 	local session = sessions[sessionId]
 	if not session or not session.BossRoomKey then return end
 
@@ -294,7 +294,7 @@ function MobSpawner.ActivateBossRoom(sessionId)
 		spawnPos = positions[1]
 	end
 
-	local model = DungeonService.SpawnSingleEnemy("BossGolem", spawnPos, folder)
+	local model = HollowBuilder.SpawnSingleEnemy("BossGolem", spawnPos, folder)
 	if model then
 		table.insert(room.Enemies, model)
 	end
@@ -304,9 +304,9 @@ end
 -- OnEnemyDied(sessionId, enemyModel)
 --
 -- Call this when an enemy dies to update per-room clear state.
--- Returns roomKey, isCleared, allMinibossesDead
+-- Returns roomKey, isCleared, allWardenesDead
 --------------------------------------------------------------------------------
-function MobSpawner.OnEnemyDied(sessionId, enemyModel)
+function CreatureSpawner.OnEnemyDied(sessionId, enemyModel)
 	local session = sessions[sessionId]
 	if not session then return nil, false, false end
 
@@ -315,9 +315,9 @@ function MobSpawner.OnEnemyDied(sessionId, enemyModel)
 			if model == enemyModel then
 				table.remove(room.Enemies, i)
 
-				-- Track miniboss deaths
-				if room.RoomType == "miniboss" then
-					session.MinibossesAlive = math.max(0, session.MinibossesAlive - 1)
+				-- Track warden deaths
+				if room.RoomType == "warden" then
+					session.WardensAlive = math.max(0, session.WardensAlive - 1)
 				end
 
 				-- Check if room is now cleared
@@ -325,11 +325,11 @@ function MobSpawner.OnEnemyDied(sessionId, enemyModel)
 					room.Cleared = true
 					activateClearIndicator(room.Folder)
 
-					local allMinibossesDead = session.MinibossesAlive <= 0
-					return roomKey, true, allMinibossesDead
+					local allWardenesDead = session.WardensAlive <= 0
+					return roomKey, true, allWardenesDead
 				end
 
-				return roomKey, false, session.MinibossesAlive <= 0
+				return roomKey, false, session.WardensAlive <= 0
 			end
 		end
 	end
@@ -340,7 +340,7 @@ end
 --------------------------------------------------------------------------------
 -- IsRoomCleared(sessionId, roomIndex) → boolean
 --------------------------------------------------------------------------------
-function MobSpawner.IsRoomCleared(sessionId, roomIndex)
+function CreatureSpawner.IsRoomCleared(sessionId, roomIndex)
 	local session = sessions[sessionId]
 	if not session then return false end
 	local room = session.Rooms[tostring(roomIndex)]
@@ -350,7 +350,7 @@ end
 --------------------------------------------------------------------------------
 -- GetClearState(sessionId) → { [roomKey] = boolean }
 --------------------------------------------------------------------------------
-function MobSpawner.GetClearState(sessionId)
+function CreatureSpawner.GetClearState(sessionId)
 	local session = sessions[sessionId]
 	if not session then return {} end
 	local state = {}
@@ -361,17 +361,17 @@ function MobSpawner.GetClearState(sessionId)
 end
 
 --------------------------------------------------------------------------------
--- AreAllMinibossesDead(sessionId) → boolean
+-- AreAllWardenesDead(sessionId) → boolean
 --------------------------------------------------------------------------------
-function MobSpawner.AreAllMinibossesDead(sessionId)
+function CreatureSpawner.AreAllWardenesDead(sessionId)
 	local session = sessions[sessionId]
-	return session and session.MinibossesAlive <= 0 or false
+	return session and session.WardensAlive <= 0 or false
 end
 
 --------------------------------------------------------------------------------
 -- CleanupSession(sessionId)
 --------------------------------------------------------------------------------
-function MobSpawner.CleanupSession(sessionId)
+function CreatureSpawner.CleanupSession(sessionId)
 	local session = sessions[sessionId]
 	if not session then return end
 
@@ -385,7 +385,7 @@ function MobSpawner.CleanupSession(sessionId)
 		-- Unregister surviving enemies
 		for _, model in ipairs(room.Enemies) do
 			if model and model.Parent then
-				if EnemyAI then EnemyAI.UnregisterEnemy(model) end
+				if CreatureAI then CreatureAI.UnregisterEnemy(model) end
 				model:Destroy()
 			end
 		end
@@ -398,10 +398,10 @@ end
 --------------------------------------------------------------------------------
 -- INTERNAL: Spawn normal room mobs
 --------------------------------------------------------------------------------
-function MobSpawner._SpawnNormalRoom(session, room)
+function CreatureSpawner._SpawnNormalRoom(session, room)
 	local folder = room.Folder
 	local spawnPoints = getSpawnPoints(folder)
-	local count = math.random(NORMAL_MOB_MIN, NORMAL_MOB_MAX)
+	local count = math.random(NORMAL_CREATURE_MIN, NORMAL_CREATURE_MAX)
 
 	local positions
 	if #spawnPoints >= count then
@@ -422,8 +422,8 @@ function MobSpawner._SpawnNormalRoom(session, room)
 	end
 
 	for i = 1, count do
-		local mobId = randomBasicMobId()
-		local model = DungeonService.SpawnSingleEnemy(mobId, positions[i], folder)
+		local mobId = randomBasicCreatureId()
+		local model = HollowBuilder.SpawnSingleEnemy(mobId, positions[i], folder)
 		if model then
 			table.insert(room.Enemies, model)
 		end
@@ -433,7 +433,7 @@ end
 --------------------------------------------------------------------------------
 -- INTERNAL: Setup trap room with a trigger part
 --------------------------------------------------------------------------------
-function MobSpawner._SetupTrapRoom(session, room, sessionId, roomKey)
+function CreatureSpawner._SetupTrapRoom(session, room, sessionId, roomKey)
 	local folder = room.Folder
 
 	-- Look for a part named "TrapTrigger" inside the room
@@ -474,7 +474,7 @@ function MobSpawner._SetupTrapRoom(session, room, sessionId, roomKey)
 
 		triggered = true
 		-- Spawn mobs immediately at spawn points
-		MobSpawner._SpawnNormalRoom(session, room)
+		CreatureSpawner._SpawnNormalRoom(session, room)
 
 		-- Disconnect so it only fires once
 		if room.TriggerConn then
@@ -485,17 +485,17 @@ function MobSpawner._SetupTrapRoom(session, room, sessionId, roomKey)
 end
 
 --------------------------------------------------------------------------------
--- INTERNAL: Spawn miniboss keeper enemy
+-- INTERNAL: Spawn warden keeper enemy
 --------------------------------------------------------------------------------
-function MobSpawner._SpawnMinibossRoom(session, room)
+function CreatureSpawner._SpawnWardenRoom(session, room)
 	local folder = room.Folder
 	local templateName = room.TemplateName or ""
-	local keeperId = KEEPER_MAP[templateName]
+	local keeperId = WARDEN_MAP[templateName]
 
-	if not keeperId or not EnemyConfig.Enemies[keeperId] then
+	if not keeperId or not CreatureConfig.Creatures[keeperId] then
 		-- Fallback: pick first available keeper
-		for _, id in pairs(KEEPER_MAP) do
-			if EnemyConfig.Enemies[id] then
+		for _, id in pairs(WARDEN_MAP) do
+			if CreatureConfig.Creatures[id] then
 				keeperId = id
 				break
 			end
@@ -503,7 +503,7 @@ function MobSpawner._SpawnMinibossRoom(session, room)
 	end
 
 	if not keeperId then
-		warn("[MobSpawner] No keeper enemy found for room: " .. templateName)
+		warn("[CreatureSpawner] No keeper enemy found for room: " .. templateName)
 		return
 	end
 
@@ -516,7 +516,7 @@ function MobSpawner._SpawnMinibossRoom(session, room)
 		spawnPos = positions[1]
 	end
 
-	local model = DungeonService.SpawnSingleEnemy(keeperId, spawnPos, folder)
+	local model = HollowBuilder.SpawnSingleEnemy(keeperId, spawnPos, folder)
 	if model then
 		if room.DropsKey then
 			model:SetAttribute("DropsKey", room.DropsKey)
@@ -525,4 +525,4 @@ function MobSpawner._SpawnMinibossRoom(session, room)
 	end
 end
 
-return MobSpawner
+return CreatureSpawner

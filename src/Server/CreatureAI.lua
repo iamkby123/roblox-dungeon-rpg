@@ -2,26 +2,26 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local EnemyConfig = require(ReplicatedStorage:WaitForChild("Config"):WaitForChild("EnemyConfig"))
+local CreatureConfig = require(ReplicatedStorage:WaitForChild("Config"):WaitForChild("CreatureConfig"))
 
-local EnemyAI = {}
+local CreatureAI = {}
 
 local CombatService -- set via Init
-local DungeonService -- set via Init
+local HollowBuilder -- set via Init
 
-local enemies = {} -- [enemyModel] = { config, state, lastAttack, ... }
+local creatures = {} -- [creatureModel] = { config, state, lastAttack, ... }
 local heartbeatConn = nil
 
-function EnemyAI.Init(combatSvc, dungeonSvc)
+function CreatureAI.Init(combatSvc, dungeonSvc)
 	CombatService = combatSvc
-	DungeonService = dungeonSvc
+	HollowBuilder = dungeonSvc
 end
 
-function EnemyAI.RegisterEnemy(enemyModel, configId)
-	local config = EnemyConfig.Enemies[configId]
+function CreatureAI.RegisterEnemy(creatureModel, configId)
+	local config = CreatureConfig.Creatures[configId]
 	if not config then return end
 
-	enemies[enemyModel] = {
+	creatures[creatureModel] = {
 		Config = config,
 		ConfigId = configId,
 		State = "Idle",
@@ -32,48 +32,48 @@ function EnemyAI.RegisterEnemy(enemyModel, configId)
 	}
 end
 
-function EnemyAI.UnregisterEnemy(enemyModel)
-	enemies[enemyModel] = nil
+function CreatureAI.UnregisterEnemy(creatureModel)
+	creatures[creatureModel] = nil
 end
 
-function EnemyAI.StartLoop()
+function CreatureAI.StartLoop()
 	if heartbeatConn then return end
 
 	heartbeatConn = RunService.Heartbeat:Connect(function(dt)
-		for enemyModel, data in pairs(enemies) do
-			if not enemyModel.Parent or enemyModel:GetAttribute("IsDead") then
-				enemies[enemyModel] = nil
+		for creatureModel, data in pairs(creatures) do
+			if not creatureModel.Parent or creatureModel:GetAttribute("IsDead") then
+				creatures[creatureModel] = nil
 				continue
 			end
 
-			local rootPart = enemyModel:FindFirstChild("HumanoidRootPart")
-			local humanoid = enemyModel:FindFirstChild("Humanoid")
+			local rootPart = creatureModel:FindFirstChild("HumanoidRootPart")
+			local humanoid = creatureModel:FindFirstChild("Humanoid")
 			if not rootPart or not humanoid then continue end
 
 			-- Find nearest player
-			local nearestPlayer, nearestDist = EnemyAI.FindNearestPlayer(rootPart.Position, data.Config.DetectionRange)
+			local nearestPlayer, nearestDist = CreatureAI.FindNearestPlayer(rootPart.Position, data.Config.DetectionRange)
 			data.Target = nearestPlayer
 
 			if data.Config.Behavior == "Boss" then
-				EnemyAI.UpdateBoss(enemyModel, data, rootPart, humanoid, dt)
+				CreatureAI.UpdateBoss(creatureModel, data, rootPart, humanoid, dt)
 			elseif data.Config.Behavior == "Ranged" then
-				EnemyAI.UpdateRanged(enemyModel, data, rootPart, humanoid, dt)
+				CreatureAI.UpdateRanged(creatureModel, data, rootPart, humanoid, dt)
 			else
-				EnemyAI.UpdateMelee(enemyModel, data, rootPart, humanoid, dt)
+				CreatureAI.UpdateMelee(creatureModel, data, rootPart, humanoid, dt)
 			end
 		end
 	end)
 end
 
-function EnemyAI.StopLoop()
+function CreatureAI.StopLoop()
 	if heartbeatConn then
 		heartbeatConn:Disconnect()
 		heartbeatConn = nil
 	end
-	enemies = {}
+	creatures = {}
 end
 
-function EnemyAI.FindNearestPlayer(position, maxRange)
+function CreatureAI.FindNearestPlayer(position, maxRange)
 	local nearest = nil
 	local nearestDist = maxRange
 
@@ -95,7 +95,7 @@ function EnemyAI.FindNearestPlayer(position, maxRange)
 	return nearest, nearestDist
 end
 
-function EnemyAI.UpdateMelee(enemyModel, data, rootPart, humanoid, dt)
+function CreatureAI.UpdateMelee(creatureModel, data, rootPart, humanoid, dt)
 	local config = data.Config
 	local target = data.Target
 
@@ -129,7 +129,7 @@ function EnemyAI.UpdateMelee(enemyModel, data, rootPart, humanoid, dt)
 	end
 end
 
-function EnemyAI.UpdateRanged(enemyModel, data, rootPart, humanoid, dt)
+function CreatureAI.UpdateRanged(creatureModel, data, rootPart, humanoid, dt)
 	local config = data.Config
 	local target = data.Target
 
@@ -165,12 +165,12 @@ function EnemyAI.UpdateRanged(enemyModel, data, rootPart, humanoid, dt)
 
 		if os.clock() - data.LastAttack >= config.AttackInterval then
 			data.LastAttack = os.clock()
-			EnemyAI.ShootArrow(rootPart, targetRoot, config)
+			CreatureAI.ShootArrow(rootPart, targetRoot, config)
 		end
 	end
 end
 
-function EnemyAI.ShootArrow(fromRoot, targetRoot, config)
+function CreatureAI.ShootArrow(fromRoot, targetRoot, config)
 	local startPos = fromRoot.Position + Vector3.new(0, 2, 0)
 	local direction = (targetRoot.Position - startPos).Unit
 
@@ -217,7 +217,7 @@ function EnemyAI.ShootArrow(fromRoot, targetRoot, config)
 	end)
 end
 
-function EnemyAI.UpdateBoss(enemyModel, data, rootPart, humanoid, dt)
+function CreatureAI.UpdateBoss(creatureModel, data, rootPart, humanoid, dt)
 	local config = data.Config
 	local target = data.Target
 
@@ -227,11 +227,11 @@ function EnemyAI.UpdateBoss(enemyModel, data, rootPart, humanoid, dt)
 	end
 
 	-- Check for summon at health threshold
-	local currentHP = enemyModel:GetAttribute("CurrentHP") or 0
-	local maxHP = enemyModel:GetAttribute("MaxHP") or 1
+	local currentHP = creatureModel:GetAttribute("CurrentHP") or 0
+	local maxHP = creatureModel:GetAttribute("MaxHP") or 1
 	if not data.HasSummoned and currentHP / maxHP <= config.SummonAtHealthPercent then
 		data.HasSummoned = true
-		EnemyAI.BossSummon(enemyModel, rootPart, config)
+		CreatureAI.BossSummon(creatureModel, rootPart, config)
 	end
 
 	-- Phase transitions
@@ -251,7 +251,7 @@ function EnemyAI.UpdateBoss(enemyModel, data, rootPart, humanoid, dt)
 				end
 				-- Color change
 				if phase.BodyColor then
-					for _, part in ipairs(enemyModel:GetDescendants()) do
+					for _, part in ipairs(creatureModel:GetDescendants()) do
 						if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
 							part.BrickColor = phase.BodyColor
 						end
@@ -262,9 +262,9 @@ function EnemyAI.UpdateBoss(enemyModel, data, rootPart, humanoid, dt)
 					for s = 1, phase.SummonCount do
 						local offset = Vector3.new(math.random(-10, 10), 0, math.random(-10, 10))
 						local spawnPos = rootPart.Position + offset
-						local roomFolder = enemyModel.Parent
-						if roomFolder and DungeonService then
-							DungeonService.SpawnSingleEnemy(phase.SummonType, spawnPos, roomFolder)
+						local roomFolder = creatureModel.Parent
+						if roomFolder and HollowBuilder then
+							HollowBuilder.SpawnSingleEnemy(phase.SummonType, spawnPos, roomFolder)
 						end
 					end
 				end
@@ -307,17 +307,17 @@ function EnemyAI.UpdateBoss(enemyModel, data, rootPart, humanoid, dt)
 			if targetRoot and (targetRoot.Position - rootPart.Position).Magnitude <= config.SlamRadius + 5 then
 				data.LastSlamTime = os.clock()
 				local slamDamage = data.PhaseSlamDamage or config.SlamDamage
-				EnemyAI.BossGroundSlam(rootPart, config, slamDamage)
+				CreatureAI.BossGroundSlam(rootPart, config, slamDamage)
 				return
 			end
 		end
 	end
 
 	-- Default melee behavior
-	EnemyAI.UpdateMelee(enemyModel, data, rootPart, humanoid, dt)
+	CreatureAI.UpdateMelee(creatureModel, data, rootPart, humanoid, dt)
 end
 
-function EnemyAI.BossGroundSlam(rootPart, config, overrideDamage)
+function CreatureAI.BossGroundSlam(rootPart, config, overrideDamage)
 	-- Warning indicator
 	local warning = Instance.new("Part")
 	warning.Shape = Enum.PartType.Cylinder
@@ -358,17 +358,17 @@ function EnemyAI.BossGroundSlam(rootPart, config, overrideDamage)
 	end)
 end
 
-function EnemyAI.BossSummon(enemyModel, rootPart, config)
-	if not DungeonService then return end
+function CreatureAI.BossSummon(creatureModel, rootPart, config)
+	if not HollowBuilder then return end
 
 	for i = 1, config.SummonCount do
 		local offset = Vector3.new(math.random(-8, 8), 0, math.random(-8, 8))
 		local spawnPos = rootPart.Position + offset
-		local roomFolder = enemyModel.Parent
+		local roomFolder = creatureModel.Parent
 		if roomFolder then
-			DungeonService.SpawnSingleEnemy(config.SummonType, spawnPos, roomFolder)
+			HollowBuilder.SpawnSingleEnemy(config.SummonType, spawnPos, roomFolder)
 		end
 	end
 end
 
-return EnemyAI
+return CreatureAI

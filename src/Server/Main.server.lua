@@ -5,29 +5,29 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Remotes = require(ReplicatedStorage:WaitForChild("Remotes"))
 
 -- Require all services
-local PlayerDataService = require(script.Parent:WaitForChild("PlayerDataService"))
+local DelverDataService = require(script.Parent:WaitForChild("DelverDataService"))
 local CombatService = require(script.Parent:WaitForChild("CombatService"))
 local SkillService = require(script.Parent:WaitForChild("SkillService"))
-local LootService = require(script.Parent:WaitForChild("LootService"))
-local EnemyAI = require(script.Parent:WaitForChild("EnemyAI"))
-local DungeonService = require(script.Parent:WaitForChild("DungeonService"))
-local CatacombsProgression = require(script.Parent:WaitForChild("CatacombsProgression"))
-local MobSpawner = require(script.Parent:WaitForChild("MobSpawner"))
-local PuzzleSystem = require(script.Parent:WaitForChild("PuzzleSystem"))
+local LootSystem = require(script.Parent:WaitForChild("LootSystem"))
+local CreatureAI = require(script.Parent:WaitForChild("CreatureAI"))
+local HollowBuilder = require(script.Parent:WaitForChild("HollowBuilder"))
+local DelverProgression = require(script.Parent:WaitForChild("DelverProgression"))
+local CreatureSpawner = require(script.Parent:WaitForChild("CreatureSpawner"))
+local PuzzleEncounters = require(script.Parent:WaitForChild("PuzzleEncounters"))
 
 -- Initialize services with dependencies
-PlayerDataService.Init()
-CatacombsProgression.Init(PlayerDataService)
-CombatService.Init(PlayerDataService, DungeonService, CatacombsProgression)
+DelverDataService.Init()
+DelverProgression.Init(DelverDataService)
+CombatService.Init(DelverDataService, HollowBuilder, DelverProgression)
 SkillService.Init(CombatService)
-LootService.Init(PlayerDataService)
-EnemyAI.Init(CombatService, DungeonService)
-PuzzleSystem.Init(DungeonService)
-DungeonService.Init(EnemyAI, LootService, PlayerDataService, CatacombsProgression, PuzzleSystem)
-MobSpawner.Init(DungeonService, EnemyAI)
+LootSystem.Init(DelverDataService)
+CreatureAI.Init(CombatService, HollowBuilder)
+PuzzleEncounters.Init(HollowBuilder)
+HollowBuilder.Init(CreatureAI, LootSystem, DelverDataService, DelverProgression, PuzzleEncounters)
+CreatureSpawner.Init(HollowBuilder, CreatureAI)
 
 -- Start enemy AI loop
-EnemyAI.StartLoop()
+CreatureAI.StartLoop()
 
 -- Build lobby hub — outdoor dungeon entrance with dirt, trees, and ruins
 local function BuildLobby()
@@ -201,7 +201,7 @@ local function BuildLobby()
 	prompt.RequiresLineOfSight = false
 	prompt.Parent = door
 	prompt.Triggered:Connect(function(player)
-		DungeonService.StartDungeon(player)
+		HollowBuilder.StartDungeon(player)
 	end)
 
 	-- Subtle glow seeping through door cracks
@@ -216,7 +216,7 @@ local function BuildLobby()
 	-- Warning sign above cave
 	makeSign(
 		Vector3.new(0, caveH + 8, entranceZ + 5), Vector3.new(18, 4, 0.5), Enum.NormalId.Front,
-		"DUNGEON RPG", Color3.fromRGB(255, 200, 50),
+		"THE HOLLOW", Color3.fromRGB(255, 200, 50),
 		"Enter if you dare...", Color3.fromRGB(200, 80, 80)
 	)
 
@@ -329,7 +329,7 @@ local function BuildLobby()
 	makeSign(
 		Vector3.new(18, 7.5, 8), Vector3.new(12, 6, 1), Enum.NormalId.Front,
 		"HOW TO PLAY", Color3.fromRGB(255, 150, 50),
-		"Clear rooms of enemies\nCollect colored keys\nUnlock matching doors\nDefeat the BOSS!", Color3.fromRGB(220, 220, 200)
+		"Clear chambers of creatures\nCollect colored seals\nUnlock matching passages\nDefeat the SANCTUM BOSS!", Color3.fromRGB(220, 220, 200)
 	)
 
 	-- ===== MASSIVE RUN-DOWN COLOSSEUM =====
@@ -695,14 +695,14 @@ BuildLobby()
 local requestRespawn = Remotes:GetEvent("RequestRespawn")
 if requestRespawn then
 	requestRespawn.OnServerEvent:Connect(function(player)
-		DungeonService.RequestEarlyRespawn(player)
+		HollowBuilder.RequestEarlyRespawn(player)
 	end)
 end
 
 -- Cleanup on player leaving
 Players.PlayerRemoving:Connect(function(player)
-	DungeonService.CleanupPlayer(player)
+	HollowBuilder.CleanupPlayer(player)
 	CombatService.CleanupPlayer(player)
 end)
 
-print("[DungeonRPG] Server initialized!")
+print("[The Hollow] Server initialized!")

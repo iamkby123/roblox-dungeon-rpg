@@ -1,6 +1,6 @@
-local EnemyConfig = {}
+local CreatureConfig = {}
 
-EnemyConfig.Enemies = {
+CreatureConfig.Creatures = {
 	Skeleton = {
 		Name = "Skeleton",
 		Health = 80,
@@ -127,7 +127,7 @@ EnemyConfig.Enemies = {
 	},
 
 	--------------------------------------------------------------------------------
-	-- MINIBOSSES: tougher enemies that guard keys
+	-- WARDENS: tougher creatures that guard seals
 	--------------------------------------------------------------------------------
 	IronKeeper = {
 		Name = "Iron Keeper",
@@ -208,7 +208,7 @@ EnemyConfig.Enemies = {
 	},
 
 	--------------------------------------------------------------------------------
-	-- BOSS
+	-- SANCTUM BOSS
 	--------------------------------------------------------------------------------
 	BossGolem = {
 		Name = "Stone Golem",
@@ -262,4 +262,4 @@ EnemyConfig.Enemies = {
 	},
 }
 
-return EnemyConfig
+return CreatureConfig
