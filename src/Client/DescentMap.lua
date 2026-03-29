@@ -12,48 +12,66 @@ local player = Players.LocalPlayer
 --------------------------------------------------------------------------------
 -- CONFIG
 --------------------------------------------------------------------------------
-local MINIMAP_SIZE = 250 -- px
-local MINIMAP_PADDING = 8
-local TITLE_HEIGHT = 22
-local PLAYER_ICON_SIZE = 16
-local DIRECTION_DOT_SIZE = 6
-local CONNECTOR_THICKNESS = 4
+local MINIMAP_SIZE = 175 -- px (smaller, compact)
+local MINIMAP_PADDING = 7
+local TITLE_HEIGHT = 20
+local PLAYER_ICON_SIZE = 14
+local DIRECTION_DOT_SIZE = 5
+local CONNECTOR_THICKNESS = 3
+
+-- Leather belt border config
+local BELT_THICKNESS = 6
+local BELT_CORNER_RADIUS = 14
+local STITCH_SIZE = 3
+local STITCH_SPACING = 12
+local RIVET_SIZE = 8
+
+-- Colors
+local BELT_COLOR = Color3.fromRGB(65, 42, 22)
+local BELT_DARK = Color3.fromRGB(45, 28, 14)
+local BELT_HIGHLIGHT = Color3.fromRGB(90, 60, 32)
+local STITCH_COLOR = Color3.fromRGB(140, 120, 80)
+local RIVET_COLOR = Color3.fromRGB(165, 145, 90)
+local RIVET_HIGHLIGHT = Color3.fromRGB(200, 180, 120)
+local BUCKLE_COLOR = Color3.fromRGB(150, 135, 85)
+local BUCKLE_DARK = Color3.fromRGB(110, 95, 60)
+local MAP_BG = Color3.fromRGB(8, 8, 12)
+local TITLE_COLOR = Color3.fromRGB(190, 165, 110)
 
 local ROOM_COLORS = {
-	start    = Color3.fromRGB(45, 106, 45),   -- #2d6a2d
-	hall   = Color3.fromRGB(74, 74, 74),    -- #4a4a4a
-	shrine   = Color3.fromRGB(212, 160, 23),   -- #d4a017
-	vault     = Color3.fromRGB(200, 98, 26),    -- #c8621a
-	warden = Color3.fromRGB(139, 0, 0),      -- #8b0000
-	sanctum     = Color3.fromRGB(80, 0, 0),       -- #500000
+	start    = Color3.fromRGB(45, 106, 45),
+	hall     = Color3.fromRGB(74, 74, 74),
+	shrine   = Color3.fromRGB(212, 160, 23),
+	vault    = Color3.fromRGB(200, 98, 26),
+	warden   = Color3.fromRGB(139, 0, 0),
+	sanctum  = Color3.fromRGB(80, 0, 0),
 }
 
 local UNDISCOVERED_COLOR = Color3.fromRGB(15, 15, 15)
-local CLEARED_BRIGHTEN = 0.25 -- how much to brighten cleared rooms
+local CLEARED_BRIGHTEN = 0.25
 
 local TWEEN_REVEAL = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
 --------------------------------------------------------------------------------
 -- STATE
 --------------------------------------------------------------------------------
-local grid = nil        -- reference to the layout grid table
-local gridN = 0         -- grid dimension (max of rows/cols, for square compat)
-local gridRows = 0      -- actual number of rows
-local gridCols = 0      -- actual number of columns
-local tileSize = 200    -- world studs per tile
-local startOffsetX = 0  -- world X origin of grid col 0
-local startOffsetZ = 0  -- world Z origin of grid row 0
+local grid = nil
+local gridN = 0
+local gridRows = 0
+local gridCols = 0
+local tileSize = 200
+local startOffsetX = 0
+local startOffsetZ = 0
 
 local screenGui = nil
 local minimapFrame = nil
-local cellFrames = {}   -- [row][col] = Frame
-local cellStates = {}   -- [row][col] = "undiscovered" | "discovered" | "cleared"
-local connectorFrames = {} -- list of connector frames
+local cellFrames = {}
+local cellStates = {}
+local connectorFrames = {}
 local playerIcon = nil
 local directionDot = nil
 local heartbeatConn = nil
 
--- Corridor data for connector rendering
 local corridors = nil
 
 --------------------------------------------------------------------------------
@@ -78,7 +96,6 @@ local function getCellSize()
 	return cellPx
 end
 
--- Centering offsets for the smaller dimension
 local function getGridOffsets()
 	local cellPx = getCellSize()
 	local usable = MINIMAP_SIZE - MINIMAP_PADDING * 2
@@ -90,7 +107,6 @@ end
 local function getCellPosition(row, col)
 	local cellPx = getCellSize()
 	local offsetX, offsetY = getGridOffsets()
-	-- Flip vertically: entrance (row 1) at bottom, sanctum (last row) at top
 	local flippedRow = gridRows - row + 1
 	local x = MINIMAP_PADDING + offsetX + (col - 1) * cellPx
 	local y = MINIMAP_PADDING + offsetY + (flippedRow - 1) * cellPx
@@ -109,12 +125,179 @@ local function createScreenGui()
 	screenGui.Parent = player:WaitForChild("PlayerGui")
 end
 
+local function createLeatherBorder(parent)
+	-- Total size includes belt border around the map area
+	local totalW = MINIMAP_SIZE + BELT_THICKNESS * 2
+	local totalH = MINIMAP_SIZE + BELT_THICKNESS * 2
+
+	-- Outer leather belt frame
+	local beltFrame = Instance.new("Frame")
+	beltFrame.Name = "LeatherBelt"
+	beltFrame.Size = UDim2.new(0, totalW, 0, totalH)
+	beltFrame.Position = UDim2.new(0, -BELT_THICKNESS, 0, -BELT_THICKNESS)
+	beltFrame.BackgroundColor3 = BELT_COLOR
+	beltFrame.BorderSizePixel = 0
+	beltFrame.ZIndex = 0
+	beltFrame.Parent = parent
+
+	local beltCorner = Instance.new("UICorner")
+	beltCorner.CornerRadius = UDim.new(0, BELT_CORNER_RADIUS + 3)
+	beltCorner.Parent = beltFrame
+
+	-- Outer edge stroke (dark leather edge)
+	local outerStroke = Instance.new("UIStroke")
+	outerStroke.Color = BELT_DARK
+	outerStroke.Thickness = 2
+	outerStroke.Parent = beltFrame
+
+	-- Inner highlight edge (worn leather shine)
+	local innerHighlight = Instance.new("Frame")
+	innerHighlight.Name = "InnerHighlight"
+	innerHighlight.Size = UDim2.new(1, -4, 1, -4)
+	innerHighlight.Position = UDim2.new(0, 2, 0, 2)
+	innerHighlight.BackgroundTransparency = 1
+	innerHighlight.BorderSizePixel = 0
+	innerHighlight.ZIndex = 1
+	innerHighlight.Parent = beltFrame
+
+	local highlightCorner = Instance.new("UICorner")
+	highlightCorner.CornerRadius = UDim.new(0, BELT_CORNER_RADIUS + 1)
+	highlightCorner.Parent = innerHighlight
+
+	local highlightStroke = Instance.new("UIStroke")
+	highlightStroke.Color = BELT_HIGHLIGHT
+	highlightStroke.Thickness = 1
+	highlightStroke.Transparency = 0.5
+	highlightStroke.Parent = innerHighlight
+
+	-- Stitching dots along each edge
+	local function addStitchRow(xStart, yStart, horizontal, length)
+		local count = math.floor(length / STITCH_SPACING)
+		for i = 0, count do
+			local stitch = Instance.new("Frame")
+			stitch.Name = "Stitch"
+			stitch.Size = UDim2.new(0, STITCH_SIZE, 0, STITCH_SIZE)
+			stitch.BackgroundColor3 = STITCH_COLOR
+			stitch.BorderSizePixel = 0
+			stitch.ZIndex = 2
+			stitch.Parent = beltFrame
+
+			local stitchCorner = Instance.new("UICorner")
+			stitchCorner.CornerRadius = UDim.new(1, 0)
+			stitchCorner.Parent = stitch
+
+			if horizontal then
+				stitch.Position = UDim2.new(0, xStart + i * STITCH_SPACING, 0, yStart)
+			else
+				stitch.Position = UDim2.new(0, xStart, 0, yStart + i * STITCH_SPACING)
+			end
+		end
+	end
+
+	-- Top and bottom stitch rows (inset from edges)
+	local stitchInset = BELT_CORNER_RADIUS + 2
+	local stitchLen = totalW - stitchInset * 2
+	addStitchRow(stitchInset, 3, true, stitchLen)                   -- top outer
+	addStitchRow(stitchInset, BELT_THICKNESS - 2, true, stitchLen)  -- top inner
+	addStitchRow(stitchInset, totalH - 4, true, stitchLen)          -- bottom outer
+	addStitchRow(stitchInset, totalH - BELT_THICKNESS + 1, true, stitchLen) -- bottom inner
+
+	-- Left and right stitch columns
+	local stitchLenV = totalH - stitchInset * 2
+	addStitchRow(3, stitchInset, false, stitchLenV)                  -- left outer
+	addStitchRow(BELT_THICKNESS - 2, stitchInset, false, stitchLenV) -- left inner
+	addStitchRow(totalW - 4, stitchInset, false, stitchLenV)         -- right outer
+	addStitchRow(totalW - BELT_THICKNESS + 1, stitchInset, false, stitchLenV) -- right inner
+
+	-- Corner rivets (4 decorative metal studs)
+	local rivetPositions = {
+		{BELT_THICKNESS / 2, BELT_THICKNESS / 2},                         -- top-left
+		{totalW - BELT_THICKNESS / 2, BELT_THICKNESS / 2},                -- top-right
+		{BELT_THICKNESS / 2, totalH - BELT_THICKNESS / 2},                -- bottom-left
+		{totalW - BELT_THICKNESS / 2, totalH - BELT_THICKNESS / 2},       -- bottom-right
+	}
+
+	for _, pos in ipairs(rivetPositions) do
+		-- Rivet base (darker)
+		local rivet = Instance.new("Frame")
+		rivet.Name = "Rivet"
+		rivet.Size = UDim2.new(0, RIVET_SIZE, 0, RIVET_SIZE)
+		rivet.AnchorPoint = Vector2.new(0.5, 0.5)
+		rivet.Position = UDim2.new(0, pos[1], 0, pos[2])
+		rivet.BackgroundColor3 = RIVET_COLOR
+		rivet.BorderSizePixel = 0
+		rivet.ZIndex = 3
+		rivet.Parent = beltFrame
+
+		local rivetCorner = Instance.new("UICorner")
+		rivetCorner.CornerRadius = UDim.new(1, 0)
+		rivetCorner.Parent = rivet
+
+		local rivetStroke = Instance.new("UIStroke")
+		rivetStroke.Color = BELT_DARK
+		rivetStroke.Thickness = 1
+		rivetStroke.Parent = rivet
+
+		-- Rivet highlight (inner shine)
+		local rivetShine = Instance.new("Frame")
+		rivetShine.Name = "Shine"
+		rivetShine.Size = UDim2.new(0, RIVET_SIZE - 4, 0, RIVET_SIZE - 4)
+		rivetShine.AnchorPoint = Vector2.new(0.5, 0.5)
+		rivetShine.Position = UDim2.new(0.5, -1, 0.5, -1)
+		rivetShine.BackgroundColor3 = RIVET_HIGHLIGHT
+		rivetShine.BackgroundTransparency = 0.4
+		rivetShine.BorderSizePixel = 0
+		rivetShine.ZIndex = 4
+		rivetShine.Parent = rivet
+
+		local shineCorner = Instance.new("UICorner")
+		shineCorner.CornerRadius = UDim.new(1, 0)
+		shineCorner.Parent = rivetShine
+	end
+
+	-- Decorative buckle at top-center
+	local buckleW, buckleH = 22, 10
+	local buckle = Instance.new("Frame")
+	buckle.Name = "Buckle"
+	buckle.Size = UDim2.new(0, buckleW, 0, buckleH)
+	buckle.AnchorPoint = Vector2.new(0.5, 0.5)
+	buckle.Position = UDim2.new(0.5, 0, 0, 0)
+	buckle.BackgroundColor3 = BUCKLE_COLOR
+	buckle.BorderSizePixel = 0
+	buckle.ZIndex = 4
+	buckle.Parent = beltFrame
+
+	local buckleCorner = Instance.new("UICorner")
+	buckleCorner.CornerRadius = UDim.new(0, 3)
+	buckleCorner.Parent = buckle
+
+	local buckleStroke = Instance.new("UIStroke")
+	buckleStroke.Color = BUCKLE_DARK
+	buckleStroke.Thickness = 1
+	buckleStroke.Parent = buckle
+
+	-- Buckle prong (center bar)
+	local prong = Instance.new("Frame")
+	prong.Name = "Prong"
+	prong.Size = UDim2.new(0, 2, 0, buckleH - 4)
+	prong.AnchorPoint = Vector2.new(0.5, 0.5)
+	prong.Position = UDim2.new(0.5, 0, 0.5, 0)
+	prong.BackgroundColor3 = BUCKLE_DARK
+	prong.BorderSizePixel = 0
+	prong.ZIndex = 5
+	prong.Parent = buckle
+
+	return beltFrame
+end
+
 local function createMinimapFrame()
-	-- Container anchored top-right
+	-- Container anchored top-right (extra space for belt border)
+	local totalW = MINIMAP_SIZE + BELT_THICKNESS * 2
+	local totalH = MINIMAP_SIZE + BELT_THICKNESS * 2
 	local container = Instance.new("Frame")
 	container.Name = "MinimapContainer"
-	container.Size = UDim2.new(0, MINIMAP_SIZE, 0, MINIMAP_SIZE + TITLE_HEIGHT + 4)
-	container.Position = UDim2.new(1, -MINIMAP_SIZE - 12, 0, 10)
+	container.Size = UDim2.new(0, totalW, 0, totalH + TITLE_HEIGHT + 6)
+	container.Position = UDim2.new(1, -totalW - 10, 0, 8)
 	container.BackgroundTransparency = 1
 	container.Parent = screenGui
 
@@ -123,31 +306,64 @@ local function createMinimapFrame()
 	title.Name = "Title"
 	title.Size = UDim2.new(1, 0, 0, TITLE_HEIGHT)
 	title.BackgroundTransparency = 1
-	title.Text = "DUNGEON"
-	title.TextColor3 = Color3.fromRGB(200, 180, 140)
+	title.Text = "THE HOLLOW"
+	title.TextColor3 = TITLE_COLOR
 	title.TextScaled = true
 	title.Font = Enum.Font.GothamBold
 	title.Parent = container
 
-	-- Minimap frame
+	-- Title drop shadow
+	local titleShadow = Instance.new("TextLabel")
+	titleShadow.Name = "TitleShadow"
+	titleShadow.Size = UDim2.new(1, 0, 0, TITLE_HEIGHT)
+	titleShadow.Position = UDim2.new(0, 1, 0, 1)
+	titleShadow.BackgroundTransparency = 1
+	titleShadow.Text = "THE HOLLOW"
+	titleShadow.TextColor3 = Color3.fromRGB(20, 15, 8)
+	titleShadow.TextTransparency = 0.4
+	titleShadow.TextScaled = true
+	titleShadow.Font = Enum.Font.GothamBold
+	titleShadow.ZIndex = 0
+	titleShadow.Parent = container
+
+	-- Minimap frame (inner map area)
 	minimapFrame = Instance.new("Frame")
 	minimapFrame.Name = "MinimapFrame"
 	minimapFrame.Size = UDim2.new(0, MINIMAP_SIZE, 0, MINIMAP_SIZE)
-	minimapFrame.Position = UDim2.new(0, 0, 0, TITLE_HEIGHT + 4)
-	minimapFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 15)
-	minimapFrame.BackgroundTransparency = 0.15
+	minimapFrame.Position = UDim2.new(0, BELT_THICKNESS, 0, TITLE_HEIGHT + 6 + BELT_THICKNESS)
+	minimapFrame.BackgroundColor3 = MAP_BG
+	minimapFrame.BackgroundTransparency = 0.1
 	minimapFrame.BorderSizePixel = 0
 	minimapFrame.ClipsDescendants = true
+	minimapFrame.ZIndex = 1
 	minimapFrame.Parent = container
 
 	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 6)
+	corner.CornerRadius = UDim.new(0, BELT_CORNER_RADIUS)
 	corner.Parent = minimapFrame
 
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = Color3.fromRGB(60, 55, 50)
-	stroke.Thickness = 2
-	stroke.Parent = minimapFrame
+	-- Inner shadow vignette (dark border inside the map)
+	local vignette = Instance.new("Frame")
+	vignette.Name = "Vignette"
+	vignette.Size = UDim2.new(1, 0, 1, 0)
+	vignette.BackgroundTransparency = 1
+	vignette.BorderSizePixel = 0
+	vignette.ZIndex = 20
+	vignette.Parent = minimapFrame
+
+	local vignetteCorner = Instance.new("UICorner")
+	vignetteCorner.CornerRadius = UDim.new(0, BELT_CORNER_RADIUS)
+	vignetteCorner.Parent = vignette
+
+	local vignetteStroke = Instance.new("UIStroke")
+	vignetteStroke.Color = Color3.fromRGB(0, 0, 0)
+	vignetteStroke.Thickness = 3
+	vignetteStroke.Transparency = 0.3
+	vignetteStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	vignetteStroke.Parent = vignette
+
+	-- Leather belt border around the map frame
+	createLeatherBorder(minimapFrame)
 end
 
 local function createCells()
@@ -180,8 +396,17 @@ local function createCells()
 			frame.Parent = minimapFrame
 
 			local cellCorner = Instance.new("UICorner")
-			cellCorner.CornerRadius = UDim.new(0, 3)
+			cellCorner.CornerRadius = UDim.new(0, 4)
 			cellCorner.Parent = frame
+
+			-- Subtle inner glow stroke (hidden until discovered)
+			local cellGlow = Instance.new("UIStroke")
+			cellGlow.Name = "CellGlow"
+			cellGlow.Color = Color3.fromRGB(255, 255, 255)
+			cellGlow.Thickness = 1
+			cellGlow.Transparency = 1
+			cellGlow.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+			cellGlow.Parent = frame
 
 			-- Checkmark label (hidden until cleared)
 			local check = Instance.new("TextLabel")
@@ -228,7 +453,6 @@ local function createConnectors()
 		local fromRow, fromCol = corr.FromRow, corr.FromCol
 		local toRow, toCol = corr.ToRow, corr.ToCol
 
-		-- Both cells must exist
 		if not (grid[fromRow] and grid[fromRow][fromCol]) then continue end
 		if not (grid[toRow] and grid[toRow][toCol]) then continue end
 
@@ -247,7 +471,6 @@ local function createConnectors()
 		connector.BackgroundColor3 = UNDISCOVERED_COLOR
 		connector.BackgroundTransparency = 0.3
 
-		-- Store metadata for discovery updates
 		connector:SetAttribute("FromRow", fromRow)
 		connector:SetAttribute("FromCol", fromCol)
 		connector:SetAttribute("ToRow", toRow)
@@ -258,11 +481,9 @@ local function createConnectors()
 		end
 
 		if corr.Dir == "Right" then
-			-- Horizontal connector between (fromRow, fromCol) and (fromRow, fromCol+1)
 			connector.Size = UDim2.new(0, gap + 2, 0, CONNECTOR_THICKNESS)
 			connector.Position = UDim2.new(0, fx + innerPx - 1, 0, fy + math.floor(innerPx / 2) - math.floor(CONNECTOR_THICKNESS / 2))
 		elseif corr.Dir == "Down" then
-			-- Vertical connector between (fromRow, fromCol) and (fromRow+1, fromCol)
 			connector.Size = UDim2.new(0, CONNECTOR_THICKNESS, 0, gap + 2)
 			connector.Position = UDim2.new(0, fx + math.floor(innerPx / 2) - math.floor(CONNECTOR_THICKNESS / 2), 0, fy + innerPx - 1)
 		end
@@ -271,7 +492,6 @@ local function createConnectors()
 		connCorner.CornerRadius = UDim.new(0, 2)
 		connCorner.Parent = connector
 
-		-- If locked, add a key icon
 		if corr.DoorKey then
 			local keyLabel = Instance.new("TextLabel")
 			keyLabel.Name = "KeyIcon"
@@ -279,7 +499,7 @@ local function createConnectors()
 			keyLabel.Position = UDim2.new(0.5, 0, 0.5, 0)
 			keyLabel.AnchorPoint = Vector2.new(0.5, 0.5)
 			keyLabel.BackgroundTransparency = 1
-			keyLabel.Text = ""  -- hidden until discovered
+			keyLabel.Text = ""
 			keyLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
 			keyLabel.TextScaled = true
 			keyLabel.Font = Enum.Font.GothamBold
@@ -293,7 +513,6 @@ local function createConnectors()
 end
 
 local function createPlayerIcon()
-	-- Avatar headshot icon
 	playerIcon = Instance.new("ImageLabel")
 	playerIcon.Name = "PlayerIcon"
 	playerIcon.Size = UDim2.new(0, PLAYER_ICON_SIZE, 0, PLAYER_ICON_SIZE)
@@ -310,10 +529,9 @@ local function createPlayerIcon()
 
 	local iconStroke = Instance.new("UIStroke")
 	iconStroke.Color = Color3.new(1, 1, 1)
-	iconStroke.Thickness = 2
+	iconStroke.Thickness = 1.5
 	iconStroke.Parent = playerIcon
 
-	-- Load headshot async
 	task.spawn(function()
 		local success, content = pcall(function()
 			return Players:GetUserThumbnailAsync(
@@ -328,7 +546,6 @@ local function createPlayerIcon()
 		end
 	end)
 
-	-- Direction dot
 	directionDot = Instance.new("Frame")
 	directionDot.Name = "DirectionDot"
 	directionDot.Size = UDim2.new(0, DIRECTION_DOT_SIZE, 0, DIRECTION_DOT_SIZE)
@@ -360,19 +577,16 @@ local function updateConnectorVisibility()
 		local toVisible = toState == "discovered" or toState == "cleared"
 
 		if fromVisible and toVisible then
-			-- Both rooms discovered: show connector
 			local fromCell = grid[fr] and grid[fr][fc]
 			local color = fromCell and getRoomColor(fromCell.RoomType) or ROOM_COLORS.hall
 			conn.BackgroundColor3 = color
 			conn.BackgroundTransparency = 0.2
 
-			-- Show key icon if locked
 			local keyIcon = conn:FindFirstChild("KeyIcon")
 			if keyIcon and conn:GetAttribute("HasKey") then
 				keyIcon.Text = "🔑"
 			end
 		elseif fromVisible or toVisible then
-			-- One room discovered: show dim connector
 			conn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 			conn.BackgroundTransparency = 0.5
 		end
@@ -385,15 +599,8 @@ end
 
 --[[
 	Init(layoutGrid, tileSizeParam, corridorData, startOffset)
-
-	layoutGrid    : grid table — grid[row][col] = { RoomType, Name, RoomId }
-	tileSizeParam : world studs between room centers (e.g. 180)
-	corridorData  : (optional) corridors array
-	                { FromRow, FromCol, ToRow, ToCol, Dir, DoorKey? }
-	startOffset   : (optional) { X, Z } world origin of grid col=0, row=0
 ]]
 function DescentMap.Init(layoutGrid, tileSizeParam, corridorData, startOffset)
-	-- Clean up any previous instance
 	DescentMap.Destroy()
 
 	if not layoutGrid then
@@ -409,7 +616,6 @@ function DescentMap.Init(layoutGrid, tileSizeParam, corridorData, startOffset)
 		startOffsetZ = startOffset.Z or 0
 	end
 
-	-- Determine grid dimensions (find max row and max col)
 	gridRows = 0
 	gridCols = 0
 	for row, cols in pairs(grid) do
@@ -431,16 +637,13 @@ function DescentMap.Init(layoutGrid, tileSizeParam, corridorData, startOffset)
 		return
 	end
 
-	-- Build UI
 	createScreenGui()
 	createMinimapFrame()
 	createCells()
 	createConnectors()
 	createPlayerIcon()
 
-	-- Pre-reveal the start room (1,1) and its immediate neighbors
 	DescentMap.RevealRoom(1, 1)
-	-- Reveal adjacent rooms to start
 	for _, offset in ipairs({{-1,0},{1,0},{0,-1},{0,1}}) do
 		local nr, nc = 1 + offset[1], 1 + offset[2]
 		if nr >= 1 and nr <= gridRows and nc >= 1 and nc <= gridCols then
@@ -450,7 +653,6 @@ function DescentMap.Init(layoutGrid, tileSizeParam, corridorData, startOffset)
 		end
 	end
 
-	-- Start position update loop
 	heartbeatConn = RunService.Heartbeat:Connect(function()
 		local character = player.Character
 		if not character then return end
@@ -459,7 +661,6 @@ function DescentMap.Init(layoutGrid, tileSizeParam, corridorData, startOffset)
 		DescentMap.UpdatePlayerPosition(rootPart.Position)
 	end)
 
-	-- Listen for server events
 	local discoverRemote = Remotes:GetEvent("RoomDiscovered")
 	if discoverRemote then
 		discoverRemote.OnClientEvent:Connect(function(row, col)
@@ -477,7 +678,6 @@ end
 
 --[[
 	RevealRoom(row, col)
-	Transitions a cell from undiscovered to discovered with a tween.
 ]]
 function DescentMap.RevealRoom(row, col)
 	if not cellFrames[row] or not cellFrames[row][col] then return end
@@ -490,12 +690,19 @@ function DescentMap.RevealRoom(row, col)
 	local targetColor = getRoomColor(cell.RoomType)
 	cellStates[row][col] = "discovered"
 
-	-- Tween from black to room color
 	TweenService:Create(frame, TWEEN_REVEAL, {
 		BackgroundColor3 = targetColor,
 	}):Play()
 
-	-- Show type label for special rooms
+	-- Subtle glow on discovered rooms
+	local cellGlow = frame:FindFirstChild("CellGlow")
+	if cellGlow then
+		TweenService:Create(cellGlow, TWEEN_REVEAL, {
+			Transparency = 0.6,
+			Color = brighten(targetColor, 0.3),
+		}):Play()
+	end
+
 	local typeLabel = frame:FindFirstChild("TypeLabel")
 	if typeLabel then
 		local abbrev = {
@@ -516,14 +723,12 @@ end
 
 --[[
 	ClearRoom(row, col)
-	Brightens the cell and adds a checkmark.
 ]]
 function DescentMap.ClearRoom(row, col)
 	if not cellFrames[row] or not cellFrames[row][col] then return end
 	local state = cellStates[row] and cellStates[row][col]
 	if state == "cleared" or state == "empty" then return end
 
-	-- If undiscovered, reveal first
 	if state == "undiscovered" then
 		DescentMap.RevealRoom(row, col)
 	end
@@ -534,7 +739,6 @@ function DescentMap.ClearRoom(row, col)
 
 	cellStates[row][col] = "cleared"
 
-	-- Brighten color
 	local baseColor = getRoomColor(cell.RoomType)
 	local clearedColor = brighten(baseColor, CLEARED_BRIGHTEN)
 
@@ -542,51 +746,40 @@ function DescentMap.ClearRoom(row, col)
 		BackgroundColor3 = clearedColor,
 	}):Play()
 
-	-- Show checkmark
 	local check = frame:FindFirstChild("Checkmark")
 	if check then
-		check.Text = utf8.char(0x2714) -- ✔
+		check.Text = utf8.char(0x2714)
 		check.TextTransparency = 0
 	end
 end
 
 --[[
 	UpdatePlayerPosition(worldPos)
-	Maps world position to minimap pixel coordinates and moves the player icon.
 ]]
 function DescentMap.UpdatePlayerPosition(worldPos)
 	if not minimapFrame or not playerIcon then return end
 
-	-- Convert world position to grid coordinates
-	-- Server formula: worldX = startOffsetX + col0 * tileSize
-	--                 worldZ = startOffsetZ - row0 * tileSize
 	local col = (worldPos.X - startOffsetX) / tileSize + 1
 	local row = (startOffsetZ - worldPos.Z) / tileSize + 1
 
-	-- Convert grid coordinates to minimap pixel position (flipped vertically)
 	local cellPx = getCellSize()
 	local gap = math.max(1, math.floor(cellPx * 0.08))
 	local innerPx = cellPx - gap
 	local offsetX, offsetY = getGridOffsets()
 
-	-- Flip row: entrance at bottom, sanctum at top
 	local flippedRow = gridRows - row + 1
 
 	local px = MINIMAP_PADDING + offsetX + (col - 1) * cellPx + math.floor(gap / 2) + innerPx / 2
 	local py = MINIMAP_PADDING + offsetY + (flippedRow - 1) * cellPx + math.floor(gap / 2) + innerPx / 2
 
-	-- Clamp to minimap bounds
 	px = math.clamp(px, 0, MINIMAP_SIZE)
 	py = math.clamp(py, 0, MINIMAP_SIZE)
 
 	playerIcon.Position = UDim2.new(0, px, 0, py)
 
-	-- Update direction dot based on camera Y rotation
 	local camera = workspace.CurrentCamera
 	if camera and directionDot then
 		local lookVector = camera.CFrame.LookVector
-		-- Project onto XZ plane, get angle
-		-- Negate Z because world -Z maps to minimap +Y (down)
 		local angle = math.atan2(lookVector.X, -lookVector.Z)
 		local dotDist = PLAYER_ICON_SIZE / 2 + DIRECTION_DOT_SIZE / 2 + 2
 		local dotOffX = math.sin(angle) * dotDist
@@ -598,7 +791,6 @@ end
 
 --[[
 	Destroy()
-	Tears down all UI and disconnects the heartbeat loop.
 ]]
 function DescentMap.Destroy()
 	if heartbeatConn then
