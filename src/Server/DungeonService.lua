@@ -294,10 +294,10 @@ function DungeonService.BuildRoom(parent, config, origin, roomIndex, openings)
 	buildWall("Front")
 	buildWall("Back")
 
-	-- Ceiling ambient light
-	local light = Instance.new("PointLight"); light.Color=config.LightColor; light.Range=size.X*0.6; light.Brightness=1; light.Parent=ceil
+	-- Ceiling ambient light (dim warm fill — torches are the primary light)
+	local light = Instance.new("PointLight"); light.Color=Color3.fromRGB(200,140,70); light.Range=size.X*0.5; light.Brightness=0.4; light.Parent=ceil
 
-	-- Wall-mounted torches (two per wall, evenly spaced)
+	-- Wall-mounted torches (two per wall, evenly spaced — primary room lighting)
 	local wallTorchY = size.Y * 0.6
 	local wallInset = 1 -- how far from the wall surface
 	local torchPositions = {
@@ -316,8 +316,8 @@ function DungeonService.BuildRoom(parent, config, origin, roomIndex, openings)
 	}
 	for _, offset in ipairs(torchPositions) do
 		local torch = makePart({Name="WallTorch", Size=Vector3.new(1,3,1), Position=origin+offset, Material=Enum.Material.Wood, BrickColor=BrickColor.new("Brown"), Parent=roomFolder})
-		local tl = Instance.new("PointLight"); tl.Color=config.LightColor or Color3.fromRGB(255,150,50); tl.Range=28; tl.Brightness=1.2; tl.Parent=torch
-		local fi = Instance.new("Fire"); fi.Size=3; fi.Heat=5; fi.Parent=torch
+		local tl = Instance.new("PointLight"); tl.Color=Color3.fromRGB(255,160,60); tl.Range=35; tl.Brightness=1.8; tl.Parent=torch
+		local fi = Instance.new("Fire"); fi.Size=4; fi.Heat=6; fi.Parent=torch
 	end
 
 	return roomFolder

@@ -42,12 +42,12 @@ pcall(function()
 	StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Health, false)
 end)
 
--- Boost gamma so dungeon rooms are clearly visible
+-- Client-side gamma lift so geometry stays readable in dark areas
 local cc = Instance.new("ColorCorrectionEffect")
 cc.Name = "DungeonGamma"
-cc.Brightness = 0.15
-cc.Contrast = 0.15
-cc.Saturation = 0.08
+cc.Brightness = 0.05
+cc.Contrast = 0.08
+cc.Saturation = -0.05   -- slightly muted to match torch-lit stone look
 cc.Parent = Lighting
 
 -- Listen for dungeon minimap initialization from server

@@ -131,9 +131,9 @@ local function BuildLobby()
 	-- Campfire
 	local campfire = mp({Name="Campfire", Size=Vector3.new(2, 1, 2), Position=Vector3.new(0, 1.2, 20),
 		Material=Enum.Material.Wood, BrickColor=BrickColor.new("Reddish brown")})
-	local cfLight = Instance.new("PointLight"); cfLight.Color=Color3.fromRGB(255,150,50)
-	cfLight.Range=30; cfLight.Brightness=1.8; cfLight.Parent=campfire
-	local cfFire = Instance.new("Fire"); cfFire.Size=6; cfFire.Heat=8; cfFire.Parent=campfire
+	local cfLight = Instance.new("PointLight"); cfLight.Color=Color3.fromRGB(255,140,45)
+	cfLight.Range=45; cfLight.Brightness=2.5; cfLight.Parent=campfire
+	local cfFire = Instance.new("Fire"); cfFire.Size=8; cfFire.Heat=10; cfFire.Parent=campfire
 
 	-- Sitting logs around campfire
 	for _, logData in ipairs({
@@ -273,12 +273,12 @@ local function BuildLobby()
 
 	-- ===== TORCHES (lots, well lit area) =====
 	local function makeTorch(pos, range, size)
-		range = range or 30
-		size = size or 4
+		range = range or 40
+		size = size or 5
 		local post = mp({Name="TorchPost", Size=Vector3.new(2, 8, 2), Position=pos + Vector3.new(0, 4, 0),
 			Material=Enum.Material.Wood, BrickColor=BrickColor.new("Dark orange")})
-		local tl = Instance.new("PointLight"); tl.Color=Color3.fromRGB(255,160,50)
-		tl.Range=range; tl.Brightness=2.5; tl.Parent=post
+		local tl = Instance.new("PointLight"); tl.Color=Color3.fromRGB(255,150,45)
+		tl.Range=range; tl.Brightness=3; tl.Parent=post
 		local fi = Instance.new("Fire"); fi.Size=size; fi.Heat=8; fi.Parent=post
 		return post
 	end
@@ -591,9 +591,9 @@ local function BuildLobby()
 		local tp = mp({Name="ColoTorch", Size=Vector3.new(2, 4, 2),
 			Position=Vector3.new(tx, torchY, tz),
 			Material=Enum.Material.Wood, BrickColor=BrickColor.new("Dark orange")})
-		local tl = Instance.new("PointLight"); tl.Color=Color3.fromRGB(255,160,50)
-		tl.Range=35; tl.Brightness=1.5; tl.Parent=tp
-		local fi = Instance.new("Fire"); fi.Size=4; fi.Heat=6; fi.Parent=tp
+		local tl = Instance.new("PointLight"); tl.Color=Color3.fromRGB(255,145,40)
+		tl.Range=50; tl.Brightness=2.5; tl.Parent=tp
+		local fi = Instance.new("Fire"); fi.Size=5; fi.Heat=8; fi.Parent=tp
 	end
 
 	-- ---- UPPER RING TORCHES (higher up on walls) ----
@@ -607,9 +607,9 @@ local function BuildLobby()
 		local tp = mp({Name="UpperTorch", Size=Vector3.new(2, 4, 2),
 			Position=Vector3.new(tx, torchY, tz),
 			Material=Enum.Material.Wood, BrickColor=BrickColor.new("Dark orange")})
-		local tl = Instance.new("PointLight"); tl.Color=Color3.fromRGB(255,140,40)
-		tl.Range=40; tl.Brightness=1.2; tl.Parent=tp
-		local fi = Instance.new("Fire"); fi.Size=5; fi.Heat=8; fi.Parent=tp
+		local tl = Instance.new("PointLight"); tl.Color=Color3.fromRGB(255,135,35)
+		tl.Range=55; tl.Brightness=2; tl.Parent=tp
+		local fi = Instance.new("Fire"); fi.Size=6; fi.Heat=10; fi.Parent=tp
 	end
 
 	-- ---- CRUMBLED WALL SECTIONS with vines ----
@@ -638,27 +638,55 @@ local function BuildLobby()
 	mp({Size=Vector3.new(ARENA_RADIUS*2+40, 1, ARENA_RADIUS*2+40), Position=Vector3.new(0, GROUND_Y + WALL_HEIGHT + 10, 0),
 		Transparency=1, CanCollide=true, Name="Boundary"})
 
-	-- ===== AMBIENT LIGHTING (torchlit evening, visible but moody) =====
+	-- ===== GLOBAL LIGHTING — warm torchlit dungeon (Sundaria-style) =====
 	local lighting = game:GetService("Lighting")
-	lighting.Ambient = Color3.fromRGB(60, 55, 65)
-	lighting.OutdoorAmbient = Color3.fromRGB(70, 65, 75)
-	lighting.Brightness = 1
-	lighting.FogEnd = 800
-	lighting.FogStart = 200
-	lighting.FogColor = Color3.fromRGB(25, 20, 35)
-	lighting.ClockTime = 20 -- early night, some moonlight
+	lighting.Ambient = Color3.fromRGB(18, 14, 10)       -- deep warm shadow fill
+	lighting.OutdoorAmbient = Color3.fromRGB(22, 17, 12) -- barely-there outdoor fill
+	lighting.Brightness = 0.15                            -- very low sky contribution
+	lighting.FogEnd = 450                                 -- fog closes in for depth
+	lighting.FogStart = 40                                -- starts near camera
+	lighting.FogColor = Color3.fromRGB(8, 5, 3)          -- warm black fog
+	lighting.ClockTime = 0                                -- midnight, no sky light
+	lighting.GeographicLatitude = 0
 	lighting.GlobalShadows = true
-	lighting.ShadowSoftness = 0.4
+	lighting.ShadowSoftness = 0.15                        -- crisp shadows from torches
+	lighting.EnvironmentDiffuseScale = 0                  -- no environment diffuse
+	lighting.EnvironmentSpecularScale = 0                 -- no environment specular
+	lighting.ExposureCompensation = 0.3                   -- slight exposure boost
 
-	-- Atmosphere for depth/haze (lighter)
+	-- Bloom — warm glow around fire sources
+	local bloom = Instance.new("BloomEffect")
+	bloom.Intensity = 0.6
+	bloom.Size = 28
+	bloom.Threshold = 1.1
+	bloom.Parent = lighting
+
+	-- Color correction — warm tint, rich contrast, slight desaturation
+	local serverCC = Instance.new("ColorCorrectionEffect")
+	serverCC.Name = "DungeonTone"
+	serverCC.Brightness = -0.02
+	serverCC.Contrast = 0.15
+	serverCC.Saturation = -0.1
+	serverCC.TintColor = Color3.fromRGB(255, 235, 210)   -- warm amber tint
+	serverCC.Parent = lighting
+
+	-- Atmosphere — thick, warm, dungeon-depth fog
 	local atmosphere = Instance.new("Atmosphere")
-	atmosphere.Density = 0.15
-	atmosphere.Offset = 0.05
-	atmosphere.Color = Color3.fromRGB(45, 40, 55)
-	atmosphere.Decay = Color3.fromRGB(25, 20, 35)
+	atmosphere.Density = 0.35
+	atmosphere.Offset = 0.2
+	atmosphere.Color = Color3.fromRGB(30, 20, 10)         -- warm fog color
+	atmosphere.Decay = Color3.fromRGB(12, 8, 4)           -- dark warm decay
 	atmosphere.Glare = 0
-	atmosphere.Haze = 2
+	atmosphere.Haze = 6
 	atmosphere.Parent = lighting
+
+	-- Sunrays disabled (no sun) — use DepthOfField for cinematic feel
+	local dof = Instance.new("DepthOfFieldEffect")
+	dof.FarIntensity = 0.15
+	dof.FocusDistance = 60
+	dof.InFocusRadius = 40
+	dof.NearIntensity = 0
+	dof.Parent = lighting
 end
 
 BuildLobby()
