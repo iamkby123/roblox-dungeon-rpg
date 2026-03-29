@@ -5,6 +5,7 @@ rojo.exe
 *.rbxm
 *.rbxl
 *.rbxlx
+!game.rbxlx
 
 # Debug/preview output
 debug/
