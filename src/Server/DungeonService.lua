@@ -110,6 +110,31 @@ local function computeRoomOpenings()
 end
 
 --------------------------------------------------------------------------------
+-- MINIMAP HELPERS: fire discovery/clear events to the client minimap
+--------------------------------------------------------------------------------
+local function fireMinimapDiscover(player, roomIndex)
+	local roomConfig = DungeonConfig.Rooms[roomIndex]
+	if not roomConfig then return end
+	local discoverRemote = Remotes:GetEvent("RoomDiscovered")
+	if discoverRemote then
+		local row1 = roomConfig.Grid[2] + 1
+		local col1 = roomConfig.Grid[1] + 1
+		discoverRemote:FireClient(player, row1, col1)
+	end
+end
+
+local function fireMinimapCleared(player, roomIndex)
+	local roomConfig = DungeonConfig.Rooms[roomIndex]
+	if not roomConfig then return end
+	local clearRemote = Remotes:GetEvent("MinimapRoomCleared")
+	if clearRemote then
+		local row1 = roomConfig.Grid[2] + 1
+		local col1 = roomConfig.Grid[1] + 1
+		clearRemote:FireClient(player, row1, col1)
+	end
+end
+
+--------------------------------------------------------------------------------
 -- BUILD ENTRANCE ROOM
 --------------------------------------------------------------------------------
 function DungeonService.BuildEntranceRoom(parent, origin)
@@ -1018,31 +1043,6 @@ function DungeonService.SpawnMinibossKey(player, data, roomIndex, enemyModel, ke
 	local remote = Remotes:GetEvent("DungeonStateChanged")
 	if remote then
 		remote:FireClient(player, "KeySpawned", roomIndex, keyData.Name, {keyData.Color.R, keyData.Color.G, keyData.Color.B})
-	end
-end
-
---------------------------------------------------------------------------------
--- MINIMAP HELPERS: fire discovery/clear events to the client minimap
---------------------------------------------------------------------------------
-local function fireMinimapDiscover(player, roomIndex)
-	local roomConfig = DungeonConfig.Rooms[roomIndex]
-	if not roomConfig then return end
-	local discoverRemote = Remotes:GetEvent("RoomDiscovered")
-	if discoverRemote then
-		local row1 = roomConfig.Grid[2] + 1
-		local col1 = roomConfig.Grid[1] + 1
-		discoverRemote:FireClient(player, row1, col1)
-	end
-end
-
-local function fireMinimapCleared(player, roomIndex)
-	local roomConfig = DungeonConfig.Rooms[roomIndex]
-	if not roomConfig then return end
-	local clearRemote = Remotes:GetEvent("MinimapRoomCleared")
-	if clearRemote then
-		local row1 = roomConfig.Grid[2] + 1
-		local col1 = roomConfig.Grid[1] + 1
-		clearRemote:FireClient(player, row1, col1)
 	end
 end
 
