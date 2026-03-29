@@ -22,6 +22,8 @@ local remoteEvents = {
 	"DungeonScore",
 	"BossPhaseChanged",
 	"RequestRespawn",
+	"CatacombsLevelUp",
+	"CatacombsXPGained",
 }
 
 local remoteFunctions = {

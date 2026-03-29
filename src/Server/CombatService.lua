@@ -9,13 +9,15 @@ local CombatService = {}
 
 local PlayerDataService -- set via Init to avoid circular require
 local DungeonService -- set via Init
+local CatacombsProgression -- set via Init
 
 local cooldowns = {} -- [player][skillId] = expiryTime
 local activeConnections = {} -- [player] = { connection1, connection2, ... }
 
-function CombatService.Init(playerDataSvc, dungeonSvc)
+function CombatService.Init(playerDataSvc, dungeonSvc, catacombsProgressionSvc)
 	PlayerDataService = playerDataSvc
 	DungeonService = dungeonSvc
+	CatacombsProgression = catacombsProgressionSvc
 end
 
 local function trackConnection(player, conn)
@@ -323,6 +325,13 @@ end
 function CombatService.OnEnemyDied(player, enemyModel)
 	enemyModel:SetAttribute("IsEnemy", false)
 	enemyModel:SetAttribute("IsDead", true)
+
+	-- Award XP for the kill
+	if CatacombsProgression then
+		local enemyId = enemyModel:GetAttribute("EnemyId") or ""
+		local isBoss = enemyModel:GetAttribute("IsBoss") or false
+		CatacombsProgression.OnEnemyKilled(player, enemyId, isBoss)
+	end
 
 	-- Notify clients
 	local remote = Remotes:GetEvent("EnemyDied")
