@@ -1,5 +1,5 @@
 {
-  "name": "DungeonRPG",
+  "name": "TheHollow",
   "tree": {
     "$className": "DataModel",
     "ServerScriptService": {
