@@ -89,6 +89,22 @@ function UIController.Init(mainHUD, skillCtrl)
 		end)
 	end
 
+	-- Listen for Catacombs XP updates (XP bar at bottom of screen)
+	local xpSyncRemote = Remotes:GetEvent("CatacombsXPSync")
+	if xpSyncRemote then
+		xpSyncRemote.OnClientEvent:Connect(function(data)
+			UIController.UpdateXPBar(data)
+		end)
+	end
+
+	-- Listen for level-up (full-screen overlay)
+	local levelUpRemote = Remotes:GetEvent("CatacombsLevelUp")
+	if levelUpRemote then
+		levelUpRemote.OnClientEvent:Connect(function(data)
+			UIController.ShowLevelUpOverlay(data)
+		end)
+	end
+
 	-- Listen for boss phase changes
 	local bossPhaseRemote = Remotes:GetEvent("BossPhaseChanged")
 	if bossPhaseRemote then
@@ -782,6 +798,125 @@ function UIController.UpdateKeySlot(keyName, keyColorArr)
 			break
 		end
 	end
+end
+
+--------------------------------------------------------------------------------
+-- CATACOMBS XP BAR (bottom-center, created lazily on first XP sync)
+--------------------------------------------------------------------------------
+function UIController.UpdateXPBar(data)
+	local xpBar = hud:FindFirstChild("XPBar")
+	if not xpBar then
+		xpBar = Instance.new("Frame")
+		xpBar.Name = "XPBar"
+		xpBar.Size = UDim2.new(0.4, 0, 0, 16)
+		xpBar.Position = UDim2.new(0.3, 0, 1, -20)
+		xpBar.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+		xpBar.BorderSizePixel = 0
+		xpBar.Parent = hud
+
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0, 4)
+		corner.Parent = xpBar
+
+		local fill = Instance.new("Frame")
+		fill.Name = "Fill"
+		fill.Size = UDim2.new(0, 0, 1, 0)
+		fill.BackgroundColor3 = Color3.fromRGB(100, 200, 255)
+		fill.BorderSizePixel = 0
+		fill.Parent = xpBar
+
+		local fillCorner = Instance.new("UICorner")
+		fillCorner.CornerRadius = UDim.new(0, 4)
+		fillCorner.Parent = fill
+
+		local label = Instance.new("TextLabel")
+		label.Name = "Text"
+		label.Size = UDim2.new(1, 0, 1, 0)
+		label.BackgroundTransparency = 1
+		label.TextColor3 = Color3.new(1, 1, 1)
+		label.TextScaled = true
+		label.Font = Enum.Font.GothamBold
+		label.ZIndex = 2
+		label.Parent = xpBar
+
+		local stroke = Instance.new("UIStroke")
+		stroke.Color = Color3.fromRGB(60, 60, 80)
+		stroke.Thickness = 1
+		stroke.Parent = xpBar
+	end
+
+	local fill = xpBar:FindFirstChild("Fill")
+	local label = xpBar:FindFirstChild("Text")
+	local fraction = data.XPRequired > 0 and data.XP / data.XPRequired or 0
+
+	if fill then
+		TweenService:Create(fill, TweenInfo.new(0.3), {
+			Size = UDim2.new(math.clamp(fraction, 0, 1), 0, 1, 0),
+		}):Play()
+	end
+	if label then
+		label.Text = "Lv." .. data.Level .. "  " .. data.XP .. " / " .. data.XPRequired .. " XP"
+	end
+end
+
+--------------------------------------------------------------------------------
+-- CATACOMBS LEVEL-UP OVERLAY
+--------------------------------------------------------------------------------
+function UIController.ShowLevelUpOverlay(data)
+	local overlay = Instance.new("Frame")
+	overlay.Name = "LevelUpOverlay"
+	overlay.Size = UDim2.new(1, 0, 1, 0)
+	overlay.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
+	overlay.BackgroundTransparency = 0.85
+	overlay.BorderSizePixel = 0
+	overlay.ZIndex = 10
+	overlay.Parent = hud
+
+	local function makeLabel(text, color, size, posY, fontSize)
+		local lbl = Instance.new("TextLabel")
+		lbl.Size = UDim2.new(size, 0, 0, fontSize or 50)
+		lbl.Position = UDim2.new((1 - size) / 2, 0, 0, posY)
+		lbl.BackgroundTransparency = 1
+		lbl.Text = text
+		lbl.TextColor3 = color
+		lbl.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+		lbl.TextStrokeTransparency = 0
+		lbl.TextScaled = true
+		lbl.Font = Enum.Font.GothamBold
+		lbl.ZIndex = 11
+		lbl.Parent = overlay
+		return lbl
+	end
+
+	local screenH = hud.AbsoluteSize.Y
+	local midY = screenH * 0.3
+
+	makeLabel("LEVEL UP!",  Color3.fromRGB(255, 215, 0), 0.5, midY)
+	makeLabel("Level " .. data.Level, Color3.new(1, 1, 1), 0.35, midY + 60, 40)
+
+	local bonuses = data.Bonuses or { Health = 5, Defense = 2, Strength = 2 }
+	makeLabel(
+		string.format("+%d HP   +%d DEF   +%d STR", bonuses.Health, bonuses.Defense, bonuses.Strength),
+		Color3.fromRGB(150, 255, 150), 0.5, midY + 110, 30
+	)
+
+	-- Flash in, hold, fade out
+	TweenService:Create(overlay, TweenInfo.new(0.15), { BackgroundTransparency = 0.7 }):Play()
+
+	task.delay(2.5, function()
+		if not overlay or not overlay.Parent then return end
+		TweenService:Create(overlay, TweenInfo.new(0.8), { BackgroundTransparency = 1 }):Play()
+		for _, child in ipairs(overlay:GetDescendants()) do
+			if child:IsA("TextLabel") then
+				TweenService:Create(child, TweenInfo.new(0.8), {
+					TextTransparency = 1, TextStrokeTransparency = 1,
+				}):Play()
+			end
+		end
+		task.delay(0.8, function()
+			if overlay and overlay.Parent then overlay:Destroy() end
+		end)
+	end)
 end
 
 return UIController

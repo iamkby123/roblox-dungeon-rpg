@@ -9,13 +9,21 @@ local CombatService = {}
 
 local PlayerDataService -- set via Init to avoid circular require
 local DungeonService -- set via Init
+local CatacombsProgression -- set via Init
 
 local cooldowns = {} -- [player][skillId] = expiryTime
 local activeConnections = {} -- [player] = { connection1, connection2, ... }
 
-function CombatService.Init(playerDataSvc, dungeonSvc)
+-- Miniboss enemy IDs (drop keys; use keeper XP tier)
+local KEEPER_IDS = {
+	IronKeeper = true, GoldGuardian = true, CrimsonSentinel = true,
+	EmeraldWarden = true, ShadowChampion = true,
+}
+
+function CombatService.Init(playerDataSvc, dungeonSvc, catacombsSvc)
 	PlayerDataService = playerDataSvc
 	DungeonService = dungeonSvc
+	CatacombsProgression = catacombsSvc
 end
 
 local function trackConnection(player, conn)
@@ -323,6 +331,18 @@ end
 function CombatService.OnEnemyDied(player, enemyModel)
 	enemyModel:SetAttribute("IsEnemy", false)
 	enemyModel:SetAttribute("IsDead", true)
+
+	-- Award Catacombs XP for the kill
+	if CatacombsProgression then
+		local enemyId = enemyModel:GetAttribute("EnemyId") or ""
+		local dropsKey = enemyModel:GetAttribute("DropsKey")
+		if dropsKey then
+			CatacombsProgression.OnKeeperKill(player, enemyId)
+		elseif not enemyModel:GetAttribute("IsBoss") then
+			CatacombsProgression.OnMobKill(player, enemyId)
+		end
+		-- Boss XP is awarded via OnDungeonClear when the boss room clears
+	end
 
 	-- Notify clients
 	local remote = Remotes:GetEvent("EnemyDied")

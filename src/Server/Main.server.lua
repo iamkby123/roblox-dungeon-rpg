@@ -11,14 +11,16 @@ local SkillService = require(script.Parent:WaitForChild("SkillService"))
 local LootService = require(script.Parent:WaitForChild("LootService"))
 local EnemyAI = require(script.Parent:WaitForChild("EnemyAI"))
 local DungeonService = require(script.Parent:WaitForChild("DungeonService"))
+local CatacombsProgression = require(script.Parent:WaitForChild("CatacombsProgression"))
 
 -- Initialize services with dependencies
 PlayerDataService.Init()
-CombatService.Init(PlayerDataService, DungeonService)
+CatacombsProgression.Init(PlayerDataService)
+CombatService.Init(PlayerDataService, DungeonService, CatacombsProgression)
 SkillService.Init(CombatService)
 LootService.Init(PlayerDataService)
 EnemyAI.Init(CombatService, DungeonService)
-DungeonService.Init(EnemyAI, LootService, PlayerDataService)
+DungeonService.Init(EnemyAI, LootService, PlayerDataService, CatacombsProgression)
 
 -- Start enemy AI loop
 EnemyAI.StartLoop()

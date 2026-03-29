@@ -14,13 +14,15 @@ local DungeonService = {}
 local EnemyAI
 local LootService
 local PlayerDataService
+local CatacombsProgression
 
 local activeDungeons = {}
 
-function DungeonService.Init(enemyAISvc, lootSvc, playerDataSvc)
+function DungeonService.Init(enemyAISvc, lootSvc, playerDataSvc, catacombsSvc)
 	EnemyAI = enemyAISvc
 	LootService = lootSvc
 	PlayerDataService = playerDataSvc
+	CatacombsProgression = catacombsSvc
 end
 
 --------------------------------------------------------------------------------
@@ -973,6 +975,11 @@ function DungeonService.RoomCleared(player, data, roomIndex)
 		end
 
 		if remote then remote:FireClient(player, "DungeonComplete", roomIndex, "Dungeon Complete!") end
+
+		-- Award dungeon clear XP (scaled by rooms cleared as floor proxy)
+		if CatacombsProgression then
+			CatacombsProgression.OnDungeonClear(player, data.RoomsCleared or 1)
+		end
 
 		task.wait(8)
 		DungeonService.TeleportToLobby(player)
