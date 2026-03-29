@@ -188,10 +188,12 @@ local function BuildLobby()
 	mp({Name="DoorHandle", Size=Vector3.new(2, 2, 1), Position=Vector3.new(4, 8, entranceZ + 3.5),
 		Material=Enum.Material.Metal, Color=Color3.fromRGB(80, 70, 55)})
 
-	-- Proximity prompt on door
+	-- Proximity prompt on door handle (visible, not blocked by bars)
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.ObjectText = "Iron Door"; prompt.ActionText = "Enter Dungeon"
-	prompt.MaxActivationDistance = 14; prompt.HoldDuration = 0.8; prompt.Parent = door
+	prompt.MaxActivationDistance = 20; prompt.HoldDuration = 0.5
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = door
 	prompt.Triggered:Connect(function(player)
 		DungeonService.StartDungeon(player)
 	end)
