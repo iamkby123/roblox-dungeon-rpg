@@ -27,6 +27,7 @@ local remoteEvents = {
 	"RoomDiscovered",
 	"MinimapRoomCleared",
 	"MinimapInit",
+	"PuzzleComplete",
 }
 
 local remoteFunctions = {

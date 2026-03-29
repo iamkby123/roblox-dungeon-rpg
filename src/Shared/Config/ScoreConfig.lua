@@ -4,6 +4,7 @@ ScoreConfig.TimeBonus = 300 -- base score, lose points per second
 ScoreConfig.DamagePerPoint = 50 -- every 50 damage = 1 point
 ScoreConfig.RoomClearBonus = 100 -- per room cleared
 ScoreConfig.DeathPenalty = -150 -- per death
+ScoreConfig.PuzzleBonus = 200 -- per puzzle room solved
 
 ScoreConfig.Grades = {
 	{ Grade = "S", MinScore = 1200, Color = Color3.fromRGB(255, 215, 0) },

@@ -70,4 +70,41 @@ if dungeonStateRemote then
 	end)
 end
 
+-- Listen for puzzle completion
+local puzzleCompleteRemote = Remotes:GetEvent("PuzzleComplete")
+if puzzleCompleteRemote then
+	puzzleCompleteRemote.OnClientEvent:Connect(function(solverName)
+		-- Show puzzle complete banner
+		local screenGui = Instance.new("ScreenGui")
+		screenGui.Name = "PuzzleBanner"
+		screenGui.ResetOnSpawn = false
+		screenGui.Parent = player:WaitForChild("PlayerGui")
+
+		local banner = Instance.new("TextLabel")
+		banner.Size = UDim2.new(0.5, 0, 0.08, 0)
+		banner.Position = UDim2.new(0.25, 0, 0.15, 0)
+		banner.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
+		banner.BackgroundTransparency = 0.3
+		banner.BorderSizePixel = 0
+		banner.Text = "PUZZLE SOLVED by " .. tostring(solverName) .. "!"
+		banner.TextColor3 = Color3.fromRGB(80, 255, 120)
+		banner.TextScaled = true
+		banner.Font = Enum.Font.GothamBold
+		banner.Parent = screenGui
+
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0, 8)
+		corner.Parent = banner
+
+		local stroke = Instance.new("UIStroke")
+		stroke.Color = Color3.fromRGB(80, 255, 120)
+		stroke.Thickness = 2
+		stroke.Parent = banner
+
+		task.delay(3, function()
+			if screenGui and screenGui.Parent then screenGui:Destroy() end
+		end)
+	end)
+end
+
 print("[DungeonRPG] Client initialized!")

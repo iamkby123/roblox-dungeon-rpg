@@ -15,14 +15,16 @@ local EnemyAI
 local LootService
 local PlayerDataService
 local CatacombsProgression
+local PuzzleSystem
 
 local activeDungeons = {}
 
-function DungeonService.Init(enemyAISvc, lootSvc, playerDataSvc, catacombsSvc)
+function DungeonService.Init(enemyAISvc, lootSvc, playerDataSvc, catacombsSvc, puzzleSvc)
 	EnemyAI = enemyAISvc
 	LootService = lootSvc
 	PlayerDataService = playerDataSvc
 	CatacombsProgression = catacombsSvc
+	PuzzleSystem = puzzleSvc
 end
 
 --------------------------------------------------------------------------------
@@ -561,6 +563,10 @@ function DungeonService.StartDungeon(player)
 		else
 			roomFolder = DungeonService.BuildRoom(dungeonFolder, roomConfig, worldOrigin, i, openings)
 		end
+		-- Build puzzle inside puzzle-type rooms
+		if roomConfig.RoomType == "Puzzle" and PuzzleSystem then
+			PuzzleSystem.BuildPuzzle(roomFolder, worldOrigin, roomConfig.Size, dungeonData, i, player, roomConfig.PuzzleVariant)
+		end
 		dungeonData.RoomFolders[i] = roomFolder
 		dungeonData.RoomStates[i] = "Locked"
 		dungeonData.RoomEnemyCounts[i] = 0
@@ -803,7 +809,7 @@ end
 function DungeonService.SpawnRoomEnemies(dungeonData, roomIndex)
 	local roomConfig = DungeonConfig.Rooms[roomIndex]
 	if not roomConfig then return end
-	if roomConfig.RoomType == "Trap" then
+	if roomConfig.RoomType == "Trap" or roomConfig.RoomType == "Puzzle" then
 		dungeonData.RoomEnemyCounts[roomIndex] = 0
 		return
 	end
@@ -1064,7 +1070,8 @@ function DungeonService.RoomCleared(player, data, roomIndex)
 		local damageScore = math.floor((data.TotalDamage or 0) / ScoreConfig.DamagePerPoint)
 		local roomScore = (data.RoomsCleared or 0) * ScoreConfig.RoomClearBonus
 		local deathScore = (data.Deaths or 0) * ScoreConfig.DeathPenalty
-		local totalScore = math.max(0, timeScore + damageScore + roomScore + deathScore)
+		local puzzleScore = data.PuzzleScore or 0
+		local totalScore = math.max(0, timeScore + damageScore + roomScore + deathScore + puzzleScore)
 
 		local grade = "D"
 		local gradeColor = {1, 0.2, 0.2}
