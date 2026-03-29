@@ -22,10 +22,13 @@ local remoteEvents = {
 	"DungeonScore",
 	"BossPhaseChanged",
 	"RequestRespawn",
+	"CatacombsLevelUp",
+	"CatacombsXPSync",
 }
 
 local remoteFunctions = {
 	"GetStats",
+	"GetCatacombsProgression",
 }
 
 local isServer = RunService:IsServer()

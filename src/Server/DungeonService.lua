@@ -169,7 +169,7 @@ function DungeonService.BuildEntranceRoom(parent, origin)
 			local signPart = Instance.new("Part")
 			signPart.Name = "Pedestal_Sign_" .. pedestalInfo.ClassId
 			signPart.Size = Vector3.new(6, 3, 0.2)
-			signPart.Position = pedPos + Vector3.new(0, 4, -2)
+			signPart.Position = pedPos + Vector3.new(0, 3, 4)
 			signPart.Anchored = true; signPart.CanCollide = false
 			signPart.Material = Enum.Material.SmoothPlastic; signPart.BrickColor = BrickColor.new("Really black")
 			signPart.Parent = f
@@ -286,7 +286,7 @@ end
 --------------------------------------------------------------------------------
 -- CORRIDOR BUILDER (grid-based, straight only)
 --------------------------------------------------------------------------------
-local CORRIDOR_OVERLAP = 10
+local CORRIDOR_OVERLAP = 2
 
 -- Build a straight corridor segment along Z axis
 -- Uses openingW (cw+4) to match room wall openings exactly
@@ -466,6 +466,16 @@ end
 --------------------------------------------------------------------------------
 function DungeonService.StartDungeon(player)
 	DungeonService.CleanupDungeon(player)
+
+	-- Remove lobby boundary walls so they don't block dungeon rooms
+	local lobby = workspace:FindFirstChild("Lobby")
+	if lobby then
+		for _, child in ipairs(lobby:GetChildren()) do
+			if child.Name == "Boundary" then
+				child:Destroy()
+			end
+		end
+	end
 
 	local dungeonFolder = Instance.new("Folder")
 	dungeonFolder.Name = "Dungeon"
