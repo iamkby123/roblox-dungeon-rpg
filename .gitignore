@@ -16,3 +16,4 @@ preview/
 # OS files
 Thumbs.db
 .DS_Store
+.claude/settings.local.json
