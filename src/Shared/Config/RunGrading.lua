@@ -5,6 +5,7 @@ RunGrading.DamagePerPoint = 50 -- every 50 damage = 1 point
 RunGrading.ChamberClearBonus = 100 -- per chamber cleared
 RunGrading.DeathPenalty = -150 -- per death (SoulToken lost)
 RunGrading.PuzzleBonus = 200 -- per puzzle shrine solved
+RunGrading.SecretBonus = 75 -- per hidden secret discovered
 
 RunGrading.Grades = {
 	{ Grade = "S", MinScore = 1200, Color = Color3.fromRGB(255, 215, 0) },

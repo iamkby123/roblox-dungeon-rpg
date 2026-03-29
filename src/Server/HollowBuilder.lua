@@ -295,7 +295,7 @@ function HollowBuilder.BuildRoom(parent, config, origin, roomIndex, openings)
 	buildWall("Back")
 
 	-- Ceiling ambient light (dim warm fill — torches are the primary light)
-	local light = Instance.new("PointLight"); light.Color=Color3.fromRGB(200,140,70); light.Range=size.X*0.5; light.Brightness=0.4; light.Parent=ceil
+	local light = Instance.new("PointLight"); light.Color=config.LightColor or Color3.fromRGB(200,140,70); light.Range=size.X*0.5; light.Brightness=0.4; light.Parent=ceil
 
 	-- Wall-mounted torches (two per wall, evenly spaced — primary room lighting)
 	local wallTorchY = size.Y * 0.6

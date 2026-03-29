@@ -36,6 +36,7 @@ local remoteEvents = {
 	"DescentComplete",
 	"HazardHit",
 	"AllWardensFelled",
+	"SecretFound",
 }
 
 local remoteFunctions = {
