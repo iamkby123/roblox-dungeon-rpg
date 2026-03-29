@@ -109,4 +109,67 @@ if puzzleSolvedRemote then
 	end)
 end
 
+-- Listen for secret discoveries
+local secretFoundRemote = Remotes:GetEvent("SecretFound")
+if secretFoundRemote then
+	secretFoundRemote.OnClientEvent:Connect(function(secretName, points, description)
+		local sg = Instance.new("ScreenGui")
+		sg.Name = "SecretBanner"
+		sg.ResetOnSpawn = false
+		sg.Parent = player:WaitForChild("PlayerGui")
+
+		local banner = Instance.new("Frame")
+		banner.Size = UDim2.new(0, 320, 0, 70)
+		banner.Position = UDim2.new(0.5, -160, 0.2, 0)
+		banner.BackgroundColor3 = Color3.fromRGB(30, 25, 18)
+		banner.BackgroundTransparency = 0.15
+		banner.BorderSizePixel = 0
+		banner.Parent = sg
+
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0, 8)
+		corner.Parent = banner
+
+		local stroke = Instance.new("UIStroke")
+		stroke.Color = Color3.fromRGB(200, 170, 50)
+		stroke.Thickness = 2
+		stroke.Transparency = 0.3
+		stroke.Parent = banner
+
+		local title = Instance.new("TextLabel")
+		title.Size = UDim2.new(1, 0, 0, 28)
+		title.Position = UDim2.new(0, 0, 0, 6)
+		title.BackgroundTransparency = 1
+		title.Text = "SECRET FOUND: " .. tostring(secretName)
+		title.TextColor3 = Color3.fromRGB(255, 215, 0)
+		title.TextScaled = true
+		title.Font = Enum.Font.GothamBold
+		title.Parent = banner
+
+		local desc = Instance.new("TextLabel")
+		desc.Size = UDim2.new(1, 0, 0, 18)
+		desc.Position = UDim2.new(0, 0, 0, 34)
+		desc.BackgroundTransparency = 1
+		desc.Text = tostring(description or "")
+		desc.TextColor3 = Color3.fromRGB(200, 190, 160)
+		desc.TextScaled = true
+		desc.Font = Enum.Font.Gotham
+		desc.Parent = banner
+
+		local pts = Instance.new("TextLabel")
+		pts.Size = UDim2.new(1, 0, 0, 16)
+		pts.Position = UDim2.new(0, 0, 0, 52)
+		pts.BackgroundTransparency = 1
+		pts.Text = "+" .. tostring(points) .. " Descent Score"
+		pts.TextColor3 = Color3.fromRGB(100, 255, 100)
+		pts.TextScaled = true
+		pts.Font = Enum.Font.GothamBold
+		pts.Parent = banner
+
+		task.delay(4, function()
+			if sg and sg.Parent then sg:Destroy() end
+		end)
+	end)
+end
+
 print("[The Hollow] Client initialized!")

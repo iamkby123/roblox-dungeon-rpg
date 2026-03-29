@@ -324,6 +324,311 @@ function HollowBuilder.BuildRoom(parent, config, origin, roomIndex, openings)
 end
 
 --------------------------------------------------------------------------------
+-- ROOM DECORATION: themed props based on room name
+--------------------------------------------------------------------------------
+local DECO_PRESETS = {
+	["Crypt Entrance"] = {
+		{ Name="Coffin1", Size=Vector3.new(3,2,6), Mat=Enum.Material.Wood, Col=BrickColor.new("Brown"), Offset=Vector3.new(-25,1,-20), Rot=CFrame.Angles(0,math.rad(15),0) },
+		{ Name="Coffin2", Size=Vector3.new(3,2,6), Mat=Enum.Material.Wood, Col=BrickColor.new("Reddish brown"), Offset=Vector3.new(28,1,18), Rot=CFrame.Angles(0,math.rad(-30),0) },
+		{ Name="BonePile1", Size=Vector3.new(4,1.5,4), Mat=Enum.Material.Limestone, Col=BrickColor.new("Institutional white"), Offset=Vector3.new(-40,0.75,35) },
+		{ Name="BonePile2", Size=Vector3.new(3,1,3), Mat=Enum.Material.Limestone, Col=BrickColor.new("Institutional white"), Offset=Vector3.new(38,0.5,-30) },
+		{ Name="Pillar1", Size=Vector3.new(4,18,4), Mat=Enum.Material.Cobblestone, Col=BrickColor.new("Dark stone grey"), Offset=Vector3.new(-20,9,0) },
+		{ Name="Pillar2", Size=Vector3.new(4,18,4), Mat=Enum.Material.Cobblestone, Col=BrickColor.new("Dark stone grey"), Offset=Vector3.new(20,9,0) },
+		{ Name="CrackedSlab", Size=Vector3.new(8,0.5,8), Mat=Enum.Material.Slate, Col=BrickColor.new("Medium stone grey"), Offset=Vector3.new(0,0.25,25) },
+	},
+	["Forgotten Library"] = {
+		{ Name="Bookshelf1", Size=Vector3.new(2,12,10), Mat=Enum.Material.Wood, Col=BrickColor.new("Dark orange"), Offset=Vector3.new(-48,6,0) },
+		{ Name="Bookshelf2", Size=Vector3.new(2,12,10), Mat=Enum.Material.Wood, Col=BrickColor.new("Dark orange"), Offset=Vector3.new(-48,6,20) },
+		{ Name="Bookshelf3", Size=Vector3.new(2,12,10), Mat=Enum.Material.Wood, Col=BrickColor.new("Dark orange"), Offset=Vector3.new(-48,6,-20) },
+		{ Name="ReadingDesk", Size=Vector3.new(6,3,4), Mat=Enum.Material.Wood, Col=BrickColor.new("Brown"), Offset=Vector3.new(10,1.5,0) },
+		{ Name="FallenBooks", Size=Vector3.new(5,1,4), Mat=Enum.Material.SmoothPlastic, Col=BrickColor.new("Maroon"), Offset=Vector3.new(15,0.5,15) },
+		{ Name="Candelabra", Size=Vector3.new(1,5,1), Mat=Enum.Material.Metal, Col=BrickColor.new("Gold"), Offset=Vector3.new(10,2.5,0), Light={Color=Color3.fromRGB(255,200,100),Range=12,Brightness=0.6} },
+		{ Name="GlobeStand", Size=Vector3.new(3,4,3), Mat=Enum.Material.Wood, Col=BrickColor.new("Brown"), Offset=Vector3.new(35,2,-25) },
+	},
+	["Forgotten Catacombs"] = {
+		{ Name="SkullPile", Size=Vector3.new(5,2,5), Mat=Enum.Material.Limestone, Col=BrickColor.new("Institutional white"), Offset=Vector3.new(-35,1,30) },
+		{ Name="Urn1", Size=Vector3.new(2,3,2), Mat=Enum.Material.Cobblestone, Col=BrickColor.new("Nougat"), Offset=Vector3.new(30,1.5,-25) },
+		{ Name="Urn2", Size=Vector3.new(2,3,2), Mat=Enum.Material.Cobblestone, Col=BrickColor.new("Nougat"), Offset=Vector3.new(35,1.5,-20) },
+		{ Name="BrokenUrn", Size=Vector3.new(3,1.5,3), Mat=Enum.Material.Cobblestone, Col=BrickColor.new("Nougat"), Offset=Vector3.new(-20,0.75,-35) },
+		{ Name="Sarcophagus", Size=Vector3.new(4,3,8), Mat=Enum.Material.Slate, Col=BrickColor.new("Dark stone grey"), Offset=Vector3.new(0,1.5,30), Rot=CFrame.Angles(0,math.rad(10),0) },
+		{ Name="MossPatch", Size=Vector3.new(6,0.2,6), Mat=Enum.Material.Grass, Col=BrickColor.new("Earth green"), Offset=Vector3.new(-30,0.1,-10) },
+	},
+	["Spider Nest"] = {
+		{ Name="WebCluster1", Size=Vector3.new(8,6,1), Mat=Enum.Material.SmoothPlastic, Col=BrickColor.new("White"), Offset=Vector3.new(-40,12,-45), Trans=0.5 },
+		{ Name="WebCluster2", Size=Vector3.new(1,8,8), Mat=Enum.Material.SmoothPlastic, Col=BrickColor.new("White"), Offset=Vector3.new(45,10,30), Trans=0.5 },
+		{ Name="EggSac1", Size=Vector3.new(3,2,3), Mat=Enum.Material.SmoothPlastic, Col=BrickColor.new("Institutional white"), Offset=Vector3.new(-30,1,20) },
+		{ Name="EggSac2", Size=Vector3.new(2,1.5,2), Mat=Enum.Material.SmoothPlastic, Col=BrickColor.new("Institutional white"), Offset=Vector3.new(25,0.75,-15) },
+		{ Name="Cocoon", Size=Vector3.new(2,5,2), Mat=Enum.Material.Fabric, Col=BrickColor.new("White"), Offset=Vector3.new(40,5,-40), Trans=0.2 },
+		{ Name="DeadAdventurer", Size=Vector3.new(4,1,2), Mat=Enum.Material.Fabric, Col=BrickColor.new("Brown"), Offset=Vector3.new(-15,0.5,-30) },
+	},
+	["Grand Hall"] = {
+		{ Name="Pillar1", Size=Vector3.new(5,20,5), Mat=Enum.Material.Granite, Col=BrickColor.new("Medium stone grey"), Offset=Vector3.new(-30,10,25) },
+		{ Name="Pillar2", Size=Vector3.new(5,20,5), Mat=Enum.Material.Granite, Col=BrickColor.new("Medium stone grey"), Offset=Vector3.new(30,10,25) },
+		{ Name="Pillar3", Size=Vector3.new(5,20,5), Mat=Enum.Material.Granite, Col=BrickColor.new("Medium stone grey"), Offset=Vector3.new(-30,10,-25) },
+		{ Name="Pillar4", Size=Vector3.new(5,20,5), Mat=Enum.Material.Granite, Col=BrickColor.new("Medium stone grey"), Offset=Vector3.new(30,10,-25) },
+		{ Name="BannerStand1", Size=Vector3.new(1,10,0.5), Mat=Enum.Material.Fabric, Col=BrickColor.new("Maroon"), Offset=Vector3.new(-48,5,0), NC=true },
+		{ Name="BannerStand2", Size=Vector3.new(1,10,0.5), Mat=Enum.Material.Fabric, Col=BrickColor.new("Navy blue"), Offset=Vector3.new(48,5,0), NC=true },
+		{ Name="BrokenChandelier", Size=Vector3.new(6,2,6), Mat=Enum.Material.Metal, Col=BrickColor.new("Gold"), Offset=Vector3.new(5,1,10) },
+		{ Name="RedCarpet", Size=Vector3.new(8,0.3,40), Mat=Enum.Material.Fabric, Col=BrickColor.new("Crimson"), Offset=Vector3.new(0,0.15,0) },
+	},
+	["Armory"] = {
+		{ Name="WeaponRack1", Size=Vector3.new(2,8,6), Mat=Enum.Material.Wood, Col=BrickColor.new("Brown"), Offset=Vector3.new(-48,4,15) },
+		{ Name="WeaponRack2", Size=Vector3.new(2,8,6), Mat=Enum.Material.Wood, Col=BrickColor.new("Brown"), Offset=Vector3.new(-48,4,-15) },
+		{ Name="ArmorStand", Size=Vector3.new(2,6,2), Mat=Enum.Material.Metal, Col=BrickColor.new("Medium stone grey"), Offset=Vector3.new(35,3,30) },
+		{ Name="ShieldWall", Size=Vector3.new(0.5,5,5), Mat=Enum.Material.Metal, Col=BrickColor.new("Dark stone grey"), Offset=Vector3.new(48,5,-20), NC=true },
+		{ Name="Anvil", Size=Vector3.new(3,2,2), Mat=Enum.Material.Metal, Col=BrickColor.new("Dark stone grey"), Offset=Vector3.new(15,1,-30) },
+		{ Name="Grindstone", Size=Vector3.new(2,3,2), Mat=Enum.Material.Cobblestone, Col=BrickColor.new("Medium stone grey"), Offset=Vector3.new(20,1.5,-35) },
+		{ Name="CratePile", Size=Vector3.new(5,4,5), Mat=Enum.Material.Wood, Col=BrickColor.new("Brown"), Offset=Vector3.new(-25,2,35) },
+	},
+	["Cursed Chapel"] = {
+		{ Name="Pew1", Size=Vector3.new(3,3,8), Mat=Enum.Material.Wood, Col=BrickColor.new("Dark orange"), Offset=Vector3.new(-15,1.5,10) },
+		{ Name="Pew2", Size=Vector3.new(3,3,8), Mat=Enum.Material.Wood, Col=BrickColor.new("Dark orange"), Offset=Vector3.new(15,1.5,10) },
+		{ Name="Pew3", Size=Vector3.new(3,3,8), Mat=Enum.Material.Wood, Col=BrickColor.new("Dark orange"), Offset=Vector3.new(-15,1.5,-10) },
+		{ Name="Pew4", Size=Vector3.new(3,3,8), Mat=Enum.Material.Wood, Col=BrickColor.new("Dark orange"), Offset=Vector3.new(15,1.5,-10) },
+		{ Name="Altar", Size=Vector3.new(6,4,3), Mat=Enum.Material.Marble, Col=BrickColor.new("Medium stone grey"), Offset=Vector3.new(0,2,-40) },
+		{ Name="CursedCandle1", Size=Vector3.new(1,3,1), Mat=Enum.Material.SmoothPlastic, Col=BrickColor.new("Institutional white"), Offset=Vector3.new(-5,4,-40), Light={Color=Color3.fromRGB(160,80,200),Range=10,Brightness=0.8} },
+		{ Name="CursedCandle2", Size=Vector3.new(1,3,1), Mat=Enum.Material.SmoothPlastic, Col=BrickColor.new("Institutional white"), Offset=Vector3.new(5,4,-40), Light={Color=Color3.fromRGB(160,80,200),Range=10,Brightness=0.8} },
+		{ Name="StainedFrame", Size=Vector3.new(0.5,8,6), Mat=Enum.Material.Glass, Col=BrickColor.new("Bright violet"), Offset=Vector3.new(0,10,-48), Trans=0.3, NC=true },
+	},
+	["Blood Altar"] = {
+		{ Name="CentralAltar", Size=Vector3.new(8,3,8), Mat=Enum.Material.Basalt, Col=BrickColor.new("Really black"), Offset=Vector3.new(0,1.5,0) },
+		{ Name="AltarTop", Size=Vector3.new(7,0.5,7), Mat=Enum.Material.Neon, Col=BrickColor.new("Crimson"), Offset=Vector3.new(0,3.25,0), Light={Color=Color3.fromRGB(200,30,30),Range=15,Brightness=1} },
+		{ Name="BloodPool1", Size=Vector3.new(10,0.2,10), Mat=Enum.Material.Neon, Col=BrickColor.new("Crimson"), Offset=Vector3.new(-25,0.1,25), Trans=0.4 },
+		{ Name="BloodPool2", Size=Vector3.new(6,0.2,8), Mat=Enum.Material.Neon, Col=BrickColor.new("Crimson"), Offset=Vector3.new(30,0.1,-20), Trans=0.4 },
+		{ Name="RitualCandle1", Size=Vector3.new(1,4,1), Mat=Enum.Material.SmoothPlastic, Col=BrickColor.new("Institutional white"), Offset=Vector3.new(-10,2,10), Light={Color=Color3.fromRGB(255,50,30),Range=8,Brightness=0.5} },
+		{ Name="RitualCandle2", Size=Vector3.new(1,4,1), Mat=Enum.Material.SmoothPlastic, Col=BrickColor.new("Institutional white"), Offset=Vector3.new(10,2,-10), Light={Color=Color3.fromRGB(255,50,30),Range=8,Brightness=0.5} },
+		{ Name="Chain1", Size=Vector3.new(0.5,12,0.5), Mat=Enum.Material.Metal, Col=BrickColor.new("Dark stone grey"), Offset=Vector3.new(-35,6,-35), NC=true },
+		{ Name="Chain2", Size=Vector3.new(0.5,12,0.5), Mat=Enum.Material.Metal, Col=BrickColor.new("Dark stone grey"), Offset=Vector3.new(35,6,35), NC=true },
+	},
+	["Mage Tower"] = {
+		{ Name="CrystalPillar1", Size=Vector3.new(2,10,2), Mat=Enum.Material.Neon, Col=BrickColor.new("Cyan"), Offset=Vector3.new(-30,5,30), Trans=0.3 },
+		{ Name="CrystalPillar2", Size=Vector3.new(2,10,2), Mat=Enum.Material.Neon, Col=BrickColor.new("Cyan"), Offset=Vector3.new(30,5,-30), Trans=0.3 },
+		{ Name="ArcaneCircle", Size=Vector3.new(20,0.2,20), Mat=Enum.Material.Neon, Col=BrickColor.new("Bright violet"), Offset=Vector3.new(0,0.1,0), Trans=0.5 },
+		{ Name="RuneStone1", Size=Vector3.new(3,4,1), Mat=Enum.Material.Granite, Col=BrickColor.new("Medium stone grey"), Offset=Vector3.new(-35,2,0), Light={Color=Color3.fromRGB(100,100,255),Range=8,Brightness=0.5} },
+		{ Name="RuneStone2", Size=Vector3.new(3,4,1), Mat=Enum.Material.Granite, Col=BrickColor.new("Medium stone grey"), Offset=Vector3.new(35,2,0), Light={Color=Color3.fromRGB(100,100,255),Range=8,Brightness=0.5} },
+		{ Name="FloatingBook", Size=Vector3.new(2,0.3,1.5), Mat=Enum.Material.SmoothPlastic, Col=BrickColor.new("Maroon"), Offset=Vector3.new(0,8,0), NC=true },
+	},
+	["Bone Pit"] = {
+		{ Name="BoneMound1", Size=Vector3.new(8,3,8), Mat=Enum.Material.Limestone, Col=BrickColor.new("Institutional white"), Offset=Vector3.new(-25,1.5,20) },
+		{ Name="BoneMound2", Size=Vector3.new(6,2,6), Mat=Enum.Material.Limestone, Col=BrickColor.new("Institutional white"), Offset=Vector3.new(30,1,-25) },
+		{ Name="RibcageArch", Size=Vector3.new(2,8,10), Mat=Enum.Material.Limestone, Col=BrickColor.new("Light stone grey"), Offset=Vector3.new(0,4,0), Trans=0.1, NC=true },
+		{ Name="SkullTotem", Size=Vector3.new(3,8,3), Mat=Enum.Material.Limestone, Col=BrickColor.new("Institutional white"), Offset=Vector3.new(-40,4,-30) },
+		{ Name="FemurFence1", Size=Vector3.new(0.5,3,8), Mat=Enum.Material.Limestone, Col=BrickColor.new("Light stone grey"), Offset=Vector3.new(40,1.5,0) },
+	},
+	["Shadow Crypt"] = {
+		{ Name="DarkObelisk1", Size=Vector3.new(3,12,3), Mat=Enum.Material.Basalt, Col=BrickColor.new("Really black"), Offset=Vector3.new(-25,6,25) },
+		{ Name="DarkObelisk2", Size=Vector3.new(3,12,3), Mat=Enum.Material.Basalt, Col=BrickColor.new("Really black"), Offset=Vector3.new(25,6,-25) },
+		{ Name="ShadowPool", Size=Vector3.new(12,0.2,12), Mat=Enum.Material.Neon, Col=BrickColor.new("Bright violet"), Offset=Vector3.new(0,0.1,0), Trans=0.6 },
+		{ Name="FloatingOrb", Size=Vector3.new(2,2,2), Mat=Enum.Material.Neon, Col=BrickColor.new("Bright violet"), Offset=Vector3.new(0,12,0), NC=true, Shape="Ball", Light={Color=Color3.fromRGB(120,50,200),Range=20,Brightness=1} },
+		{ Name="CrackedMirror", Size=Vector3.new(5,6,0.5), Mat=Enum.Material.Glass, Col=BrickColor.new("Medium stone grey"), Offset=Vector3.new(-48,5,0), Trans=0.3, NC=true },
+	},
+	["Knight's Barracks"] = {
+		{ Name="WeaponRack", Size=Vector3.new(2,8,8), Mat=Enum.Material.Wood, Col=BrickColor.new("Brown"), Offset=Vector3.new(-48,4,0) },
+		{ Name="Cot1", Size=Vector3.new(4,1.5,7), Mat=Enum.Material.Fabric, Col=BrickColor.new("Sand blue"), Offset=Vector3.new(30,0.75,30) },
+		{ Name="Cot2", Size=Vector3.new(4,1.5,7), Mat=Enum.Material.Fabric, Col=BrickColor.new("Sand blue"), Offset=Vector3.new(30,0.75,-30) },
+		{ Name="TrainingDummy", Size=Vector3.new(2,5,2), Mat=Enum.Material.Wood, Col=BrickColor.new("Brown"), Offset=Vector3.new(-20,2.5,-25) },
+		{ Name="Table", Size=Vector3.new(6,3,4), Mat=Enum.Material.Wood, Col=BrickColor.new("Dark orange"), Offset=Vector3.new(10,1.5,0) },
+		{ Name="FlagPole", Size=Vector3.new(0.5,10,0.5), Mat=Enum.Material.Wood, Col=BrickColor.new("Brown"), Offset=Vector3.new(45,5,40) },
+	},
+	["Infernal Pit"] = {
+		{ Name="LavaPool1", Size=Vector3.new(12,0.3,12), Mat=Enum.Material.Neon, Col=BrickColor.new("Bright orange"), Offset=Vector3.new(-25,0.15,20), Trans=0.2 },
+		{ Name="LavaPool2", Size=Vector3.new(8,0.3,8), Mat=Enum.Material.Neon, Col=BrickColor.new("Bright orange"), Offset=Vector3.new(30,0.15,-15), Trans=0.2 },
+		{ Name="ObsidianSpike1", Size=Vector3.new(2,8,2), Mat=Enum.Material.Basalt, Col=BrickColor.new("Really black"), Offset=Vector3.new(-35,4,-30), Rot=CFrame.Angles(0,0,math.rad(5)) },
+		{ Name="ObsidianSpike2", Size=Vector3.new(1.5,6,1.5), Mat=Enum.Material.Basalt, Col=BrickColor.new("Really black"), Offset=Vector3.new(40,3,25), Rot=CFrame.Angles(0,0,math.rad(-8)) },
+		{ Name="Chain1", Size=Vector3.new(0.5,14,0.5), Mat=Enum.Material.Metal, Col=BrickColor.new("Dark stone grey"), Offset=Vector3.new(-15,7,35), NC=true },
+		{ Name="Chain2", Size=Vector3.new(0.5,14,0.5), Mat=Enum.Material.Metal, Col=BrickColor.new("Dark stone grey"), Offset=Vector3.new(15,7,-35), NC=true },
+		{ Name="EmberGlow", Size=Vector3.new(1,1,1), Mat=Enum.Material.Neon, Col=BrickColor.new("Bright orange"), Offset=Vector3.new(0,1,0), Trans=1, Light={Color=Color3.fromRGB(255,80,20),Range=30,Brightness=1.5} },
+	},
+	["Void Sanctum"] = {
+		{ Name="VoidCrystal1", Size=Vector3.new(3,8,3), Mat=Enum.Material.Neon, Col=BrickColor.new("Bright violet"), Offset=Vector3.new(-30,4,0), Trans=0.3 },
+		{ Name="VoidCrystal2", Size=Vector3.new(2,6,2), Mat=Enum.Material.Neon, Col=BrickColor.new("Bright violet"), Offset=Vector3.new(30,3,0), Trans=0.3 },
+		{ Name="CrackedPillar1", Size=Vector3.new(5,14,5), Mat=Enum.Material.Granite, Col=BrickColor.new("Dark stone grey"), Offset=Vector3.new(-25,7,25), Rot=CFrame.Angles(0,0,math.rad(4)) },
+		{ Name="CrackedPillar2", Size=Vector3.new(5,14,5), Mat=Enum.Material.Granite, Col=BrickColor.new("Dark stone grey"), Offset=Vector3.new(25,7,-25), Rot=CFrame.Angles(0,0,math.rad(-3)) },
+		{ Name="FloatingDebris1", Size=Vector3.new(3,2,3), Mat=Enum.Material.Slate, Col=BrickColor.new("Medium stone grey"), Offset=Vector3.new(-10,10,15), NC=true },
+		{ Name="FloatingDebris2", Size=Vector3.new(2,1.5,2), Mat=Enum.Material.Slate, Col=BrickColor.new("Medium stone grey"), Offset=Vector3.new(12,12,-10), NC=true },
+		{ Name="VoidPortal", Size=Vector3.new(8,8,0.5), Mat=Enum.Material.Neon, Col=BrickColor.new("Really black"), Offset=Vector3.new(0,6,-45), Trans=0.4, NC=true, Light={Color=Color3.fromRGB(100,50,180),Range=20,Brightness=1.2} },
+	},
+	["Golem's Throne"] = {
+		{ Name="Throne", Size=Vector3.new(8,12,6), Mat=Enum.Material.Granite, Col=BrickColor.new("Dark stone grey"), Offset=Vector3.new(0,6,-45) },
+		{ Name="Brazier1", Size=Vector3.new(3,4,3), Mat=Enum.Material.Metal, Col=BrickColor.new("Dark stone grey"), Offset=Vector3.new(-35,2,35), Light={Color=Color3.fromRGB(255,100,50),Range=20,Brightness=1.5} },
+		{ Name="Brazier2", Size=Vector3.new(3,4,3), Mat=Enum.Material.Metal, Col=BrickColor.new("Dark stone grey"), Offset=Vector3.new(35,2,35), Light={Color=Color3.fromRGB(255,100,50),Range=20,Brightness=1.5} },
+		{ Name="Brazier3", Size=Vector3.new(3,4,3), Mat=Enum.Material.Metal, Col=BrickColor.new("Dark stone grey"), Offset=Vector3.new(-35,2,-35), Light={Color=Color3.fromRGB(255,100,50),Range=20,Brightness=1.5} },
+		{ Name="Brazier4", Size=Vector3.new(3,4,3), Mat=Enum.Material.Metal, Col=BrickColor.new("Dark stone grey"), Offset=Vector3.new(35,2,-35), Light={Color=Color3.fromRGB(255,100,50),Range=20,Brightness=1.5} },
+		{ Name="ArenaPillar1", Size=Vector3.new(6,22,6), Mat=Enum.Material.Granite, Col=BrickColor.new("Medium stone grey"), Offset=Vector3.new(-40,11,0) },
+		{ Name="ArenaPillar2", Size=Vector3.new(6,22,6), Mat=Enum.Material.Granite, Col=BrickColor.new("Medium stone grey"), Offset=Vector3.new(40,11,0) },
+		{ Name="ArenaCircle", Size=Vector3.new(40,0.2,40), Mat=Enum.Material.Neon, Col=BrickColor.new("Bright orange"), Offset=Vector3.new(0,0.1,0), Trans=0.6 },
+	},
+}
+
+function HollowBuilder.DecorateRoom(roomFolder, config, origin)
+	local preset = DECO_PRESETS[config.Name]
+	if not preset then return end
+
+	for _, deco in ipairs(preset) do
+		local part = makePart({
+			Name = deco.Name,
+			Size = deco.Size,
+			Position = origin + deco.Offset,
+			Material = deco.Mat,
+			BrickColor = deco.Col,
+			CanCollide = deco.NC and false or true,
+			Transparency = deco.Trans or 0,
+			Parent = roomFolder,
+		})
+
+		if deco.Shape == "Ball" then
+			part.Shape = Enum.PartType.Ball
+		end
+
+		if deco.Rot then
+			part.CFrame = CFrame.new(origin + deco.Offset) * deco.Rot
+		end
+
+		if deco.Light then
+			local l = Instance.new("PointLight")
+			l.Color = deco.Light.Color
+			l.Range = deco.Light.Range
+			l.Brightness = deco.Light.Brightness
+			l.Parent = part
+		end
+	end
+end
+
+--------------------------------------------------------------------------------
+-- ROOM SECRETS: hidden interactables that award bonus dungeon score
+--------------------------------------------------------------------------------
+local SECRET_TYPES = {
+	{ Name = "Ancient Rune",       Desc = "A glowing rune carved into stone",     Points = 75,  Size = Vector3.new(2,2,0.5),  Mat = Enum.Material.Neon,          Col = BrickColor.new("Bright orange"), Trans = 0.3 },
+	{ Name = "Buried Relic",       Desc = "A relic half-buried in rubble",         Points = 100, Size = Vector3.new(1.5,1,1.5), Mat = Enum.Material.Metal,         Col = BrickColor.new("Gold") },
+	{ Name = "Ancient Inscription",Desc = "Faded writing on the wall",             Points = 50,  Size = Vector3.new(3,2,0.3),  Mat = Enum.Material.Slate,          Col = BrickColor.new("Medium stone grey"), Trans = 0.2 },
+	{ Name = "Hidden Cache",       Desc = "A small chest tucked behind debris",    Points = 125, Size = Vector3.new(2,1.5,1.5), Mat = Enum.Material.Wood,          Col = BrickColor.new("Dark orange") },
+	{ Name = "Spirit Orb",         Desc = "A ghostly orb pulses with energy",      Points = 75,  Size = Vector3.new(1.5,1.5,1.5), Mat = Enum.Material.Neon,        Col = BrickColor.new("Cyan"), Shape = "Ball", Trans = 0.4 },
+}
+
+-- Each room gets 1 secret placed at a semi-hidden offset
+local SECRET_OFFSETS = {
+	Vector3.new(-48, 2, -45),   -- back-left corner
+	Vector3.new(48, 2, -45),    -- back-right corner
+	Vector3.new(-48, 2, 45),    -- front-left corner
+	Vector3.new(48, 2, 45),     -- front-right corner
+	Vector3.new(-48, 8, 0),     -- left wall high
+	Vector3.new(48, 8, 0),      -- right wall high
+	Vector3.new(0, 1, -48),     -- back wall low
+	Vector3.new(0, 1, 48),      -- front wall low
+}
+
+function HollowBuilder.SpawnRoomSecrets(dungeonData, roomFolder, roomConfig, origin, roomIndex, player)
+	if roomConfig.RoomType == "Trap" or roomConfig.RoomType == "Puzzle" or roomConfig.RoomType == "Shrine" then
+		return -- puzzles/traps have their own scoring
+	end
+
+	-- Pick a random secret type and offset
+	local secretDef = SECRET_TYPES[math.random(#SECRET_TYPES)]
+	local offsetChoice = SECRET_OFFSETS[math.random(#SECRET_OFFSETS)]
+	-- Clamp offset inside room bounds
+	local halfX = (roomConfig.Size.X / 2) - 5
+	local halfZ = (roomConfig.Size.Z / 2) - 5
+	local clampedOffset = Vector3.new(
+		math.clamp(offsetChoice.X, -halfX, halfX),
+		offsetChoice.Y,
+		math.clamp(offsetChoice.Z, -halfZ, halfZ)
+	)
+
+	local secretPos = origin + clampedOffset
+	local secret = makePart({
+		Name = "Secret_" .. secretDef.Name:gsub(" ", ""),
+		Size = secretDef.Size,
+		Position = secretPos,
+		Material = secretDef.Mat,
+		BrickColor = secretDef.Col,
+		CanCollide = false,
+		Transparency = secretDef.Trans or 0,
+		Parent = roomFolder,
+	})
+
+	if secretDef.Shape == "Ball" then
+		secret.Shape = Enum.PartType.Ball
+	end
+
+	-- Subtle glow
+	local glow = Instance.new("PointLight")
+	glow.Color = Color3.new(secret.BrickColor.r, secret.BrickColor.g, secret.BrickColor.b)
+	glow.Range = 8
+	glow.Brightness = 0.5
+	glow.Parent = secret
+
+	-- Sparkle hint
+	local sparkle = Instance.new("ParticleEmitter")
+	sparkle.Color = ColorSequence.new(Color3.new(secret.BrickColor.r, secret.BrickColor.g, secret.BrickColor.b))
+	sparkle.Size = NumberSequence.new(0.2, 0)
+	sparkle.Lifetime = NumberRange.new(0.5, 1)
+	sparkle.Rate = 5
+	sparkle.Speed = NumberRange.new(1, 2)
+	sparkle.Parent = secret
+
+	-- ProximityPrompt to discover
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.ActionText = "Examine"
+	prompt.ObjectText = secretDef.Name
+	prompt.HoldDuration = 0.8
+	prompt.MaxActivationDistance = 8
+	prompt.RequiresLineOfSight = true
+	prompt.Parent = secret
+
+	-- BillboardGui label (hidden until discovered)
+	local bb = Instance.new("BillboardGui")
+	bb.Size = UDim2.new(0, 120, 0, 40)
+	bb.StudsOffset = Vector3.new(0, 2, 0)
+	bb.AlwaysOnTop = false
+	bb.Enabled = false
+	bb.Parent = secret
+
+	local lbl = Instance.new("TextLabel")
+	lbl.Size = UDim2.new(1, 0, 1, 0)
+	lbl.BackgroundTransparency = 1
+	lbl.Text = secretDef.Name
+	lbl.TextColor3 = Color3.fromRGB(255, 215, 0)
+	lbl.TextStrokeTransparency = 0
+	lbl.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+	lbl.TextScaled = true
+	lbl.Font = Enum.Font.GothamBold
+	lbl.Parent = bb
+
+	prompt.Triggered:Connect(function(trigPlayer)
+		if trigPlayer ~= player then return end
+		if secret:GetAttribute("Found") then return end
+		secret:SetAttribute("Found", true)
+
+		-- Award score
+		dungeonData.SecretScore = (dungeonData.SecretScore or 0) + secretDef.Points
+
+		-- Visual feedback: flash bright then fade
+		prompt:Destroy()
+		bb.Enabled = true
+		sparkle.Rate = 30
+		glow.Brightness = 3
+		glow.Range = 15
+
+		-- Notify client
+		local remote = Remotes:GetEvent("SecretFound")
+		if remote then
+			remote:FireClient(player, secretDef.Name, secretDef.Points, secretDef.Desc)
+		end
+
+		-- Fade out after 3 seconds
+		task.delay(3, function()
+			if secret and secret.Parent then
+				local fadeOut = TweenService:Create(secret, TweenInfo.new(1), { Transparency = 1 })
+				fadeOut:Play()
+				fadeOut.Completed:Connect(function()
+					if secret and secret.Parent then secret:Destroy() end
+				end)
+			end
+		end)
+	end)
+end
+
+--------------------------------------------------------------------------------
 -- CORRIDOR BUILDER (grid-based, straight only)
 --------------------------------------------------------------------------------
 local CORRIDOR_OVERLAP = 2
@@ -578,6 +883,11 @@ function HollowBuilder.StartDungeon(player)
 		if roomConfig.RoomType == "Puzzle" and PuzzleEncounters then
 			PuzzleEncounters.BuildPuzzle(roomFolder, worldOrigin, roomConfig.Size, dungeonData, i, player, roomConfig.PuzzleVariant)
 		end
+		-- Add themed decorations
+		HollowBuilder.DecorateRoom(roomFolder, roomConfig, worldOrigin)
+		-- Spawn hidden secret
+		HollowBuilder.SpawnRoomSecrets(dungeonData, roomFolder, roomConfig, worldOrigin, i, player)
+
 		dungeonData.RoomFolders[i] = roomFolder
 		dungeonData.RoomStates[i] = "Locked"
 		dungeonData.RoomEnemyCounts[i] = 0
@@ -1082,7 +1392,8 @@ function HollowBuilder.RoomCleared(player, data, roomIndex)
 		local roomScore = (data.ChambersCleared or 0) * RunGrading.RoomClearBonus
 		local deathScore = (data.Deaths or 0) * RunGrading.DeathPenalty
 		local puzzleScore = data.PuzzleScore or 0
-		local totalScore = math.max(0, timeScore + damageScore + roomScore + deathScore + puzzleScore)
+		local secretScore = data.SecretScore or 0
+		local totalScore = math.max(0, timeScore + damageScore + roomScore + deathScore + puzzleScore + secretScore)
 
 		local grade = "D"
 		local gradeColor = {1, 0.2, 0.2}
