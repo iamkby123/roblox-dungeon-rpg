@@ -83,7 +83,8 @@ function InputController.GetAimDirection()
 	local mouse = player:GetMouse()
 	if mouse.Hit then
 		local targetPos = mouse.Hit.Position
-		local direction = (targetPos - rootPart.Position)
+		local spawnPos = rootPart.Position + Vector3.new(0, 2, 0)
+		local direction = (targetPos - spawnPos)
 		if direction.Magnitude > 0.1 then
 			return direction.Unit
 		end
