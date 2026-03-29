@@ -17,6 +17,9 @@ local armPart = nil
 local handPart = nil
 local gripPart = nil
 
+-- Arm gear overlay parts
+local armGearParts = {}
+
 -- Viewmodel offset from camera (right side, slightly down and forward)
 local BASE_OFFSET = CFrame.new(1.5, -1.4, -2.2)
 
@@ -63,9 +66,54 @@ local function createArmModel(parent)
 	model.Name = "Viewmodel"
 
 	local skin = Color3.fromRGB(245, 205, 160)
+	local bandageColor = Color3.fromRGB(195, 180, 155)
+	local bandageDirty = Color3.fromRGB(170, 155, 130)
+	local leatherColor = Color3.fromRGB(75, 50, 30)
+	local leatherDark = Color3.fromRGB(55, 35, 20)
+	local metalColor = Color3.fromRGB(120, 110, 95)
+	local stitchColor = Color3.fromRGB(100, 85, 65)
 
+	-- Base arm and hand (same square shape)
 	armPart = makePart("Arm", Vector3.new(1, 1, 2.8), skin, Enum.Material.SmoothPlastic, model)
 	handPart = makePart("Hand", Vector3.new(1.1, 1.1, 0.9), skin, Enum.Material.SmoothPlastic, model)
+
+	-- ===== ARM GEAR: Bandages, bracer, and wrappings =====
+	armGearParts = {}
+
+	-- Forearm bandage wraps (overlapping strips at slight angles)
+	armGearParts.BandageWrap1 = makePart("BandageWrap1", Vector3.new(1.08, 1.08, 0.2), bandageColor, Enum.Material.Fabric, model)
+	armGearParts.BandageWrap2 = makePart("BandageWrap2", Vector3.new(1.08, 1.08, 0.2), bandageDirty, Enum.Material.Fabric, model)
+	armGearParts.BandageWrap3 = makePart("BandageWrap3", Vector3.new(1.08, 1.08, 0.2), bandageColor, Enum.Material.Fabric, model)
+	armGearParts.BandageWrap4 = makePart("BandageWrap4", Vector3.new(1.08, 1.08, 0.2), bandageDirty, Enum.Material.Fabric, model)
+	armGearParts.BandageWrap5 = makePart("BandageWrap5", Vector3.new(1.08, 1.08, 0.2), bandageColor, Enum.Material.Fabric, model)
+
+	-- Loose bandage tail (hangs off the wrist area)
+	armGearParts.BandageTail = makePart("BandageTail", Vector3.new(0.12, 0.08, 0.6), bandageColor, Enum.Material.Fabric, model)
+
+	-- Leather bracer (worn arm guard over the bandages)
+	armGearParts.Bracer = makePart("Bracer", Vector3.new(1.12, 1.12, 1.0), leatherColor, Enum.Material.Leather, model)
+	-- Bracer edge trim (darker leather lip at each end)
+	armGearParts.BracerTrimA = makePart("BracerTrimA", Vector3.new(1.15, 1.15, 0.08), leatherDark, Enum.Material.Leather, model)
+	armGearParts.BracerTrimB = makePart("BracerTrimB", Vector3.new(1.15, 1.15, 0.08), leatherDark, Enum.Material.Leather, model)
+	-- Bracer buckle strap
+	armGearParts.BracerStrap = makePart("BracerStrap", Vector3.new(1.18, 0.08, 0.2), leatherDark, Enum.Material.Leather, model)
+	-- Small metal buckle on the strap
+	armGearParts.Buckle = makePart("Buckle", Vector3.new(1.2, 0.15, 0.15), metalColor, Enum.Material.Metal, model)
+
+	-- Stitch detail lines on bracer (thin dark strips)
+	armGearParts.Stitch1 = makePart("Stitch1", Vector3.new(1.13, 0.04, 0.04), stitchColor, Enum.Material.Fabric, model)
+	armGearParts.Stitch2 = makePart("Stitch2", Vector3.new(1.13, 0.04, 0.04), stitchColor, Enum.Material.Fabric, model)
+
+	-- ===== HAND GEAR: Fingerless glove wraps =====
+	-- Knuckle guard (thin leather strip across top of hand)
+	armGearParts.KnuckleGuard = makePart("KnuckleGuard", Vector3.new(0.06, 1.15, 0.35), leatherColor, Enum.Material.Leather, model)
+	-- Hand bandage wraps (two crossing the palm area)
+	armGearParts.HandWrap1 = makePart("HandWrap1", Vector3.new(1.15, 1.15, 0.12), bandageColor, Enum.Material.Fabric, model)
+	armGearParts.HandWrap2 = makePart("HandWrap2", Vector3.new(1.15, 1.15, 0.12), bandageDirty, Enum.Material.Fabric, model)
+	-- Wrist cuff (transition from arm to hand)
+	armGearParts.WristCuff = makePart("WristCuff", Vector3.new(1.16, 1.16, 0.15), leatherDark, Enum.Material.Leather, model)
+	-- Metal wrist stud (small decorative rivet)
+	armGearParts.WristStud = makePart("WristStud", Vector3.new(1.18, 0.12, 0.12), metalColor, Enum.Material.Metal, model)
 
 	gripPart = Instance.new("Part")
 	gripPart.Name = "Grip"
@@ -475,6 +523,45 @@ function ViewmodelController.Update(dt, skillController)
 	-- Grip at front of hand
 	local gripCF = finalCF * CFrame.new(0, 0, -2.3)
 	gripPart.CFrame = gripCF
+
+	-- Position arm gear overlays
+	local handCF = finalCF * CFrame.new(0, 0, -1.85)
+	local g = armGearParts
+
+	-- Bandage wraps spaced along the forearm (Z offsets from arm center)
+	g.BandageWrap1.CFrame = finalCF * CFrame.new(0, 0, 0.9) * CFrame.Angles(0, 0, math.rad(3))
+	g.BandageWrap2.CFrame = finalCF * CFrame.new(0, 0, 0.5) * CFrame.Angles(0, 0, math.rad(-2))
+	g.BandageWrap3.CFrame = finalCF * CFrame.new(0, 0, 0.1) * CFrame.Angles(0, 0, math.rad(4))
+	g.BandageWrap4.CFrame = finalCF * CFrame.new(0, 0, -0.3) * CFrame.Angles(0, 0, math.rad(-3))
+	g.BandageWrap5.CFrame = finalCF * CFrame.new(0, 0, -0.7) * CFrame.Angles(0, 0, math.rad(2))
+
+	-- Loose bandage tail dangling from wrist
+	g.BandageTail.CFrame = finalCF * CFrame.new(-0.45, -0.3, -1.1) * CFrame.Angles(math.rad(15), 0, math.rad(20))
+
+	-- Leather bracer on mid-forearm
+	g.Bracer.CFrame = finalCF * CFrame.new(0, 0, -0.1)
+	-- Bracer trim at each edge
+	g.BracerTrimA.CFrame = finalCF * CFrame.new(0, 0, 0.4)
+	g.BracerTrimB.CFrame = finalCF * CFrame.new(0, 0, -0.6)
+	-- Strap across outer bracer
+	g.BracerStrap.CFrame = finalCF * CFrame.new(0, 0.52, -0.1) * CFrame.Angles(0, 0, math.rad(5))
+	-- Buckle on strap
+	g.Buckle.CFrame = finalCF * CFrame.new(0, 0.56, -0.1)
+
+	-- Stitch lines on bracer
+	g.Stitch1.CFrame = finalCF * CFrame.new(0, 0, 0.15)
+	g.Stitch2.CFrame = finalCF * CFrame.new(0, 0, -0.35)
+
+	-- Wrist cuff (transition between arm and hand)
+	g.WristCuff.CFrame = finalCF * CFrame.new(0, 0, -1.35)
+
+	-- Knuckle guard across top of hand
+	g.KnuckleGuard.CFrame = handCF * CFrame.new(0, 0.55, -0.1)
+	-- Hand bandage wraps
+	g.HandWrap1.CFrame = handCF * CFrame.new(0, 0, 0.15) * CFrame.Angles(0, 0, math.rad(5))
+	g.HandWrap2.CFrame = handCF * CFrame.new(0, 0, -0.2) * CFrame.Angles(0, 0, math.rad(-3))
+	-- Metal wrist stud
+	g.WristStud.CFrame = finalCF * CFrame.new(0, 0.56, -1.35)
 
 	-- Position weapon
 	positionWeapon(currentWeaponId, gripCF)
