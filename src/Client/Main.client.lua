@@ -23,6 +23,7 @@ local UIController = require(script.Parent:WaitForChild("UIController"))
 local ViewmodelController = require(script.Parent:WaitForChild("ViewmodelController"))
 local FootstepController = require(script.Parent:WaitForChild("FootstepController"))
 local DescentMap = require(script.Parent:WaitForChild("DescentMap"))
+local StatsWindow = require(script.Parent:WaitForChild("StatsWindow"))
 
 -- Create the HUD
 local hud = HollowHUD.Create()
@@ -36,6 +37,7 @@ CombatController.Init(hud)
 UIController.Init(hud, SkillController)
 ViewmodelController.Init(SkillController)
 FootstepController.Init()
+StatsWindow.Init()
 
 -- Disable default Roblox health bar
 pcall(function()
