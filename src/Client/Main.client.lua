@@ -55,7 +55,7 @@ local minimapInitRemote = Remotes:GetEvent("MinimapInit")
 if minimapInitRemote then
 	minimapInitRemote.OnClientEvent:Connect(function(data)
 		if data and data.Grid then
-			DungeonMinimap.Init(data.Grid, data.TileSize, data.Corridors)
+			DungeonMinimap.Init(data.Grid, data.TileSize, data.Corridors, data.StartOffset)
 		end
 	end)
 end

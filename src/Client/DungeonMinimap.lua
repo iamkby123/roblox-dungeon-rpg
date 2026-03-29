@@ -39,6 +39,8 @@ local TWEEN_REVEAL = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirect
 local grid = nil        -- reference to the layout grid table
 local gridN = 0         -- grid dimension
 local tileSize = 200    -- world studs per tile
+local startOffsetX = 0  -- world X origin of grid col 0
+local startOffsetZ = 0  -- world Z origin of grid row 0
 
 local screenGui = nil
 local minimapFrame = nil
@@ -367,15 +369,15 @@ end
 --------------------------------------------------------------------------------
 
 --[[
-	Init(layoutGrid, tileSizeParam, corridorData)
+	Init(layoutGrid, tileSizeParam, corridorData, startOffset)
 
-	layoutGrid    : grid table from DungeonLayout.GenerateGrid().Grid
-	                grid[row][col] = { Row, Col, RoomId, RoomType, Template }
-	tileSizeParam : world studs between room centers (e.g. 200)
-	corridorData  : (optional) corridors array from the layout result
+	layoutGrid    : grid table — grid[row][col] = { RoomType, Name, RoomId }
+	tileSizeParam : world studs between room centers (e.g. 180)
+	corridorData  : (optional) corridors array
 	                { FromRow, FromCol, ToRow, ToCol, Dir, DoorKey? }
+	startOffset   : (optional) { X, Z } world origin of grid col=0, row=0
 ]]
-function DungeonMinimap.Init(layoutGrid, tileSizeParam, corridorData)
+function DungeonMinimap.Init(layoutGrid, tileSizeParam, corridorData, startOffset)
 	-- Clean up any previous instance
 	DungeonMinimap.Destroy()
 
@@ -387,6 +389,10 @@ function DungeonMinimap.Init(layoutGrid, tileSizeParam, corridorData)
 	grid = layoutGrid
 	tileSize = tileSizeParam or 200
 	corridors = corridorData
+	if startOffset then
+		startOffsetX = startOffset.X or 0
+		startOffsetZ = startOffset.Z or 0
+	end
 
 	-- Determine grid dimension (find max row)
 	gridN = 0
@@ -528,9 +534,10 @@ function DungeonMinimap.UpdatePlayerPosition(worldPos)
 	if not minimapFrame or not playerIcon then return end
 
 	-- Convert world position to grid coordinates
-	-- DungeonBuilder places rooms at: worldX = (col-1)*tileSize, worldZ = (row-1)*tileSize
-	local col = worldPos.X / tileSize + 1
-	local row = worldPos.Z / tileSize + 1
+	-- Server formula: worldX = startOffsetX + col0 * tileSize
+	--                 worldZ = startOffsetZ - row0 * tileSize
+	local col = (worldPos.X - startOffsetX) / tileSize + 1
+	local row = (startOffsetZ - worldPos.Z) / tileSize + 1
 
 	-- Convert grid coordinates to minimap pixel position
 	local cellPx = getCellSize()
@@ -586,6 +593,8 @@ function DungeonMinimap.Destroy()
 	grid = nil
 	corridors = nil
 	gridN = 0
+	startOffsetX = 0
+	startOffsetZ = 0
 end
 
 return DungeonMinimap

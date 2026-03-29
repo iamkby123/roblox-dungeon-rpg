@@ -609,6 +609,7 @@ function DungeonService.StartDungeon(player)
 					if toRoomIndex and dungeonData.RoomStates[toRoomIndex] ~= "Active" and dungeonData.RoomStates[toRoomIndex] ~= "Cleared" then
 						dungeonData.RoomStates[toRoomIndex] = "Active"
 						DungeonService.SpawnRoomEnemies(dungeonData, toRoomIndex)
+						fireMinimapDiscover(player, toRoomIndex)
 						local r = Remotes:GetEvent("DungeonStateChanged")
 						if r then
 							local rc = getRoomById(cd.ToRoom)
@@ -665,6 +666,73 @@ function DungeonService.StartDungeon(player)
 	local remote = Remotes:GetEvent("DungeonStateChanged")
 	if remote then
 		remote:FireClient(player, "DungeonStarted", 0, "Dungeon Entrance")
+	end
+
+	-- Send minimap data to client
+	local minimapRemote = Remotes:GetEvent("MinimapInit")
+	if minimapRemote then
+		-- Convert DungeonConfig's 0-based {col, row} grid into 1-based grid[row][col]
+		local maxCol, maxRow = 0, 0
+		for _, rc in ipairs(rooms) do
+			local c, r = rc.Grid[1], rc.Grid[2]
+			if c > maxCol then maxCol = c end
+			if r > maxRow then maxRow = r end
+		end
+		local n = math.max(maxCol, maxRow) + 1 -- grid dimension
+
+		local minimapGrid = {}
+		for r = 1, n do
+			minimapGrid[r] = {}
+		end
+
+		-- Room type mapping (DungeonConfig uses "Combat"/"Trap", minimap expects "normal"/"trap"/etc.)
+		local function resolveRoomType(rc)
+			if rc.IsBossRoom then return "boss" end
+			-- Check if room has a miniboss enemy
+			if rc.Enemies then
+				for _, e in ipairs(rc.Enemies) do
+					if e.DropsKey then return "miniboss" end
+				end
+			end
+			if rc.RoomType == "Trap" then return "trap" end
+			return "normal"
+		end
+
+		for _, rc in ipairs(rooms) do
+			local col1 = rc.Grid[1] + 1 -- to 1-based
+			local row1 = rc.Grid[2] + 1
+			if row1 >= 1 and row1 <= n and col1 >= 1 and col1 <= n then
+				minimapGrid[row1][col1] = {
+					RoomType = resolveRoomType(rc),
+					Name = rc.Name,
+					RoomId = rc.RoomId,
+				}
+			end
+		end
+
+		-- Build corridor data for minimap connectors
+		local minimapCorridors = {}
+		for _, corr in ipairs(DungeonConfig.Corridors) do
+			local fromConfig = getRoomById(corr.FromRoom)
+			local toConfig = getRoomById(corr.ToRoom)
+			if fromConfig and toConfig then
+				table.insert(minimapCorridors, {
+					FromRow = fromConfig.Grid[2] + 1,
+					FromCol = fromConfig.Grid[1] + 1,
+					ToRow = toConfig.Grid[2] + 1,
+					ToCol = toConfig.Grid[1] + 1,
+					Dir = corr.Dir,
+					DoorKey = corr.DoorKey,
+				})
+			end
+		end
+
+		minimapRemote:FireClient(player, {
+			Grid = minimapGrid,
+			TileSize = DungeonConfig.GridSpacing,
+			Corridors = minimapCorridors,
+			StartOffset = { X = DungeonConfig.StartOffset.X, Z = DungeonConfig.StartOffset.Z },
+		})
 	end
 
 	-- Death handler
@@ -954,11 +1022,37 @@ function DungeonService.SpawnMinibossKey(player, data, roomIndex, enemyModel, ke
 end
 
 --------------------------------------------------------------------------------
+-- MINIMAP HELPERS: fire discovery/clear events to the client minimap
+--------------------------------------------------------------------------------
+local function fireMinimapDiscover(player, roomIndex)
+	local roomConfig = DungeonConfig.Rooms[roomIndex]
+	if not roomConfig then return end
+	local discoverRemote = Remotes:GetEvent("RoomDiscovered")
+	if discoverRemote then
+		local row1 = roomConfig.Grid[2] + 1
+		local col1 = roomConfig.Grid[1] + 1
+		discoverRemote:FireClient(player, row1, col1)
+	end
+end
+
+local function fireMinimapCleared(player, roomIndex)
+	local roomConfig = DungeonConfig.Rooms[roomIndex]
+	if not roomConfig then return end
+	local clearRemote = Remotes:GetEvent("MinimapRoomCleared")
+	if clearRemote then
+		local row1 = roomConfig.Grid[2] + 1
+		local col1 = roomConfig.Grid[1] + 1
+		clearRemote:FireClient(player, row1, col1)
+	end
+end
+
+--------------------------------------------------------------------------------
 -- ROOM CLEARED
 --------------------------------------------------------------------------------
 function DungeonService.RoomCleared(player, data, roomIndex)
 	data.RoomStates[roomIndex] = "Cleared"
 	data.RoomsCleared = (data.RoomsCleared or 0) + 1
+	fireMinimapCleared(player, roomIndex)
 
 	local remote = Remotes:GetEvent("DungeonStateChanged")
 	local roomConfig = DungeonConfig.Rooms[roomIndex]
@@ -1030,6 +1124,7 @@ function DungeonService.RoomCleared(player, data, roomIndex)
 					if neighborIndex and data.RoomStates[neighborIndex] == "Locked" then
 						data.RoomStates[neighborIndex] = "Active"
 						DungeonService.SpawnRoomEnemies(data, neighborIndex)
+						fireMinimapDiscover(player, neighborIndex)
 						if remote then
 							local neighborConfig = getRoomById(neighborId)
 							remote:FireClient(player, "RoomActivated", neighborIndex, neighborConfig and neighborConfig.Name or "Room")
