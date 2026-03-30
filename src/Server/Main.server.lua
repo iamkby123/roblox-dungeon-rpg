@@ -98,23 +98,23 @@ local function BuildLobby()
 			Material=Enum.Material.Slate, BrickColor=BrickColor.new("Dark stone grey")})
 	end
 
-	-- ===== GROUND LAYERS (raised above Y=0 to avoid z-fighting) =====
-	-- Large dirt ground
+	-- ===== GROUND LAYERS (stacked with clear Y gaps to prevent z-fighting) =====
+	-- Large dirt ground (base layer)
 	mp({Name="DirtGround", Size=Vector3.new(400, 6, 400), Position=Vector3.new(0, -2.5, 0),
 		Material=Enum.Material.Ground, Color=Color3.fromRGB(80, 55, 35)})
-	-- Worn cobblestone path leading to cave
-	mp({Name="StonePath", Size=Vector3.new(24, 0.5, 90), Position=Vector3.new(0, 0.8, -15),
-		Material=Enum.Material.Cobblestone, BrickColor=BrickColor.new("Dark stone grey")})
-	-- Wider clearing around spawn (campsite feel)
-	mp({Name="SpawnClearing", Size=Vector3.new(60, 0.5, 50), Position=Vector3.new(0, 0.6, 20),
+	-- Wider clearing around spawn (campsite feel) — sits on top of dirt
+	mp({Name="SpawnClearing", Size=Vector3.new(60, 0.3, 50), Position=Vector3.new(0, 0.65, 20),
 		Material=Enum.Material.Ground, Color=Color3.fromRGB(65, 50, 30)})
-	-- Stone circle around campfire/spawn
-	mp({Name="StoneCircle", Size=Vector3.new(20, 0.3, 20), Position=Vector3.new(0, 0.85, 20),
+	-- Worn cobblestone path leading to cave — above clearing
+	mp({Name="StonePath", Size=Vector3.new(24, 0.3, 90), Position=Vector3.new(0, 0.95, -15),
+		Material=Enum.Material.Cobblestone, BrickColor=BrickColor.new("Dark stone grey")})
+	-- Stone circle around campfire/spawn — topmost layer
+	mp({Name="StoneCircle", Size=Vector3.new(20, 0.2, 20), Position=Vector3.new(0, 1.15, 20),
 		Material=Enum.Material.Cobblestone, BrickColor=BrickColor.new("Medium stone grey")})
 
 	-- Spawn location (hidden inside campsite)
 	local spawn = Instance.new("SpawnLocation")
-	spawn.Size = Vector3.new(8, 0.2, 8); spawn.Position = Vector3.new(0, 1.1, 20)
+	spawn.Size = Vector3.new(8, 0.2, 8); spawn.Position = Vector3.new(0, 1.35, 20)
 	spawn.Anchored = true; spawn.Material = Enum.Material.Cobblestone
 	spawn.BrickColor = BrickColor.new("Medium stone grey"); spawn.Transparency = 1
 	spawn.Duration = 0; spawn.Parent = lobby
@@ -215,7 +215,7 @@ local function BuildLobby()
 
 	-- Warning sign above cave
 	makeSign(
-		Vector3.new(0, caveH + 8, entranceZ + 5), Vector3.new(18, 4, 0.5), Enum.NormalId.Front,
+		Vector3.new(0, caveH + 8, entranceZ + 5), Vector3.new(18, 4, 0.5), Enum.NormalId.Back,
 		"THE HOLLOW", Color3.fromRGB(255, 200, 50),
 		"Enter if you dare...", Color3.fromRGB(200, 80, 80)
 	)
@@ -318,7 +318,7 @@ local function BuildLobby()
 	mp({Size=Vector3.new(2, 6, 2), Position=Vector3.new(-18, 3.5, 8),
 		Material=Enum.Material.Wood, BrickColor=BrickColor.new("Dark orange")})
 	makeSign(
-		Vector3.new(-18, 7.5, 8), Vector3.new(12, 6, 1), Enum.NormalId.Front,
+		Vector3.new(-18, 7.5, 8), Vector3.new(12, 6, 1), Enum.NormalId.Back,
 		"CONTROLS", Color3.fromRGB(100, 200, 255),
 		"Click = Attack\n[1-4] = Switch Items\n[Tab] = Stats\n[E] = Interact", Color3.fromRGB(220, 220, 200)
 	)
@@ -327,7 +327,7 @@ local function BuildLobby()
 	mp({Size=Vector3.new(2, 6, 2), Position=Vector3.new(18, 3.5, 8),
 		Material=Enum.Material.Wood, BrickColor=BrickColor.new("Dark orange")})
 	makeSign(
-		Vector3.new(18, 7.5, 8), Vector3.new(12, 6, 1), Enum.NormalId.Front,
+		Vector3.new(18, 7.5, 8), Vector3.new(12, 6, 1), Enum.NormalId.Back,
 		"HOW TO PLAY", Color3.fromRGB(255, 150, 50),
 		"Clear chambers of creatures\nCollect colored seals\nUnlock matching passages\nDefeat the SANCTUM BOSS!", Color3.fromRGB(220, 220, 200)
 	)
@@ -353,9 +353,9 @@ local function BuildLobby()
 	local slateMat = Enum.Material.Slate
 	local cobbMat = Enum.Material.Cobblestone
 
-	-- Outer arena floor ring (cobblestone apron around the dirt ground)
+	-- Outer arena floor ring (cobblestone apron around the dirt ground, below dirt layer)
 	mp({Name="ArenaFloor", Size=Vector3.new(ARENA_RADIUS*2+20, 3, ARENA_RADIUS*2+20),
-		Position=Vector3.new(0, GROUND_Y-1.5, 0),
+		Position=Vector3.new(0, GROUND_Y-3, 0),
 		Material=cobbMat, Color=Color3.fromRGB(55, 50, 45)})
 
 	-- ---- CURVED OUTER WALL (segmented) ----
@@ -638,53 +638,53 @@ local function BuildLobby()
 	mp({Size=Vector3.new(ARENA_RADIUS*2+40, 1, ARENA_RADIUS*2+40), Position=Vector3.new(0, GROUND_Y + WALL_HEIGHT + 10, 0),
 		Transparency=1, CanCollide=true, Name="Boundary"})
 
-	-- ===== GLOBAL LIGHTING — warm torchlit dungeon (Sundaria-style) =====
+	-- ===== GLOBAL LIGHTING — dark dungeon with subtle warm accents =====
 	local lighting = game:GetService("Lighting")
-	lighting.Ambient = Color3.fromRGB(18, 14, 10)       -- deep warm shadow fill
-	lighting.OutdoorAmbient = Color3.fromRGB(22, 17, 12) -- barely-there outdoor fill
-	lighting.Brightness = 0.15                            -- very low sky contribution
-	lighting.FogEnd = 450                                 -- fog closes in for depth
-	lighting.FogStart = 40                                -- starts near camera
-	lighting.FogColor = Color3.fromRGB(8, 5, 3)          -- warm black fog
+	lighting.Ambient = Color3.fromRGB(20, 18, 16)       -- neutral dark shadow fill
+	lighting.OutdoorAmbient = Color3.fromRGB(22, 20, 18) -- neutral outdoor fill
+	lighting.Brightness = 0.1                             -- very low sky contribution
+	lighting.FogEnd = 500                                 -- fog further out
+	lighting.FogStart = 60                                -- starts a bit further
+	lighting.FogColor = Color3.fromRGB(6, 5, 5)          -- near-black fog
 	lighting.ClockTime = 0                                -- midnight, no sky light
 	lighting.GeographicLatitude = 0
 	lighting.GlobalShadows = true
 	lighting.ShadowSoftness = 0.15                        -- crisp shadows from torches
 	lighting.EnvironmentDiffuseScale = 0                  -- no environment diffuse
 	lighting.EnvironmentSpecularScale = 0                 -- no environment specular
-	lighting.ExposureCompensation = 0.1                   -- minimal exposure boost
+	lighting.ExposureCompensation = -0.2                  -- pull exposure down to reduce blowout
 
-	-- Bloom — warm glow around fire sources
+	-- Bloom — very subtle, only the brightest sources glow
 	local bloom = Instance.new("BloomEffect")
-	bloom.Intensity = 0.35
-	bloom.Size = 20
-	bloom.Threshold = 1.8
+	bloom.Intensity = 0.2
+	bloom.Size = 14
+	bloom.Threshold = 2.2
 	bloom.Parent = lighting
 
-	-- Color correction — warm tint, rich contrast, slight desaturation
+	-- Color correction — neutral with very slight warmth, no heavy amber tint
 	local serverCC = Instance.new("ColorCorrectionEffect")
 	serverCC.Name = "HollowTone"
-	serverCC.Brightness = -0.02
-	serverCC.Contrast = 0.15
-	serverCC.Saturation = -0.1
-	serverCC.TintColor = Color3.fromRGB(255, 235, 210)   -- warm amber tint
+	serverCC.Brightness = -0.05
+	serverCC.Contrast = 0.12
+	serverCC.Saturation = -0.05
+	serverCC.TintColor = Color3.fromRGB(255, 248, 240)   -- barely warm, nearly neutral
 	serverCC.Parent = lighting
 
-	-- Atmosphere — thick, warm, dungeon-depth fog
+	-- Atmosphere — lighter density, less overwhelming
 	local atmosphere = Instance.new("Atmosphere")
-	atmosphere.Density = 0.35
-	atmosphere.Offset = 0.2
-	atmosphere.Color = Color3.fromRGB(30, 20, 10)         -- warm fog color
-	atmosphere.Decay = Color3.fromRGB(12, 8, 4)           -- dark warm decay
+	atmosphere.Density = 0.2
+	atmosphere.Offset = 0.3
+	atmosphere.Color = Color3.fromRGB(25, 20, 15)         -- subtle warm fog
+	atmosphere.Decay = Color3.fromRGB(10, 8, 6)           -- dark neutral decay
 	atmosphere.Glare = 0
-	atmosphere.Haze = 6
+	atmosphere.Haze = 3
 	atmosphere.Parent = lighting
 
-	-- Sunrays disabled (no sun) — use DepthOfField for cinematic feel
+	-- DepthOfField for cinematic feel
 	local dof = Instance.new("DepthOfFieldEffect")
-	dof.FarIntensity = 0.15
-	dof.FocusDistance = 60
-	dof.InFocusRadius = 40
+	dof.FarIntensity = 0.1
+	dof.FocusDistance = 80
+	dof.InFocusRadius = 50
 	dof.NearIntensity = 0
 	dof.Parent = lighting
 end
