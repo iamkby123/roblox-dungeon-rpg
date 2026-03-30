@@ -189,8 +189,8 @@ function HollowBuilder.BuildEntranceRoom(parent, origin)
 
 			local pillar = Instance.new("Part")
 			pillar.Name = "Pedestal_Pillar_" .. pedestalInfo.VocationId
-			pillar.Size = Vector3.new(0.5, 10, 0.5)
-			pillar.Position = pedPos + Vector3.new(0, 6, 0)
+			pillar.Size = Vector3.new(0.5, h, 0.5)
+			pillar.Position = pedPos + Vector3.new(0, h / 2, 0)
 			pillar.Anchored = true; pillar.CanCollide = false
 			pillar.BrickColor = vocationData.Color; pillar.Material = Enum.Material.Neon; pillar.Transparency = 0.3
 			pillar.Parent = f
