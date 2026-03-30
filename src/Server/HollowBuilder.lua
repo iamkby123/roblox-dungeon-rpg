@@ -1428,6 +1428,13 @@ function HollowBuilder.RoomCleared(player, data, roomIndex)
 		HollowBuilder.TeleportToLobby(player)
 		HollowBuilder.CleanupDescent(player)
 		DelverDataService.ResetStats(player)
+		-- Re-apply rank bonuses that ResetStats cleared
+		if DelverProgression then
+			local prog = DelverProgression.GetProgression(player)
+			if prog and prog.Rank > 1 then
+				DelverProgression._ApplyRankBonuses(player, prog.Rank - 1)
+			end
+		end
 		return
 	end
 

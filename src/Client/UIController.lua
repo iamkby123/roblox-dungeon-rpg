@@ -864,7 +864,7 @@ function UIController.UpdateXPBar(data)
 		}):Play()
 	end
 	if label then
-		label.Text = "Lv." .. data.Level .. "  " .. data.XP .. " / " .. data.XPRequired .. " XP"
+		label.Text = "Lv." .. data.Rank .. "  " .. data.XP .. " / " .. data.XPRequired .. " XP"
 	end
 end
 
@@ -901,7 +901,7 @@ function UIController.ShowLevelUpOverlay(data)
 	local midY = screenH * 0.3
 
 	makeLabel("LEVEL UP!",  Color3.fromRGB(255, 215, 0), 0.5, midY)
-	makeLabel("Level " .. data.Level, Color3.new(1, 1, 1), 0.35, midY + 60, 40)
+	makeLabel("Level " .. data.Rank, Color3.new(1, 1, 1), 0.35, midY + 60, 40)
 
 	local bonuses = data.Bonuses or { Health = 5, Defense = 2, Strength = 2 }
 	makeLabel(
