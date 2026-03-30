@@ -8,7 +8,8 @@ local DungeonBuilder = {}
 --------------------------------------------------------------------------------
 -- CONFIG
 --------------------------------------------------------------------------------
-local TILE_SIZE = 200 -- studs between room centers
+local DEFAULT_TILE_SIZE = 200 -- minimum studs between room centers
+local TILE_PADDING = 20       -- extra gap between rooms to prevent touching
 local DOOR_TAG = "DungeonDoor" -- CollectionService tag on door parts
 
 --------------------------------------------------------------------------------
@@ -102,8 +103,11 @@ function DungeonBuilder.BuildFromLayout(layout, parentFolder)
 	local doorMap = {} -- [row][col] = { North = part, South = part, ... }
 
 	------------------------------------------------------------
-	-- 1. Clone and position each room
+	-- 1. Clone all rooms and measure their bounding boxes to
+	--    determine the actual tile size needed to prevent overlaps.
 	------------------------------------------------------------
+	local maxRoomSpan = 0 -- largest X or Z extent of any room
+
 	for row = 1, n do
 		roomMap[row] = {}
 		doorMap[row] = {}
@@ -126,7 +130,7 @@ function DungeonBuilder.BuildFromLayout(layout, parentFolder)
 				clone.Name = template.Name .. "_Placeholder"
 				local floor = Instance.new("Part")
 				floor.Name = "Floor"
-				floor.Size = Vector3.new(TILE_SIZE * 0.8, 4, TILE_SIZE * 0.8)
+				floor.Size = Vector3.new(DEFAULT_TILE_SIZE * 0.8, 4, DEFAULT_TILE_SIZE * 0.8)
 				floor.Anchored = true
 				floor.Material = Enum.Material.Cobblestone
 				floor.BrickColor = BrickColor.new("Medium stone grey")
@@ -135,6 +139,34 @@ function DungeonBuilder.BuildFromLayout(layout, parentFolder)
 			end
 
 			clone.Name = string.format("Room_%d_%d_%s", row, col, cell.RoomType)
+
+			-- Measure bounding box to track the largest room
+			if clone:IsA("Model") then
+				local ok, cf, size = pcall(clone.GetBoundingBox, clone)
+				if ok and size then
+					maxRoomSpan = math.max(maxRoomSpan, size.X, size.Z)
+				end
+			end
+
+			roomMap[row][col] = clone
+		end
+	end
+
+	------------------------------------------------------------
+	-- 2. Compute tile size: must be at least as large as the
+	--    biggest room plus padding so rooms never overlap.
+	------------------------------------------------------------
+	local TILE_SIZE = math.max(DEFAULT_TILE_SIZE, maxRoomSpan + TILE_PADDING)
+	-- Round up to nearest 10 for clean alignment
+	TILE_SIZE = math.ceil(TILE_SIZE / 10) * 10
+	DungeonBuilder._lastTileSize = TILE_SIZE
+
+	------------------------------------------------------------
+	-- 3. Position each room on the grid and collect doors.
+	------------------------------------------------------------
+	for row = 1, n do
+		for col = 1, n do
+			local clone = roomMap[row][col]
 
 			-- Compute world position: center of this tile
 			local worldX = (col - 1) * TILE_SIZE
@@ -156,7 +188,6 @@ function DungeonBuilder.BuildFromLayout(layout, parentFolder)
 			end
 
 			clone.Parent = parentFolder
-			roomMap[row][col] = clone
 
 			-- Collect doors tagged with CollectionService
 			doorMap[row][col] = {}
@@ -262,10 +293,11 @@ function DungeonBuilder.SealDoor(doorPart)
 end
 
 --------------------------------------------------------------------------------
--- GetTileSize() — expose so other systems can query the spacing
+-- GetTileSize() — expose so other systems can query the spacing.
+-- Returns the last computed tile size, or the default if no build has run yet.
 --------------------------------------------------------------------------------
 function DungeonBuilder.GetTileSize()
-	return TILE_SIZE
+	return DungeonBuilder._lastTileSize or DEFAULT_TILE_SIZE
 end
 
 return DungeonBuilder
