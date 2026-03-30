@@ -65,7 +65,7 @@ local function createArmModel(parent)
 	local skin = Color3.fromRGB(245, 205, 160)
 
 	armPart = makePart("Arm", Vector3.new(1, 1, 2.8), skin, Enum.Material.SmoothPlastic, model)
-	handPart = makePart("Hand", Vector3.new(1.1, 1.1, 0.9), skin, Enum.Material.SmoothPlastic, model)
+	handPart = makePart("Hand", Vector3.new(1.0, 0.9, 0.9), skin, Enum.Material.SmoothPlastic, model)
 
 	gripPart = Instance.new("Part")
 	gripPart.Name = "Grip"
@@ -154,15 +154,19 @@ local function positionWeapon(weaponId, gripCF)
 	local p = data.parts
 
 	if weaponId == "Sword" then
-		p.Handle.CFrame = gripCF * CFrame.new(0, 0, -0.5)
-		p.Guard.CFrame = gripCF * CFrame.new(0, 0, -1.0)
-		p.Blade.CFrame = gripCF * CFrame.new(0, 0, -2.6)
+		-- Tilt upward ~75 degrees so blade points mostly vertical
+		local tilt = gripCF * CFrame.Angles(math.rad(-75), 0, 0)
+		p.Handle.CFrame = tilt * CFrame.new(0, 0, -0.5)
+		p.Guard.CFrame = tilt * CFrame.new(0, 0, -1.0)
+		p.Blade.CFrame = tilt * CFrame.new(0, 0, -2.6)
 	elseif weaponId == "Staff" then
-		p.Shaft.CFrame = gripCF * CFrame.new(0, 0, -2.0)
-		p.Orb.CFrame = gripCF * CFrame.new(0, 0, -4.2)
+		local tilt = gripCF * CFrame.Angles(math.rad(-70), 0, 0)
+		p.Shaft.CFrame = tilt * CFrame.new(0, 0, -2.0)
+		p.Orb.CFrame = tilt * CFrame.new(0, 0, -4.2)
 	elseif weaponId == "Wand" then
-		p.Stick.CFrame = gripCF * CFrame.new(0, 0, -1.1)
-		p.Crystal.CFrame = gripCF * CFrame.new(0, 0, -2.4)
+		local tilt = gripCF * CFrame.Angles(math.rad(-70), 0, 0)
+		p.Stick.CFrame = tilt * CFrame.new(0, 0, -1.1)
+		p.Crystal.CFrame = tilt * CFrame.new(0, 0, -2.4)
 	elseif weaponId == "Shield" then
 		local shieldCF = gripCF * CFrame.new(-0.3, 0, -0.8)
 		p.Handle.CFrame = shieldCF
