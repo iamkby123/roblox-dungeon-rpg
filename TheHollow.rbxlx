@@ -4472,9 +4472,9 @@ function HollowBuilder.BuildEntranceRoom(parent, origin)
 	local ceil = makePart({Name="Ceiling", Size=Vector3.new(w,t,d), Position=origin+Vector3.new(0,h+t/2,0), Material=mat, BrickColor=col, Parent=f})
 
 	-- Walls: solid left, right, back. Front is open (connects to Room 1)
-	makePart({Size=Vector3.new(t,h,d), Position=origin+Vector3.new(-w/2-t/2,h/2,0), Material=mat, BrickColor=col, Parent=f})
-	makePart({Size=Vector3.new(t,h,d), Position=origin+Vector3.new(w/2+t/2,h/2,0), Material=mat, BrickColor=col, Parent=f})
-	makePart({Size=Vector3.new(w+t*2,h,t), Position=origin+Vector3.new(0,h/2,d/2+t/2), Material=mat, BrickColor=col, Parent=f})
+	makePart({Size=Vector3.new(t,h,d+t*2), Position=origin+Vector3.new(-w/2-t/2,h/2,0), Material=mat, BrickColor=col, Parent=f})
+	makePart({Size=Vector3.new(t,h,d+t*2), Position=origin+Vector3.new(w/2+t/2,h/2,0), Material=mat, BrickColor=col, Parent=f})
+	makePart({Size=Vector3.new(w,h,t), Position=origin+Vector3.new(0,h/2,d/2+t/2), Material=mat, BrickColor=col, Parent=f})
 
 	-- Lighting (dimmer entrance)
 	local light = Instance.new("PointLight"); light.Color=Color3.fromRGB(255,200,120); light.Range=35; light.Brightness=0.8; light.Parent=ceil
@@ -4577,7 +4577,8 @@ function HollowBuilder.BuildRoom(parent, config, origin, roomIndex, openings)
 				makePart({Size=Vector3.new(t,size.Y,sideD), Position=origin+Vector3.new(-size.X/2-t/2, size.Y/2, (cw+sideD)/2), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
 				makePart({Size=Vector3.new(t,size.Y,sideD), Position=origin+Vector3.new(-size.X/2-t/2, size.Y/2, -(cw+sideD)/2), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
 			else
-				makePart({Name="LeftWall", Size=Vector3.new(t,size.Y,size.Z), Position=origin+Vector3.new(-size.X/2-t/2, size.Y/2, 0), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
+				-- Left/Right walls extend t beyond room in Z to cover corners
+				makePart({Name="LeftWall", Size=Vector3.new(t,size.Y,size.Z+t*2), Position=origin+Vector3.new(-size.X/2-t/2, size.Y/2, 0), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
 			end
 
 		elseif wallSide == "Right" then -- +X wall
@@ -4586,7 +4587,7 @@ function HollowBuilder.BuildRoom(parent, config, origin, roomIndex, openings)
 				makePart({Size=Vector3.new(t,size.Y,sideD), Position=origin+Vector3.new(size.X/2+t/2, size.Y/2, (cw+sideD)/2), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
 				makePart({Size=Vector3.new(t,size.Y,sideD), Position=origin+Vector3.new(size.X/2+t/2, size.Y/2, -(cw+sideD)/2), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
 			else
-				makePart({Name="RightWall", Size=Vector3.new(t,size.Y,size.Z), Position=origin+Vector3.new(size.X/2+t/2, size.Y/2, 0), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
+				makePart({Name="RightWall", Size=Vector3.new(t,size.Y,size.Z+t*2), Position=origin+Vector3.new(size.X/2+t/2, size.Y/2, 0), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
 			end
 
 		elseif wallSide == "Front" then -- +Z wall
@@ -4595,7 +4596,8 @@ function HollowBuilder.BuildRoom(parent, config, origin, roomIndex, openings)
 				makePart({Size=Vector3.new(sideW,size.Y,t), Position=origin+Vector3.new(-(cw+sideW)/2, size.Y/2, size.Z/2+t/2), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
 				makePart({Size=Vector3.new(sideW,size.Y,t), Position=origin+Vector3.new((cw+sideW)/2, size.Y/2, size.Z/2+t/2), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
 			else
-				makePart({Name="FrontWall", Size=Vector3.new(size.X+t*2,size.Y,t), Position=origin+Vector3.new(0, size.Y/2, size.Z/2+t/2), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
+				-- Front/Back walls fit between left/right walls (no corner overlap)
+				makePart({Name="FrontWall", Size=Vector3.new(size.X,size.Y,t), Position=origin+Vector3.new(0, size.Y/2, size.Z/2+t/2), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
 			end
 
 		elseif wallSide == "Back" then -- -Z wall
@@ -4604,7 +4606,7 @@ function HollowBuilder.BuildRoom(parent, config, origin, roomIndex, openings)
 				makePart({Size=Vector3.new(sideW,size.Y,t), Position=origin+Vector3.new(-(cw+sideW)/2, size.Y/2, -size.Z/2-t/2), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
 				makePart({Size=Vector3.new(sideW,size.Y,t), Position=origin+Vector3.new((cw+sideW)/2, size.Y/2, -size.Z/2-t/2), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
 			else
-				makePart({Name="BackWall", Size=Vector3.new(size.X+t*2,size.Y,t), Position=origin+Vector3.new(0, size.Y/2, -size.Z/2-t/2), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
+				makePart({Name="BackWall", Size=Vector3.new(size.X,size.Y,t), Position=origin+Vector3.new(0, size.Y/2, -size.Z/2-t/2), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
 			end
 		end
 	end
@@ -4951,7 +4953,7 @@ end
 --------------------------------------------------------------------------------
 -- CORRIDOR BUILDER (grid-based, straight only)
 --------------------------------------------------------------------------------
-local CORRIDOR_OVERLAP = 2
+local CORRIDOR_OVERLAP = 0
 
 -- Build a straight corridor segment along Z axis
 -- Uses openingW (cw+4) to match room wall openings exactly
