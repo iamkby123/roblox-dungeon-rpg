@@ -1,0 +1,35 @@
+name: Deploy to Roblox
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rojo
+        run: |
+          curl -sL https://github.com/rojo-rbx/rojo/releases/latest/download/rojo-linux-x86_64.zip -o rojo.zip
+          unzip rojo.zip -d /usr/local/bin
+          chmod +x /usr/local/bin/rojo
+
+      - name: Build place file with Rojo
+        run: rojo build -o DungeonRPG.rbxlx
+
+      - name: Publish to Roblox via Open Cloud
+        run: |
+          curl -s -X POST \
+            "https://apis.roblox.com/universes/v1/${UNIVERSE_ID}/places/${PLACE_ID}/versions?versionType=Published" \
+            -H "x-api-key: ${ROBLOX_API_KEY}" \
+            -H "Content-Type: application/xml" \
+            --data-binary @DungeonRPG.rbxlx \
+            --fail-with-body
+        env:
+          ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+          UNIVERSE_ID: ${{ secrets.ROBLOX_UNIVERSE_ID }}
+          PLACE_ID: ${{ secrets.ROBLOX_PLACE_ID }}
