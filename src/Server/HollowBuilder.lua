@@ -151,22 +151,39 @@ function HollowBuilder.BuildEntranceRoom(parent, origin)
 	makePart({Name="Floor", Size=Vector3.new(w,t,d), Position=origin-Vector3.new(0,t/2,0), Material=Enum.Material.Cobblestone, BrickColor=BrickColor.new("Medium stone grey"), Parent=f})
 	local ceil = makePart({Name="Ceiling", Size=Vector3.new(w,t,d), Position=origin+Vector3.new(0,h+t/2,0), Material=mat, BrickColor=col, Parent=f})
 
-	-- Walls: solid left, right, back. Front is open (connects to Room 1)
+	-- Walls: left, right, back solid. Front has corridor opening.
 	makePart({Size=Vector3.new(t,h,d+t*2), Position=origin+Vector3.new(-w/2-t/2,h/2,0), Material=mat, BrickColor=col, Parent=f})
 	makePart({Size=Vector3.new(t,h,d+t*2), Position=origin+Vector3.new(w/2+t/2,h/2,0), Material=mat, BrickColor=col, Parent=f})
 	makePart({Size=Vector3.new(w,h,t), Position=origin+Vector3.new(0,h/2,d/2+t/2), Material=mat, BrickColor=col, Parent=f})
+	-- Front wall (-Z) with corridor opening
+	local cw = HollowConfig.CorridorWidth + 4 -- match corridor opening width
+	local sideW = (w - cw) / 2
+	makePart({Size=Vector3.new(sideW,h,t), Position=origin+Vector3.new(-(cw+sideW)/2, h/2, -d/2-t/2), Material=mat, BrickColor=col, Parent=f})
+	makePart({Size=Vector3.new(sideW,h,t), Position=origin+Vector3.new((cw+sideW)/2, h/2, -d/2-t/2), Material=mat, BrickColor=col, Parent=f})
 
 	-- Lighting (dimmer entrance)
 	local light = Instance.new("PointLight"); light.Color=Color3.fromRGB(255,200,120); light.Range=35; light.Brightness=0.8; light.Parent=ceil
 
-	-- Torches
-	for _, xOff in ipairs({-w/4, w/4}) do
-		local torch = makePart({Name="Torch", Size=Vector3.new(1,2,1), Position=origin+Vector3.new(xOff,h*0.6,0), Material=Enum.Material.Wood, BrickColor=BrickColor.new("Brown"), Parent=f})
-		local tl = Instance.new("PointLight"); tl.Color=Color3.fromRGB(255,150,50); tl.Range=12; tl.Brightness=0.7; tl.Parent=torch
+	-- Torches (mounted against walls)
+	local torchY = h * 0.6
+	local entranceTorchPositions = {
+		-- Left wall (-X)
+		Vector3.new(-w/2 + 1, torchY, -d/4),
+		Vector3.new(-w/2 + 1, torchY, d/4),
+		-- Right wall (+X)
+		Vector3.new(w/2 - 1, torchY, -d/4),
+		Vector3.new(w/2 - 1, torchY, d/4),
+		-- Back wall (+Z)
+		Vector3.new(-w/4, torchY, d/2 - 1),
+		Vector3.new(w/4, torchY, d/2 - 1),
+	}
+	for _, off in ipairs(entranceTorchPositions) do
+		local torch = makePart({Name="Torch", Size=Vector3.new(1,2,1), Position=origin+off, Material=Enum.Material.Wood, BrickColor=BrickColor.new("Brown"), Parent=f})
+		local tl = Instance.new("PointLight"); tl.Color=Color3.fromRGB(255,150,50); tl.Range=18; tl.Brightness=0.8; tl.Parent=torch
 		local fi = Instance.new("Fire"); fi.Size=2; fi.Heat=4; fi.Parent=torch
 	end
 
-	-- Info sign
+	-- Info sign (on back wall, facing player = -Z = Front face)
 	local sign = makePart({Name="InfoSign", Size=Vector3.new(12,5,1), Position=origin+Vector3.new(0,10,d/2-1), Material=Enum.Material.SmoothPlastic, BrickColor=BrickColor.new("Really black"), Parent=f})
 	local sg = Instance.new("SurfaceGui"); sg.Face=Enum.NormalId.Front; sg.Parent=sign
 	local tl = Instance.new("TextLabel"); tl.Size=UDim2.new(1,0,0.5,0); tl.BackgroundTransparency=1; tl.Text="HOLLOW ENTRANCE"; tl.TextColor3=Color3.fromRGB(255,200,50); tl.TextScaled=true; tl.Font=Enum.Font.GothamBold; tl.Parent=sg
@@ -299,22 +316,21 @@ function HollowBuilder.BuildRoom(parent, config, origin, roomIndex, openings)
 	-- Ceiling ambient light (dim warm fill — torches are the primary light)
 	local light = Instance.new("PointLight"); light.Color=config.LightColor or Color3.fromRGB(200,140,70); light.Range=size.X*0.5; light.Brightness=0.4; light.Parent=ceil
 
-	-- Wall-mounted torches (two per wall, evenly spaced — primary room lighting)
+	-- Wall-mounted torches (two per wall, flush against wall surface)
 	local wallTorchY = size.Y * 0.6
-	local wallInset = 1 -- how far from the wall surface
 	local torchPositions = {
-		-- Left wall (-X)
-		Vector3.new(-size.X/2 + wallInset, wallTorchY, -size.Z/4),
-		Vector3.new(-size.X/2 + wallInset, wallTorchY, size.Z/4),
+		-- Left wall (-X) — torch against inner wall face
+		Vector3.new(-size.X/2 + 0.5, wallTorchY, -size.Z/4),
+		Vector3.new(-size.X/2 + 0.5, wallTorchY, size.Z/4),
 		-- Right wall (+X)
-		Vector3.new(size.X/2 - wallInset, wallTorchY, -size.Z/4),
-		Vector3.new(size.X/2 - wallInset, wallTorchY, size.Z/4),
+		Vector3.new(size.X/2 - 0.5, wallTorchY, -size.Z/4),
+		Vector3.new(size.X/2 - 0.5, wallTorchY, size.Z/4),
 		-- Back wall (-Z)
-		Vector3.new(-size.X/4, wallTorchY, -size.Z/2 + wallInset),
-		Vector3.new(size.X/4, wallTorchY, -size.Z/2 + wallInset),
+		Vector3.new(-size.X/4, wallTorchY, -size.Z/2 + 0.5),
+		Vector3.new(size.X/4, wallTorchY, -size.Z/2 + 0.5),
 		-- Front wall (+Z)
-		Vector3.new(-size.X/4, wallTorchY, size.Z/2 - wallInset),
-		Vector3.new(size.X/4, wallTorchY, size.Z/2 - wallInset),
+		Vector3.new(-size.X/4, wallTorchY, size.Z/2 - 0.5),
+		Vector3.new(size.X/4, wallTorchY, size.Z/2 - 0.5),
 	}
 	for _, offset in ipairs(torchPositions) do
 		local torch = makePart({Name="WallTorch", Size=Vector3.new(1,3,1), Position=origin+offset, Material=Enum.Material.Wood, BrickColor=BrickColor.new("Brown"), Parent=roomFolder})
@@ -651,8 +667,8 @@ local function buildCorridorZ(parent, x, fromZ, toZ, originY, mat, col, floorCol
 	makePart({Size=Vector3.new(t,ch,length), Position=Vector3.new(x-ow/2-t/2, originY+ch/2, centerZ), Material=mat, BrickColor=col, Parent=f})
 	makePart({Size=Vector3.new(t,ch,length), Position=Vector3.new(x+ow/2+t/2, originY+ch/2, centerZ), Material=mat, BrickColor=col, Parent=f})
 
-	-- Torch
-	local torch = makePart({Name="Torch", Size=Vector3.new(1,2,1), Position=Vector3.new(x, originY+ch*0.7, centerZ), Material=Enum.Material.Wood, BrickColor=BrickColor.new("Brown"), Parent=f})
+	-- Torch (mounted against left wall of corridor)
+	local torch = makePart({Name="Torch", Size=Vector3.new(1,2,1), Position=Vector3.new(x-ow/2+0.5, originY+ch*0.7, centerZ), Material=Enum.Material.Wood, BrickColor=BrickColor.new("Brown"), Parent=f})
 	local tl = Instance.new("PointLight"); tl.Color=Color3.fromRGB(255,130,40); tl.Range=14; tl.Brightness=0.6; tl.Parent=torch
 	local fi = Instance.new("Fire"); fi.Size=2; fi.Heat=3; fi.Parent=torch
 	return f
@@ -674,8 +690,8 @@ local function buildCorridorX(parent, z, fromX, toX, originY, mat, col, floorCol
 	makePart({Size=Vector3.new(length,ch,t), Position=Vector3.new(centerX, originY+ch/2, z-ow/2-t/2), Material=mat, BrickColor=col, Parent=f})
 	makePart({Size=Vector3.new(length,ch,t), Position=Vector3.new(centerX, originY+ch/2, z+ow/2+t/2), Material=mat, BrickColor=col, Parent=f})
 
-	-- Torch
-	local torch = makePart({Name="Torch", Size=Vector3.new(1,2,1), Position=Vector3.new(centerX, originY+ch*0.7, z), Material=Enum.Material.Wood, BrickColor=BrickColor.new("Brown"), Parent=f})
+	-- Torch (mounted against back wall of corridor)
+	local torch = makePart({Name="Torch", Size=Vector3.new(1,2,1), Position=Vector3.new(centerX, originY+ch*0.7, z-ow/2+0.5), Material=Enum.Material.Wood, BrickColor=BrickColor.new("Brown"), Parent=f})
 	local tl = Instance.new("PointLight"); tl.Color=Color3.fromRGB(255,130,40); tl.Range=14; tl.Brightness=0.6; tl.Parent=torch
 	local fi = Instance.new("Fire"); fi.Size=2; fi.Heat=3; fi.Parent=torch
 	return f
@@ -911,11 +927,11 @@ function HollowBuilder.StartDescent(player)
 				dungeonFolder,
 				fromOrigin, fromConfig.Size,
 				toOrigin, toConfig.Size,
-				corr.Dir, originY, corr.SealKey
+				corr.Dir, originY, corr.DoorKey
 			)
 			dungeonData.CorridorDoors[ci] = {
 				Door = door,
-				SealType = corr.SealKey,
+				SealType = corr.DoorKey,
 				RequiresBothShadow = corr.RequiresBothShadow or false,
 				FromRoom = corr.FromRoom,
 				ToRoom = corr.ToRoom,
@@ -1081,7 +1097,7 @@ function HollowBuilder.StartDescent(player)
 					ToRow = toConfig.Grid[2] + 1,
 					ToCol = toConfig.Grid[1] + 1,
 					Dir = corr.Dir,
-					SealKey = corr.SealKey,
+					SealKey = corr.DoorKey,
 				})
 			end
 		end
@@ -1285,11 +1301,11 @@ function HollowBuilder.SpawnSingleEnemy(enemyId, spawnPos, parentFolder, hpScale
 		local jaw = addDetail("Jaw", Vector3.new(headSize.X * 0.7, 0.12, headSize.Z * 0.4),
 			Color3.fromRGB(210, 205, 195), Enum.Material.SmoothPlastic)
 		weldTo(jaw, head, CFrame.new(0, -headSize.Y * 0.35, -headSize.Z * 0.2))
-		-- Eye sockets (dark insets, front = -Z)
+		-- Eye sockets (dark insets, front = -Z, pushed out to avoid z-fighting)
 		for _, xOff in ipairs({-0.3, 0.3}) do
-			local eye = addDetail("Eye", Vector3.new(0.25, 0.25, 0.15),
+			local eye = addDetail("Eye", Vector3.new(0.3, 0.3, 0.2),
 				Color3.fromRGB(20, 5, 5), Enum.Material.SmoothPlastic)
-			weldTo(eye, head, CFrame.new(xOff * headSize.X, headSize.Y * 0.1, -headSize.Z * 0.45))
+			weldTo(eye, head, CFrame.new(xOff * headSize.X, headSize.Y * 0.1, -headSize.Z * 0.52))
 		end
 
 	elseif enemyId == "Zombie" then
@@ -1843,7 +1859,7 @@ function HollowBuilder.RoomCleared(player, data, roomIndex)
 	if roomConfig then
 		local roomId = roomConfig.RoomId
 		for _, corr in ipairs(HollowConfig.Corridors) do
-			if not corr.SealKey then
+			if not corr.DoorKey then
 				local neighborId = nil
 				if corr.FromRoom == roomId then neighborId = corr.ToRoom end
 				if corr.ToRoom == roomId then neighborId = corr.FromRoom end
