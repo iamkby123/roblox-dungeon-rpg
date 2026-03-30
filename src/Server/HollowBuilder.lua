@@ -713,8 +713,7 @@ function HollowBuilder.BuildGridCorridor(parent, roomAOrigin, roomASize, roomBOr
 	local t = 4
 
 	local sealDoor = nil
-	local gateA = nil -- gate near room A's exit
-	local gateB = nil -- gate near room B's exit
+	local gate = nil -- single gate in middle of corridor
 
 	if dir == "Right" then
 		-- Corridor along X axis between horizontally adjacent rooms
@@ -723,19 +722,14 @@ function HollowBuilder.BuildGridCorridor(parent, roomAOrigin, roomASize, roomBOr
 		local z = roomAOrigin.Z -- same Z since they are on the same row
 		buildCorridorX(parent, z, fromX, toX, originY, mat, col, floorCol)
 
-		-- Seal door in the middle if sealType is specified
+		local centerX = (fromX + toX) / 2
+
 		if sealType then
-			local centerX = (fromX + toX) / 2
 			local doorPos = Vector3.new(centerX, originY + ch / 2, z)
 			sealDoor = HollowBuilder._BuildCorridorDoor(parent, doorPos, Vector3.new(4, ch, ow), sealType)
-		end
-
-		-- Room-clear gates near each room's exit (skip if corridor has a seal door)
-		if not sealType then
-			local gateOffsetA = fromX + 4 -- just outside room A
-			local gateOffsetB = toX - 4   -- just outside room B
-			gateA = HollowBuilder._BuildRoomGate(parent, Vector3.new(gateOffsetA, originY + ch / 2, z), Vector3.new(4, ch, ow))
-			gateB = HollowBuilder._BuildRoomGate(parent, Vector3.new(gateOffsetB, originY + ch / 2, z), Vector3.new(4, ch, ow))
+		else
+			-- Single room-clear gate in the middle of the corridor
+			gate = HollowBuilder._BuildRoomGate(parent, Vector3.new(centerX, originY + ch / 2, z), Vector3.new(4, ch, ow))
 		end
 
 	elseif dir == "Down" then
@@ -745,23 +739,18 @@ function HollowBuilder.BuildGridCorridor(parent, roomAOrigin, roomASize, roomBOr
 		local x = roomAOrigin.X -- same X since they are on the same column
 		buildCorridorZ(parent, x, fromZ, toZ, originY, mat, col, floorCol)
 
-		-- Seal door in the middle if sealType is specified
+		local centerZ = (fromZ + toZ) / 2
+
 		if sealType then
-			local centerZ = (fromZ + toZ) / 2
 			local doorPos = Vector3.new(x, originY + ch / 2, centerZ)
 			sealDoor = HollowBuilder._BuildCorridorDoor(parent, doorPos, Vector3.new(ow, ch, 4), sealType)
-		end
-
-		-- Room-clear gates near each room's exit (skip if corridor has a seal door)
-		if not sealType then
-			local gateOffsetA = fromZ - 4 -- just outside room A
-			local gateOffsetB = toZ + 4   -- just outside room B
-			gateA = HollowBuilder._BuildRoomGate(parent, Vector3.new(x, originY + ch / 2, gateOffsetA), Vector3.new(ow, ch, 4))
-			gateB = HollowBuilder._BuildRoomGate(parent, Vector3.new(x, originY + ch / 2, gateOffsetB), Vector3.new(ow, ch, 4))
+		else
+			-- Single room-clear gate in the middle of the corridor
+			gate = HollowBuilder._BuildRoomGate(parent, Vector3.new(x, originY + ch / 2, centerZ), Vector3.new(ow, ch, 4))
 		end
 	end
 
-	return sealDoor, gateA, gateB
+	return sealDoor, gate
 end
 
 --------------------------------------------------------------------------------
@@ -892,13 +881,10 @@ end
 --------------------------------------------------------------------------------
 function HollowBuilder.OpenRoomGates(dungeonData, clearedRoomId)
 	for ci, gateData in pairs(dungeonData.RoomGates) do
-		if gateData.FromRoom == clearedRoomId and gateData.GateA then
-			HollowBuilder.OpenSlidingDoor(gateData.GateA)
-			gateData.GateA = nil
-		end
-		if gateData.ToRoom == clearedRoomId and gateData.GateB then
-			HollowBuilder.OpenSlidingDoor(gateData.GateB)
-			gateData.GateB = nil
+		-- Open the gate if either connected room is the one that was cleared
+		if (gateData.FromRoom == clearedRoomId or gateData.ToRoom == clearedRoomId) and gateData.Gate then
+			HollowBuilder.OpenSlidingDoor(gateData.Gate)
+			gateData.Gate = nil
 		end
 	end
 end
@@ -935,7 +921,7 @@ function HollowBuilder.StartDescent(player)
 		RoomEnemyCounts = {},
 		RoomFolders = {},
 		CorridorDoors = {}, -- [corridorIndex] = { Door = Part, SealType = string }
-		RoomGates = {},    -- [corridorIndex] = { GateA = Part, GateB = Part, FromRoom = id, ToRoom = id }
+		RoomGates = {},    -- [corridorIndex] = { Gate = Part, FromRoom = id, ToRoom = id }
 		PlayerSeals = {}, -- { Iron = true, Gold = true, ... }
 		ShadowSealsCollected = 0,
 		Player = player,
@@ -1003,7 +989,7 @@ function HollowBuilder.StartDescent(player)
 		if fromConfig and toConfig then
 			local fromOrigin = roomWorldOrigins[corr.FromRoom]
 			local toOrigin = roomWorldOrigins[corr.ToRoom]
-			local sealDoor, gateA, gateB = HollowBuilder.BuildGridCorridor(
+			local sealDoor, gate = HollowBuilder.BuildGridCorridor(
 				dungeonFolder,
 				fromOrigin, fromConfig.Size,
 				toOrigin, toConfig.Size,
@@ -1017,8 +1003,7 @@ function HollowBuilder.StartDescent(player)
 				ToRoom = corr.ToRoom,
 			}
 			dungeonData.RoomGates[ci] = {
-				GateA = gateA,  -- gate near FromRoom's exit
-				GateB = gateB,  -- gate near ToRoom's exit
+				Gate = gate,  -- single gate in corridor middle
 				FromRoom = corr.FromRoom,
 				ToRoom = corr.ToRoom,
 			}
@@ -1065,11 +1050,11 @@ function HollowBuilder.StartDescent(player)
 					HollowBuilder.OpenSlidingDoor(cd.Door)
 					cd.Door = nil
 
-					-- Also open the room gates on this corridor
+					-- Also open the room gate on this corridor (if any)
 					local gd = dungeonData.RoomGates[capturedCi]
-					if gd then
-						if gd.GateA then HollowBuilder.OpenSlidingDoor(gd.GateA); gd.GateA = nil end
-						if gd.GateB then HollowBuilder.OpenSlidingDoor(gd.GateB); gd.GateB = nil end
+					if gd and gd.Gate then
+						HollowBuilder.OpenSlidingDoor(gd.Gate)
+						gd.Gate = nil
 					end
 
 					-- Activate destination room
