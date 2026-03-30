@@ -730,11 +730,13 @@ function HollowBuilder.BuildGridCorridor(parent, roomAOrigin, roomASize, roomBOr
 			sealDoor = HollowBuilder._BuildCorridorDoor(parent, doorPos, Vector3.new(4, ch, ow), sealType)
 		end
 
-		-- Room-clear gates near each room's exit
-		local gateOffsetA = fromX + 4 -- just outside room A
-		local gateOffsetB = toX - 4   -- just outside room B
-		gateA = HollowBuilder._BuildRoomGate(parent, Vector3.new(gateOffsetA, originY + ch / 2, z), Vector3.new(4, ch, ow))
-		gateB = HollowBuilder._BuildRoomGate(parent, Vector3.new(gateOffsetB, originY + ch / 2, z), Vector3.new(4, ch, ow))
+		-- Room-clear gates near each room's exit (skip if corridor has a seal door)
+		if not sealType then
+			local gateOffsetA = fromX + 4 -- just outside room A
+			local gateOffsetB = toX - 4   -- just outside room B
+			gateA = HollowBuilder._BuildRoomGate(parent, Vector3.new(gateOffsetA, originY + ch / 2, z), Vector3.new(4, ch, ow))
+			gateB = HollowBuilder._BuildRoomGate(parent, Vector3.new(gateOffsetB, originY + ch / 2, z), Vector3.new(4, ch, ow))
+		end
 
 	elseif dir == "Down" then
 		-- Corridor along Z axis between vertically adjacent rooms
@@ -750,11 +752,13 @@ function HollowBuilder.BuildGridCorridor(parent, roomAOrigin, roomASize, roomBOr
 			sealDoor = HollowBuilder._BuildCorridorDoor(parent, doorPos, Vector3.new(ow, ch, 4), sealType)
 		end
 
-		-- Room-clear gates near each room's exit
-		local gateOffsetA = fromZ - 4 -- just outside room A
-		local gateOffsetB = toZ + 4   -- just outside room B
-		gateA = HollowBuilder._BuildRoomGate(parent, Vector3.new(x, originY + ch / 2, gateOffsetA), Vector3.new(ow, ch, 4))
-		gateB = HollowBuilder._BuildRoomGate(parent, Vector3.new(x, originY + ch / 2, gateOffsetB), Vector3.new(ow, ch, 4))
+		-- Room-clear gates near each room's exit (skip if corridor has a seal door)
+		if not sealType then
+			local gateOffsetA = fromZ - 4 -- just outside room A
+			local gateOffsetB = toZ + 4   -- just outside room B
+			gateA = HollowBuilder._BuildRoomGate(parent, Vector3.new(x, originY + ch / 2, gateOffsetA), Vector3.new(ow, ch, 4))
+			gateB = HollowBuilder._BuildRoomGate(parent, Vector3.new(x, originY + ch / 2, gateOffsetB), Vector3.new(ow, ch, 4))
+		end
 	end
 
 	return sealDoor, gateA, gateB
@@ -838,11 +842,12 @@ function HollowBuilder._BuildCorridorDoor(parent, doorPos, doorSize, sealType)
 	glow.Brightness = 2
 	glow.Parent = door
 
-	-- Label
+	-- Label (only visible when nearby, not through walls)
 	local bb = Instance.new("BillboardGui")
 	bb.Size = UDim2.new(0, 150, 0, 50)
 	bb.StudsOffset = Vector3.new(0, ch / 2 + 2, 0)
-	bb.AlwaysOnTop = true
+	bb.AlwaysOnTop = false
+	bb.MaxDistance = 60
 	bb.Parent = door
 
 	local lbl = Instance.new("TextLabel")
