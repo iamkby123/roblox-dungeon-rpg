@@ -82,7 +82,7 @@ function CombatService.ExecuteSlash(player, rootPart, skillData, direction)
 	local lookDir = direction and direction.Unit or rootPart.CFrame.LookVector
 
 	-- Find enemies in range and cone
-	local dungeonFolder = workspace:FindFirstChild("Dungeon")
+	local dungeonFolder = workspace:FindFirstChild("ActiveHollow")
 	if not dungeonFolder then return end
 
 	for _, enemyModel in ipairs(dungeonFolder:GetDescendants()) do
@@ -162,7 +162,7 @@ function CombatService.ExecuteFireball(player, rootPart, skillData, direction)
 		fireball.Position = newPos
 
 		-- Check for enemy hits via overlap (single pass)
-		local dungeonFolder = workspace:FindFirstChild("Dungeon")
+		local dungeonFolder = workspace:FindFirstChild("ActiveHollow")
 		if not dungeonFolder then return end
 
 		-- Collect all living enemies once

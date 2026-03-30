@@ -812,12 +812,17 @@ end
 function HollowBuilder.StartDungeon(player)
 	HollowBuilder.CleanupDungeon(player)
 
-	-- Remove lobby boundary walls so they don't block dungeon rooms
+	-- Hide entire lobby so it doesn't overlap with dungeon rooms
 	local lobby = workspace:FindFirstChild("Lobby")
 	if lobby then
-		for _, child in ipairs(lobby:GetChildren()) do
-			if child.Name == "Boundary" then
-				child:Destroy()
+		for _, desc in ipairs(lobby:GetDescendants()) do
+			if desc:IsA("BasePart") then
+				desc.Transparency = 1
+				desc.CanCollide = false
+			elseif desc:IsA("PointLight") or desc:IsA("Fire") or desc:IsA("ParticleEmitter") or desc:IsA("Sparkles") then
+				desc:Destroy()
+			elseif desc:IsA("ProximityPrompt") then
+				desc.Enabled = false
 			end
 		end
 	end
@@ -1000,7 +1005,7 @@ function HollowBuilder.StartDungeon(player)
 				local pedestalPart = desc.Parent
 				local vocationId = pedestalPart.Name:gsub("Pedestal_", "")
 				dungeonData.SelectedClass = vocationId
-				DelverDataService.ApplyClassModifiers(player, vocationId)
+				DelverDataService.ApplyVocationModifiers(player, vocationId)
 
 				local classRemote = Remotes:GetEvent("VocationSelected")
 				if classRemote then classRemote:FireClient(player, vocationId) end

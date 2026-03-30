@@ -664,7 +664,7 @@ function UIController.UpdateBossBar()
 	local bossBar = hud:FindFirstChild("BossBar")
 	if not bossBar then return end
 
-	local dungeonFolder = workspace:FindFirstChild("Dungeon")
+	local dungeonFolder = workspace:FindFirstChild("ActiveHollow")
 	if not dungeonFolder then
 		bossBar.Visible = false
 		return

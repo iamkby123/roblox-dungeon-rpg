@@ -2293,7 +2293,7 @@ function CombatService.ExecuteSlash(player, rootPart, skillData, direction)
 	local lookDir = direction and direction.Unit or rootPart.CFrame.LookVector
 
 	-- Find enemies in range and cone
-	local dungeonFolder = workspace:FindFirstChild("Dungeon")
+	local dungeonFolder = workspace:FindFirstChild("ActiveHollow")
 	if not dungeonFolder then return end
 
 	for _, enemyModel in ipairs(dungeonFolder:GetDescendants()) do
@@ -2373,7 +2373,7 @@ function CombatService.ExecuteFireball(player, rootPart, skillData, direction)
 		fireball.Position = newPos
 
 		-- Check for enemy hits via overlap (single pass)
-		local dungeonFolder = workspace:FindFirstChild("Dungeon")
+		local dungeonFolder = workspace:FindFirstChild("ActiveHollow")
 		if not dungeonFolder then return end
 
 		-- Collect all living enemies once
@@ -5132,12 +5132,17 @@ end
 function HollowBuilder.StartDungeon(player)
 	HollowBuilder.CleanupDungeon(player)
 
-	-- Remove lobby boundary walls so they don't block dungeon rooms
+	-- Hide entire lobby so it doesn't overlap with dungeon rooms
 	local lobby = workspace:FindFirstChild("Lobby")
 	if lobby then
-		for _, child in ipairs(lobby:GetChildren()) do
-			if child.Name == "Boundary" then
-				child:Destroy()
+		for _, desc in ipairs(lobby:GetDescendants()) do
+			if desc:IsA("BasePart") then
+				desc.Transparency = 1
+				desc.CanCollide = false
+			elseif desc:IsA("PointLight") or desc:IsA("Fire") or desc:IsA("ParticleEmitter") or desc:IsA("Sparkles") then
+				desc:Destroy()
+			elseif desc:IsA("ProximityPrompt") then
+				desc.Enabled = false
 			end
 		end
 	end
@@ -5320,7 +5325,7 @@ function HollowBuilder.StartDungeon(player)
 				local pedestalPart = desc.Parent
 				local vocationId = pedestalPart.Name:gsub("Pedestal_", "")
 				dungeonData.SelectedClass = vocationId
-				DelverDataService.ApplyClassModifiers(player, vocationId)
+				DelverDataService.ApplyVocationModifiers(player, vocationId)
 
 				local classRemote = Remotes:GetEvent("VocationSelected")
 				if classRemote then classRemote:FireClient(player, vocationId) end
@@ -10412,7 +10417,7 @@ function UIController.UpdateBossBar()
 	local bossBar = hud:FindFirstChild("BossBar")
 	if not bossBar then return end
 
-	local dungeonFolder = workspace:FindFirstChild("Dungeon")
+	local dungeonFolder = workspace:FindFirstChild("ActiveHollow")
 	if not dungeonFolder then
 		bossBar.Visible = false
 		return
