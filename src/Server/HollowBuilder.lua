@@ -1275,61 +1275,61 @@ function HollowBuilder.SpawnSingleEnemy(enemyId, spawnPos, parentFolder, hpScale
 	end
 
 	if enemyId == "Skeleton" then
-		-- Ribcage lines on torso
+		-- Ribcage lines on torso (front = -Z)
 		for i = -1, 1 do
 			local rib = addDetail("Rib", Vector3.new(scaleX*1.8, 0.08, scaleZ*0.6),
 				Color3.fromRGB(230, 225, 215), Enum.Material.SmoothPlastic)
-			weldTo(rib, torso, CFrame.new(0, i * scaleY * 0.4, scaleZ * 0.3))
+			weldTo(rib, torso, CFrame.new(0, i * scaleY * 0.4, -scaleZ * 0.3))
 		end
-		-- Jaw line on head
+		-- Jaw line on head (front = -Z)
 		local jaw = addDetail("Jaw", Vector3.new(headSize.X * 0.7, 0.12, headSize.Z * 0.4),
 			Color3.fromRGB(210, 205, 195), Enum.Material.SmoothPlastic)
-		weldTo(jaw, head, CFrame.new(0, -headSize.Y * 0.35, headSize.Z * 0.2))
-		-- Eye sockets (dark insets)
+		weldTo(jaw, head, CFrame.new(0, -headSize.Y * 0.35, -headSize.Z * 0.2))
+		-- Eye sockets (dark insets, front = -Z)
 		for _, xOff in ipairs({-0.3, 0.3}) do
 			local eye = addDetail("Eye", Vector3.new(0.25, 0.25, 0.15),
 				Color3.fromRGB(20, 5, 5), Enum.Material.SmoothPlastic)
-			weldTo(eye, head, CFrame.new(xOff * headSize.X, headSize.Y * 0.1, headSize.Z * 0.45))
+			weldTo(eye, head, CFrame.new(xOff * headSize.X, headSize.Y * 0.1, -headSize.Z * 0.45))
 		end
 
 	elseif enemyId == "Zombie" then
-		-- Tattered cloth draped over torso
+		-- Tattered cloth draped over torso (front = -Z)
 		local cloth = addDetail("Cloth", Vector3.new(scaleX*2.1, scaleY*1.4, scaleZ*0.15),
 			Color3.fromRGB(60, 50, 35), Enum.Material.Fabric)
-		weldTo(cloth, torso, CFrame.new(0, -scaleY*0.3, scaleZ*0.5))
-		-- Exposed wound on torso
+		weldTo(cloth, torso, CFrame.new(0, -scaleY*0.3, -scaleZ*0.5))
+		-- Exposed wound on torso (front = -Z)
 		local wound = addDetail("Wound", Vector3.new(scaleX*0.5, scaleY*0.4, 0.1),
 			Color3.fromRGB(120, 30, 30), Enum.Material.SmoothPlastic)
-		weldTo(wound, torso, CFrame.new(scaleX*0.4, 0, scaleZ*0.52))
+		weldTo(wound, torso, CFrame.new(scaleX*0.4, 0, -scaleZ*0.52))
 		-- Dirt patches on legs
 		for _, leg in ipairs({leftLeg, rightLeg}) do
 			local dirt = addDetail("Dirt", Vector3.new(scaleX*0.6, scaleY*0.3, scaleZ*0.6),
 				Color3.fromRGB(55, 40, 25), Enum.Material.Slate)
 			weldTo(dirt, leg, CFrame.new(0, -scaleY*0.5, 0))
 		end
-		-- Droopy eye
+		-- Droopy eye (front = -Z)
 		local eye = addDetail("ZombieEye", Vector3.new(0.3, 0.2, 0.15),
 			Color3.fromRGB(180, 180, 30), Enum.Material.Neon)
-		weldTo(eye, head, CFrame.new(-0.25 * headSize.X, headSize.Y * 0.1, headSize.Z * 0.45))
+		weldTo(eye, head, CFrame.new(-0.25 * headSize.X, headSize.Y * 0.1, -headSize.Z * 0.45))
 
 	elseif enemyId == "Archer" then
 		-- Hood / cloak over head and shoulders
 		local hood = addDetail("Hood", Vector3.new(headSize.X * 1.3, headSize.Y * 0.8, headSize.Z * 1.3),
 			Color3.fromRGB(50, 45, 38), Enum.Material.Fabric)
 		weldTo(hood, head, CFrame.new(0, headSize.Y * 0.15, 0))
-		-- Shoulder cape
+		-- Shoulder cape (back = +Z)
 		local cape = addDetail("Cape", Vector3.new(scaleX*2.3, scaleY*1.8, 0.15),
 			Color3.fromRGB(55, 48, 40), Enum.Material.Fabric)
-		weldTo(cape, torso, CFrame.new(0, 0, -scaleZ * 0.55))
-		-- Quiver on back
+		weldTo(cape, torso, CFrame.new(0, 0, scaleZ * 0.55))
+		-- Quiver on back (+Z)
 		local quiver = addDetail("Quiver", Vector3.new(0.3, scaleY*1.2, 0.3),
 			Color3.fromRGB(80, 55, 30), Enum.Material.Wood)
-		weldTo(quiver, torso, CFrame.new(scaleX*0.5, scaleY*0.2, -scaleZ*0.5))
-		-- Arrow tips sticking out of quiver
+		weldTo(quiver, torso, CFrame.new(scaleX*0.5, scaleY*0.2, scaleZ*0.5))
+		-- Arrow tips sticking out of quiver (back = +Z)
 		for i = -1, 1 do
 			local arrow = addDetail("Arrow", Vector3.new(0.08, 0.3, 0.08),
 				Color3.fromRGB(160, 155, 145), Enum.Material.Metal)
-			weldTo(arrow, torso, CFrame.new(scaleX*0.5 + i*0.1, scaleY*0.9, -scaleZ*0.5))
+			weldTo(arrow, torso, CFrame.new(scaleX*0.5 + i*0.1, scaleY*0.9, scaleZ*0.5))
 		end
 		-- Belt
 		local belt = addDetail("Belt", Vector3.new(scaleX*2.05, 0.15, scaleZ*1.05),
@@ -1346,22 +1346,22 @@ function HollowBuilder.SpawnSingleEnemy(enemyId, spawnPos, parentFolder, hpScale
 					* CFrame.Angles(math.rad(40 * i), 0, math.rad(30 * i)))
 			end
 		end
-		-- Mandibles on head
+		-- Mandibles on head (front = -Z)
 		for _, xOff in ipairs({-0.3, 0.3}) do
 			local fang = addDetail("Fang", Vector3.new(0.08, 0.08, 0.3),
 				Color3.fromRGB(25, 20, 15), Enum.Material.SmoothPlastic)
-			weldTo(fang, head, CFrame.new(xOff * headSize.X, -headSize.Y*0.3, headSize.Z*0.4))
+			weldTo(fang, head, CFrame.new(xOff * headSize.X, -headSize.Y*0.3, -headSize.Z*0.4))
 		end
-		-- Red eyes (cluster)
+		-- Red eyes (cluster, front = -Z)
 		for _, off in ipairs({{-0.2, 0.15}, {0.2, 0.15}, {-0.1, 0.0}, {0.1, 0.0}}) do
 			local eye = addDetail("SpiderEye", Vector3.new(0.12, 0.12, 0.1),
 				Color3.fromRGB(200, 20, 20), Enum.Material.Neon)
-			weldTo(eye, head, CFrame.new(off[1]*headSize.X, off[2]*headSize.Y, headSize.Z*0.45))
+			weldTo(eye, head, CFrame.new(off[1]*headSize.X, off[2]*headSize.Y, -headSize.Z*0.45))
 		end
-		-- Abdomen (large bulb behind torso)
+		-- Abdomen (large bulb behind torso, back = +Z)
 		local abdomen = addDetail("Abdomen", Vector3.new(scaleX*1.6, scaleY*1.4, scaleZ*1.2),
 			Color3.fromRGB(20, 15, 12), Enum.Material.SmoothPlastic)
-		weldTo(abdomen, torso, CFrame.new(0, 0, -scaleZ*0.9))
+		weldTo(abdomen, torso, CFrame.new(0, 0, scaleZ*0.9))
 
 	elseif enemyId == "Wraith" then
 		-- Translucent flowing robe
@@ -1376,11 +1376,11 @@ function HollowBuilder.SpawnSingleEnemy(enemyId, spawnPos, parentFolder, hpScale
 			Color3.fromRGB(120, 100, 140), Enum.Material.Fabric)
 		cloak.Transparency = 0.4
 		weldTo(cloak, torso, CFrame.new(0, -scaleY*0.3, 0))
-		-- Glowing eyes
+		-- Glowing eyes (front = -Z)
 		for _, xOff in ipairs({-0.25, 0.25}) do
 			local eye = addDetail("WraithEye", Vector3.new(0.2, 0.15, 0.12),
 				Color3.fromRGB(150, 80, 255), Enum.Material.Neon)
-			weldTo(eye, head, CFrame.new(xOff*headSize.X, headSize.Y*0.1, headSize.Z*0.45))
+			weldTo(eye, head, CFrame.new(xOff*headSize.X, headSize.Y*0.1, -headSize.Z*0.45))
 		end
 		-- Wispy trail particles
 		local particles = Instance.new("ParticleEmitter")
@@ -1431,17 +1431,17 @@ function HollowBuilder.SpawnSingleEnemy(enemyId, spawnPos, parentFolder, hpScale
 		weldTo(helmet, head, CFrame.new(0, headSize.Y*0.05, 0))
 		local visor = addDetail("Visor", Vector3.new(headSize.X*0.9, 0.12, 0.1),
 			Color3.fromRGB(30, 28, 25), Enum.Material.Metal)
-		weldTo(visor, head, CFrame.new(0, headSize.Y*0.1, headSize.Z*0.55))
-		-- Glowing red eyes through visor
+		weldTo(visor, head, CFrame.new(0, headSize.Y*0.1, -headSize.Z*0.55))
+		-- Glowing red eyes through visor (front = -Z)
 		for _, xOff in ipairs({-0.2, 0.2}) do
 			local eye = addDetail("KnightEye", Vector3.new(0.15, 0.1, 0.1),
 				Color3.fromRGB(255, 40, 40), Enum.Material.Neon)
-			weldTo(eye, head, CFrame.new(xOff*headSize.X, headSize.Y*0.1, headSize.Z*0.5))
+			weldTo(eye, head, CFrame.new(xOff*headSize.X, headSize.Y*0.1, -headSize.Z*0.5))
 		end
-		-- Tattered tabard
+		-- Tattered tabard (front = -Z)
 		local tabard = addDetail("Tabard", Vector3.new(scaleX*1.2, scaleY*1.6, 0.1),
 			Color3.fromRGB(80, 20, 20), Enum.Material.Fabric)
-		weldTo(tabard, torso, CFrame.new(0, -scaleY*0.5, scaleZ*0.52))
+		weldTo(tabard, torso, CFrame.new(0, -scaleY*0.5, -scaleZ*0.52))
 		-- Sword in hand
 		local blade = addDetail("KnightBlade", Vector3.new(0.15, 0.2, scaleY*2),
 			Color3.fromRGB(170, 170, 180), Enum.Material.Metal)
@@ -1463,11 +1463,11 @@ function HollowBuilder.SpawnSingleEnemy(enemyId, spawnPos, parentFolder, hpScale
 				weldTo(bone, arm, CFrame.new(0, i*scaleY*0.5, scaleZ*0.3))
 			end
 		end
-		-- Glowing eyes
+		-- Glowing eyes (front = -Z)
 		for _, xOff in ipairs({-0.25, 0.25}) do
 			local eye = addDetail("BatEye", Vector3.new(0.15, 0.12, 0.1),
 				Color3.fromRGB(255, 50, 50), Enum.Material.Neon)
-			weldTo(eye, head, CFrame.new(xOff*headSize.X, headSize.Y*0.1, headSize.Z*0.45))
+			weldTo(eye, head, CFrame.new(xOff*headSize.X, headSize.Y*0.1, -headSize.Z*0.45))
 		end
 		-- Ears (pointed triangular flaps)
 		for _, xOff in ipairs({-0.35, 0.35}) do
@@ -1492,10 +1492,10 @@ function HollowBuilder.SpawnSingleEnemy(enemyId, spawnPos, parentFolder, hpScale
 		local helm = addDetail("IronHelm", Vector3.new(headSize.X*1.3, headSize.Y*1.3, headSize.Z*1.3),
 			Color3.fromRGB(125, 120, 110), Enum.Material.Metal)
 		weldTo(helm, head, CFrame.new(0, headSize.Y*0.1, 0))
-		-- Visor slit
+		-- Visor slit (front = -Z)
 		local slit = addDetail("VisorSlit", Vector3.new(headSize.X*0.8, 0.1, 0.1),
 			Color3.fromRGB(10, 10, 10), Enum.Material.SmoothPlastic)
-		weldTo(slit, head, CFrame.new(0, headSize.Y*0.1, headSize.Z*0.65))
+		weldTo(slit, head, CFrame.new(0, headSize.Y*0.1, -headSize.Z*0.65))
 		-- Iron shield in left hand
 		local shield = addDetail("IronShield", Vector3.new(0.3, scaleY*1.5, scaleZ*1.2),
 			Color3.fromRGB(110, 105, 95), Enum.Material.Metal)
@@ -1510,15 +1510,15 @@ function HollowBuilder.SpawnSingleEnemy(enemyId, spawnPos, parentFolder, hpScale
 		local crown = addDetail("Crown", Vector3.new(headSize.X*1.2, headSize.Y*0.4, headSize.Z*1.2),
 			Color3.fromRGB(255, 215, 0), Enum.Material.Metal)
 		weldTo(crown, head, CFrame.new(0, headSize.Y*0.5, 0))
-		-- Jewel in crown
+		-- Jewel in crown (front = -Z)
 		local jewel = addDetail("Jewel", Vector3.new(0.25, 0.25, 0.25),
 			Color3.fromRGB(255, 50, 50), Enum.Material.Neon)
 		jewel.Shape = Enum.PartType.Ball
-		weldTo(jewel, head, CFrame.new(0, headSize.Y*0.7, headSize.Z*0.3))
-		-- Gold cape
+		weldTo(jewel, head, CFrame.new(0, headSize.Y*0.7, -headSize.Z*0.3))
+		-- Gold cape (back = +Z)
 		local cape = addDetail("GoldCape", Vector3.new(scaleX*2, scaleY*2.5, 0.15),
 			Color3.fromRGB(180, 150, 40), Enum.Material.Fabric)
-		weldTo(cape, torso, CFrame.new(0, -scaleY*0.2, -scaleZ*0.55))
+		weldTo(cape, torso, CFrame.new(0, -scaleY*0.2, scaleZ*0.55))
 
 	elseif enemyId == "CrimsonSentinel" then
 		-- Blood-red plate armor
@@ -1535,11 +1535,11 @@ function HollowBuilder.SpawnSingleEnemy(enemyId, spawnPos, parentFolder, hpScale
 			weldTo(horn, head, CFrame.new(xOff*headSize.X, headSize.Y*0.6, 0)
 				* CFrame.Angles(0, 0, math.rad(xOff * 40)))
 		end
-		-- Burning eye glow
+		-- Burning eye glow (front = -Z)
 		for _, xOff in ipairs({-0.2, 0.2}) do
 			local eye = addDetail("CrimsonEye", Vector3.new(0.2, 0.15, 0.1),
 				Color3.fromRGB(255, 80, 20), Enum.Material.Neon)
-			weldTo(eye, head, CFrame.new(xOff*headSize.X, headSize.Y*0.1, headSize.Z*0.58))
+			weldTo(eye, head, CFrame.new(xOff*headSize.X, headSize.Y*0.1, -headSize.Z*0.58))
 		end
 
 	elseif enemyId == "EmeraldWarden" then
@@ -1551,11 +1551,11 @@ function HollowBuilder.SpawnSingleEnemy(enemyId, spawnPos, parentFolder, hpScale
 		local leafCrown = addDetail("LeafCrown", Vector3.new(headSize.X*1.4, headSize.Y*0.3, headSize.Z*1.4),
 			Color3.fromRGB(30, 80, 20), Enum.Material.Grass)
 		weldTo(leafCrown, head, CFrame.new(0, headSize.Y*0.45, 0))
-		-- Glowing green eyes
+		-- Glowing green eyes (front = -Z)
 		for _, xOff in ipairs({-0.25, 0.25}) do
 			local eye = addDetail("EmeraldEye", Vector3.new(0.2, 0.15, 0.1),
 				Color3.fromRGB(50, 255, 80), Enum.Material.Neon)
-			weldTo(eye, head, CFrame.new(xOff*headSize.X, headSize.Y*0.1, headSize.Z*0.45))
+			weldTo(eye, head, CFrame.new(xOff*headSize.X, headSize.Y*0.1, -headSize.Z*0.45))
 		end
 		-- Staff with emerald orb
 		local staff = addDetail("EmeraldStaff", Vector3.new(0.2, 0.2, scaleY*2.5),
@@ -1572,16 +1572,16 @@ function HollowBuilder.SpawnSingleEnemy(enemyId, spawnPos, parentFolder, hpScale
 			Color3.fromRGB(15, 10, 20), Enum.Material.Metal)
 		armor.Transparency = 0.15
 		weldTo(armor, torso, CFrame.new(0, 0, 0))
-		-- Shadow cloak
+		-- Shadow cloak (back = +Z)
 		local cloak = addDetail("ShadowCloak", Vector3.new(scaleX*2.5, scaleY*2.8, 0.15),
 			Color3.fromRGB(10, 8, 15), Enum.Material.Fabric)
 		cloak.Transparency = 0.3
-		weldTo(cloak, torso, CFrame.new(0, -scaleY*0.3, -scaleZ*0.55))
-		-- Void eyes (bright purple)
+		weldTo(cloak, torso, CFrame.new(0, -scaleY*0.3, scaleZ*0.55))
+		-- Void eyes (bright purple, front = -Z)
 		for _, xOff in ipairs({-0.2, 0.2}) do
 			local eye = addDetail("ShadowEye", Vector3.new(0.2, 0.15, 0.12),
 				Color3.fromRGB(180, 50, 255), Enum.Material.Neon)
-			weldTo(eye, head, CFrame.new(xOff*headSize.X, headSize.Y*0.1, headSize.Z*0.45))
+			weldTo(eye, head, CFrame.new(xOff*headSize.X, headSize.Y*0.1, -headSize.Z*0.45))
 		end
 		-- Shadow particles
 		local particles = Instance.new("ParticleEmitter")
@@ -1603,11 +1603,11 @@ function HollowBuilder.SpawnSingleEnemy(enemyId, spawnPos, parentFolder, hpScale
 		local chestPlate = addDetail("GolemChest", Vector3.new(scaleX*2.2, scaleY*1.8, scaleZ*1.15),
 			Color3.fromRGB(80, 75, 68), Enum.Material.Slate)
 		weldTo(chestPlate, torso, CFrame.new(0, scaleY*0.1, 0))
-		-- Cracks/rune lines across chest (neon)
+		-- Cracks/rune lines across chest (neon, front = -Z)
 		for i = -1, 1 do
 			local rune = addDetail("GolemRune", Vector3.new(scaleX*1.5, 0.08, 0.08),
 				Color3.fromRGB(255, 120, 30), Enum.Material.Neon)
-			weldTo(rune, torso, CFrame.new(0, i*scaleY*0.4, scaleZ*0.55))
+			weldTo(rune, torso, CFrame.new(0, i*scaleY*0.4, -scaleZ*0.55))
 		end
 		-- Boulder shoulders
 		for _, arm in ipairs({leftArm, rightArm}) do
@@ -1619,16 +1619,16 @@ function HollowBuilder.SpawnSingleEnemy(enemyId, spawnPos, parentFolder, hpScale
 		local crest = addDetail("GolemCrest", Vector3.new(headSize.X*1.3, headSize.Y*0.5, headSize.Z*0.4),
 			Color3.fromRGB(70, 65, 58), Enum.Material.Slate)
 		weldTo(crest, head, CFrame.new(0, headSize.Y*0.5, 0))
-		-- Glowing core eyes
+		-- Glowing core eyes (front = -Z)
 		for _, xOff in ipairs({-0.25, 0.25}) do
 			local eye = addDetail("GolemEye", Vector3.new(0.4, 0.3, 0.2),
 				Color3.fromRGB(255, 100, 20), Enum.Material.Neon)
-			weldTo(eye, head, CFrame.new(xOff*headSize.X, headSize.Y*0.05, headSize.Z*0.45))
+			weldTo(eye, head, CFrame.new(xOff*headSize.X, headSize.Y*0.05, -headSize.Z*0.45))
 		end
-		-- Molten core visible in belly
+		-- Molten core visible in belly (front = -Z)
 		local core = addDetail("GolemCore", Vector3.new(scaleX*0.8, scaleY*0.8, scaleZ*0.6),
 			Color3.fromRGB(255, 80, 15), Enum.Material.Neon)
-		weldTo(core, torso, CFrame.new(0, -scaleY*0.3, scaleZ*0.35))
+		weldTo(core, torso, CFrame.new(0, -scaleY*0.3, -scaleZ*0.35))
 		local coreLight = Instance.new("PointLight")
 		coreLight.Color = Color3.fromRGB(255, 100, 20); coreLight.Range = 15; coreLight.Brightness = 1
 		coreLight.Parent = core
