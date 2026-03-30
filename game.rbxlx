@@ -3468,8 +3468,8 @@ function DungeonService.BuildEntranceRoom(parent, origin)
 
 			local pillar = Instance.new("Part")
 			pillar.Name = "Pedestal_Pillar_" .. pedestalInfo.ClassId
-			pillar.Size = Vector3.new(0.5, 10, 0.5)
-			pillar.Position = pedPos + Vector3.new(0, 6, 0)
+			pillar.Size = Vector3.new(0.5, h, 0.5)
+			pillar.Position = pedPos + Vector3.new(0, h / 2, 0)
 			pillar.Anchored = true; pillar.CanCollide = false
 			pillar.BrickColor = classData.Color; pillar.Material = Enum.Material.Neon; pillar.Transparency = 0.3
 			pillar.Parent = f
@@ -8608,6 +8608,9 @@ local initialized = false
 local armPart = nil
 local handPart = nil
 local gripPart = nil
+local wrap1Part = nil
+local wrap2Part = nil
+local knucklesPart = nil
 
 -- Viewmodel offset from camera (right side, slightly down and forward)
 local BASE_OFFSET = CFrame.new(1.5, -1.4, -2.2)
@@ -8657,7 +8660,13 @@ local function createArmModel(parent)
 	local skin = Color3.fromRGB(245, 205, 160)
 
 	armPart = makePart("Arm", Vector3.new(1, 1, 2.8), skin, Enum.Material.SmoothPlastic, model)
-	handPart = makePart("Hand", Vector3.new(1.0, 0.9, 0.9), skin, Enum.Material.SmoothPlastic, model)
+	handPart = makePart("Hand", Vector3.new(1.0, 0.95, 0.9), skin, Enum.Material.SmoothPlastic, model)
+
+	-- Bandage wraps around the fist (don't protrude above the arm)
+	local wrap = Color3.fromRGB(220, 210, 185)
+	wrap1Part = makePart("Wrap1", Vector3.new(1.05, 0.15, 0.95), wrap, Enum.Material.Fabric, model)
+	wrap2Part = makePart("Wrap2", Vector3.new(1.05, 0.15, 0.95), wrap, Enum.Material.Fabric, model)
+	knucklesPart = makePart("Knuckles", Vector3.new(1.02, 0.2, 0.15), Color3.fromRGB(235, 195, 150), Enum.Material.SmoothPlastic, model)
 
 	gripPart = Instance.new("Part")
 	gripPart.Name = "Grip"
@@ -8746,17 +8755,17 @@ local function positionWeapon(weaponId, gripCF)
 	local p = data.parts
 
 	if weaponId == "Sword" then
-		-- Tilt upward ~75 degrees so blade points mostly vertical
-		local tilt = gripCF * CFrame.Angles(math.rad(-75), 0, 0)
+		-- Tilt upward ~30 degrees for a natural angled hold
+		local tilt = gripCF * CFrame.Angles(math.rad(-30), 0, 0)
 		p.Handle.CFrame = tilt * CFrame.new(0, 0, -0.5)
 		p.Guard.CFrame = tilt * CFrame.new(0, 0, -1.0)
 		p.Blade.CFrame = tilt * CFrame.new(0, 0, -2.6)
 	elseif weaponId == "Staff" then
-		local tilt = gripCF * CFrame.Angles(math.rad(-70), 0, 0)
+		local tilt = gripCF * CFrame.Angles(math.rad(-25), 0, 0)
 		p.Shaft.CFrame = tilt * CFrame.new(0, 0, -2.0)
 		p.Orb.CFrame = tilt * CFrame.new(0, 0, -4.2)
 	elseif weaponId == "Wand" then
-		local tilt = gripCF * CFrame.Angles(math.rad(-70), 0, 0)
+		local tilt = gripCF * CFrame.Angles(math.rad(-25), 0, 0)
 		p.Stick.CFrame = tilt * CFrame.new(0, 0, -1.1)
 		p.Crystal.CFrame = tilt * CFrame.new(0, 0, -2.4)
 	elseif weaponId == "Shield" then
@@ -8912,7 +8921,13 @@ function ViewmodelController.Update(dt, skillController)
 
 	-- Position arm
 	armPart.CFrame = finalCF
-	handPart.CFrame = finalCF * CFrame.new(0, 0, -1.85)
+	local handCF = finalCF * CFrame.new(0, 0, -1.85)
+	handPart.CFrame = handCF
+
+	-- Position bandage wraps on the fist
+	if wrap1Part then wrap1Part.CFrame = handCF * CFrame.new(0, 0.1, 0.1) end
+	if wrap2Part then wrap2Part.CFrame = handCF * CFrame.new(0, -0.15, -0.05) end
+	if knucklesPart then knucklesPart.CFrame = handCF * CFrame.new(0, 0.2, -0.35) end
 
 	-- Grip at front of hand
 	local gripCF = finalCF * CFrame.new(0, 0, -2.3)
