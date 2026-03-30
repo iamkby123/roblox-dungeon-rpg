@@ -1,15 +1,16 @@
 local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local DescentRegistry = require(ReplicatedStorage:WaitForChild("DescentRegistry"))
+local DungeonRoomRegistry = require(ReplicatedStorage:WaitForChild("DungeonRoomRegistry"))
 
-local HollowRoomBuilder = {}
+local DungeonBuilder = {}
 
 --------------------------------------------------------------------------------
 -- CONFIG
 --------------------------------------------------------------------------------
-local TILE_SIZE = 200 -- studs between room centers
-local DOOR_TAG = "HollowDoor" -- CollectionService tag on door parts
+local DEFAULT_TILE_SIZE = 200 -- minimum studs between room centers
+local TILE_PADDING = 20       -- extra gap between rooms to prevent touching
+local DOOR_TAG = "DungeonDoor" -- CollectionService tag on door parts
 
 --------------------------------------------------------------------------------
 -- INTERNAL: Resolve direction from a door's name or orientation
@@ -27,7 +28,7 @@ local DIRECTION_MAP = {
 	South = "South",
 	East  = "East",
 	West  = "West",
-	-- Aliases matching HollowBuilder conventions
+	-- Aliases matching DungeonService conventions
 	Front = "North",
 	Back  = "South",
 	Right = "East",
@@ -42,7 +43,7 @@ local function getDoorDirection(doorPart)
 		if mapped then return mapped end
 	end
 
-	-- 2. Parse from the part name (e.g. "Door_North", "HollowDoor_East")
+	-- 2. Parse from the part name (e.g. "Door_North", "DungeonDoor_East")
 	for suffix, dir in pairs(DIRECTION_MAP) do
 		if doorPart.Name:find(suffix) then
 			return dir
@@ -71,15 +72,15 @@ local OPPOSITE = {
 --------------------------------------------------------------------------------
 -- BuildFromLayout(layout, parentFolder)
 --
--- layout      : the result table from HollowLayout.GenerateGrid()
+-- layout      : the result table from DungeonLayout.GenerateGrid()
 -- parentFolder: an Instance (Folder/Model) under which all rooms are placed.
---               If nil a new Folder named "ActiveHollow" is created in workspace.
+--               If nil a new Folder named "DungeonBuild" is created in workspace.
 --
 -- For each cell in layout.Grid:
---   1. Resolve the room template's workspace folder via DescentRegistry.
+--   1. Resolve the room template's workspace folder via DungeonRoomRegistry.
 --   2. Clone it and position it at (col * TILE_SIZE, 0, row * TILE_SIZE)
 --      relative to the parentFolder's origin.
---   3. Scan the clone for parts tagged "HollowDoor".
+--   3. Scan the clone for parts tagged "DungeonDoor".
 --   4. Open doors that face an occupied neighbor, seal doors on map edges.
 --
 -- Returns {
@@ -88,10 +89,10 @@ local OPPOSITE = {
 --   DoorMap   = { [row][col] = { [direction] = doorPart } },
 -- }
 --------------------------------------------------------------------------------
-function HollowRoomBuilder.BuildFromLayout(layout, parentFolder)
+function DungeonBuilder.BuildFromLayout(layout, parentFolder)
 	if not parentFolder then
 		parentFolder = Instance.new("Folder")
-		parentFolder.Name = "ActiveHollow"
+		parentFolder.Name = "DungeonBuild"
 		parentFolder.Parent = workspace
 	end
 
@@ -102,8 +103,11 @@ function HollowRoomBuilder.BuildFromLayout(layout, parentFolder)
 	local doorMap = {} -- [row][col] = { North = part, South = part, ... }
 
 	------------------------------------------------------------
-	-- 1. Clone and position each room
+	-- 1. Clone all rooms and measure their bounding boxes to
+	--    determine the actual tile size needed to prevent overlaps.
 	------------------------------------------------------------
+	local maxRoomSpan = 0 -- largest X or Z extent of any room
+
 	for row = 1, n do
 		roomMap[row] = {}
 		doorMap[row] = {}
@@ -112,21 +116,21 @@ function HollowRoomBuilder.BuildFromLayout(layout, parentFolder)
 			local template = cell.Template
 
 			-- Resolve the pre-built model from workspace.RoomTemplates
-			local sourceFolder = DescentRegistry.ResolveFolder(template)
+			local sourceFolder = DungeonRoomRegistry.ResolveFolder(template)
 			local clone
 			if sourceFolder then
 				clone = sourceFolder:Clone()
 			else
 				-- Fallback: create a placeholder platform so the grid is still navigable
 				warn(string.format(
-					"[HollowRoomBuilder] No model for '%s' at (%d,%d) — placing placeholder",
+					"[DungeonBuilder] No model for '%s' at (%d,%d) — placing placeholder",
 					template.Name, row, col
 				))
 				clone = Instance.new("Model")
 				clone.Name = template.Name .. "_Placeholder"
 				local floor = Instance.new("Part")
 				floor.Name = "Floor"
-				floor.Size = Vector3.new(TILE_SIZE * 0.8, 4, TILE_SIZE * 0.8)
+				floor.Size = Vector3.new(DEFAULT_TILE_SIZE * 0.8, 4, DEFAULT_TILE_SIZE * 0.8)
 				floor.Anchored = true
 				floor.Material = Enum.Material.Cobblestone
 				floor.BrickColor = BrickColor.new("Medium stone grey")
@@ -135,6 +139,34 @@ function HollowRoomBuilder.BuildFromLayout(layout, parentFolder)
 			end
 
 			clone.Name = string.format("Room_%d_%d_%s", row, col, cell.RoomType)
+
+			-- Measure bounding box to track the largest room
+			if clone:IsA("Model") then
+				local ok, cf, size = pcall(clone.GetBoundingBox, clone)
+				if ok and size then
+					maxRoomSpan = math.max(maxRoomSpan, size.X, size.Z)
+				end
+			end
+
+			roomMap[row][col] = clone
+		end
+	end
+
+	------------------------------------------------------------
+	-- 2. Compute tile size: must be at least as large as the
+	--    biggest room plus padding so rooms never overlap.
+	------------------------------------------------------------
+	local TILE_SIZE = math.max(DEFAULT_TILE_SIZE, maxRoomSpan + TILE_PADDING)
+	-- Round up to nearest 10 for clean alignment
+	TILE_SIZE = math.ceil(TILE_SIZE / 10) * 10
+	DungeonBuilder._lastTileSize = TILE_SIZE
+
+	------------------------------------------------------------
+	-- 3. Position each room on the grid and collect doors.
+	------------------------------------------------------------
+	for row = 1, n do
+		for col = 1, n do
+			local clone = roomMap[row][col]
 
 			-- Compute world position: center of this tile
 			local worldX = (col - 1) * TILE_SIZE
@@ -156,7 +188,6 @@ function HollowRoomBuilder.BuildFromLayout(layout, parentFolder)
 			end
 
 			clone.Parent = parentFolder
-			roomMap[row][col] = clone
 
 			-- Collect doors tagged with CollectionService
 			doorMap[row][col] = {}
@@ -167,7 +198,7 @@ function HollowRoomBuilder.BuildFromLayout(layout, parentFolder)
 						doorMap[row][col][dir] = desc
 					else
 						warn(string.format(
-							"[HollowRoomBuilder] Door '%s' in room (%d,%d) has no recognizable direction — skipping",
+							"[DungeonBuilder] Door '%s' in room (%d,%d) has no recognizable direction — skipping",
 							desc:GetFullName(), row, col
 						))
 					end
@@ -194,10 +225,10 @@ function HollowRoomBuilder.BuildFromLayout(layout, parentFolder)
 
 				if neighborExists then
 					-- Open the door: make it non-collidable, transparent, and disable prompts
-					HollowRoomBuilder.OpenDoor(doorPart)
+					DungeonBuilder.OpenDoor(doorPart)
 				else
 					-- Edge of map: seal the door
-					HollowRoomBuilder.SealDoor(doorPart)
+					DungeonBuilder.SealDoor(doorPart)
 				end
 			end
 		end
@@ -216,7 +247,7 @@ end
 -- Makes the door passable. The part becomes non-collidable and fully
 -- transparent. Any ProximityPrompt on it is disabled.
 --------------------------------------------------------------------------------
-function HollowRoomBuilder.OpenDoor(doorPart)
+function DungeonBuilder.OpenDoor(doorPart)
 	if not doorPart or not doorPart.Parent then return end
 
 	doorPart.CanCollide = false
@@ -243,7 +274,7 @@ end
 -- Ensures the door is solid and impassable — a visible wall on the map edge.
 -- Switches material to a heavy stone look so it reads as a dead end.
 --------------------------------------------------------------------------------
-function HollowRoomBuilder.SealDoor(doorPart)
+function DungeonBuilder.SealDoor(doorPart)
 	if not doorPart or not doorPart.Parent then return end
 
 	doorPart.CanCollide = true
@@ -262,10 +293,11 @@ function HollowRoomBuilder.SealDoor(doorPart)
 end
 
 --------------------------------------------------------------------------------
--- GetTileSize() — expose so other systems can query the spacing
+-- GetTileSize() — expose so other systems can query the spacing.
+-- Returns the last computed tile size, or the default if no build has run yet.
 --------------------------------------------------------------------------------
-function HollowRoomBuilder.GetTileSize()
-	return TILE_SIZE
+function DungeonBuilder.GetTileSize()
+	return DungeonBuilder._lastTileSize or DEFAULT_TILE_SIZE
 end
 
-return HollowRoomBuilder
+return DungeonBuilder
