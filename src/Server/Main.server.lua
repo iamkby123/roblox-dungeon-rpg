@@ -181,17 +181,24 @@ local function BuildLobby()
 	end
 
 	-- ===== IRON DOOR =====
+	local doorZ = entranceZ + 2
 	local door = mp({Name="HollowGate", Size=Vector3.new(caveW, caveH, 1.5),
-		Position=Vector3.new(0, caveH/2 + 0.5, entranceZ + 2),
+		Position=Vector3.new(0, caveH/2 + 0.5, doorZ),
 		Material=Enum.Material.DiamondPlate, Color=Color3.fromRGB(60, 55, 50)})
-	-- Door rivets/bars (horizontal iron bars across door)
+	-- Door horizontal iron bars (inset into door face, not sticking out)
 	for _, barY in ipairs({4, 8, 12}) do
-		mp({Name="DoorBar", Size=Vector3.new(caveW - 2, 0.8, 2),
-			Position=Vector3.new(0, barY + 0.5, entranceZ + 3),
+		mp({Name="DoorBar", Size=Vector3.new(caveW - 2, 0.6, 0.3),
+			Position=Vector3.new(0, barY + 0.5, doorZ + 0.9),
 			Material=Enum.Material.Metal, Color=Color3.fromRGB(40, 38, 35)})
 	end
-	-- Door ring/handle
-	mp({Name="DoorHandle", Size=Vector3.new(2, 2, 1), Position=Vector3.new(4, 8, entranceZ + 3.5),
+	-- Vertical door frame bars (left and right edges)
+	for _, xOff in ipairs({-caveW/2 + 1, caveW/2 - 1}) do
+		mp({Name="DoorFrame", Size=Vector3.new(0.6, caveH - 1, 0.3),
+			Position=Vector3.new(xOff, caveH/2 + 0.5, doorZ + 0.9),
+			Material=Enum.Material.Metal, Color=Color3.fromRGB(45, 42, 38)})
+	end
+	-- Door ring/handle (flush on the door face)
+	mp({Name="DoorHandle", Size=Vector3.new(1.5, 1.5, 0.4), Position=Vector3.new(4, 8, doorZ + 1),
 		Material=Enum.Material.Metal, Color=Color3.fromRGB(80, 70, 55)})
 
 	-- Proximity prompt on door handle (visible, not blocked by bars)
@@ -213,11 +220,21 @@ local function BuildLobby()
 	smoke.Size = 4; smoke.Opacity = 0.08; smoke.RiseVelocity = 1.5
 	smoke.Color = Color3.fromRGB(80, 60, 100); smoke.Parent = door
 
-	-- Warning sign above cave
+	-- Grand entrance sign above cave
+	-- Stone backing slab
+	mp({Name="SignBacking", Size=Vector3.new(30, 10, 2), Position=Vector3.new(0, caveH + 10, entranceZ + 6),
+		Material=Enum.Material.Slate, Color=Color3.fromRGB(40, 35, 30)})
+	-- Decorative stone trim on top
+	mp({Name="SignTrim", Size=Vector3.new(32, 1.5, 2.5), Position=Vector3.new(0, caveH + 15.5, entranceZ + 6),
+		Material=Enum.Material.Granite, Color=Color3.fromRGB(55, 50, 42)})
+	-- Decorative stone trim on bottom
+	mp({Name="SignTrimBot", Size=Vector3.new(32, 1, 2.5), Position=Vector3.new(0, caveH + 4.5, entranceZ + 6),
+		Material=Enum.Material.Granite, Color=Color3.fromRGB(55, 50, 42)})
+	-- The sign face
 	makeSign(
-		Vector3.new(0, caveH + 8, entranceZ + 5), Vector3.new(18, 4, 0.5), Enum.NormalId.Back,
+		Vector3.new(0, caveH + 10, entranceZ + 7.2), Vector3.new(28, 8, 0.5), Enum.NormalId.Back,
 		"THE HOLLOW", Color3.fromRGB(255, 200, 50),
-		"Enter if you dare...", Color3.fromRGB(200, 80, 80)
+		"Descend into darkness... if you dare", Color3.fromRGB(200, 80, 80)
 	)
 
 	-- ===== CAVE WALLS flanking entrance (rock formations) =====
@@ -313,21 +330,21 @@ local function BuildLobby()
 	makeTorch(Vector3.new(-35, 0.5, -40), 25)
 	makeTorch(Vector3.new(35, 0.5, -40), 25)
 
-	-- ===== INFO SIGNS (wooden, near campsite) =====
-	-- Controls sign post (left of camp)
-	mp({Size=Vector3.new(2, 6, 2), Position=Vector3.new(-18, 3.5, 8),
+	-- ===== INFO SIGNS (wooden, flanking campfire, facing spawn) =====
+	-- Controls sign post (left of campfire)
+	mp({Size=Vector3.new(2, 7, 2), Position=Vector3.new(-26, 4, 20),
 		Material=Enum.Material.Wood, BrickColor=BrickColor.new("Dark orange")})
 	makeSign(
-		Vector3.new(-18, 7.5, 8), Vector3.new(12, 6, 1), Enum.NormalId.Back,
+		Vector3.new(-26, 9, 20), Vector3.new(14, 7, 1), Enum.NormalId.Right,
 		"CONTROLS", Color3.fromRGB(100, 200, 255),
 		"Click = Attack\n[1-4] = Switch Items\n[Tab] = Stats\n[E] = Interact", Color3.fromRGB(220, 220, 200)
 	)
 
-	-- How to Play sign post (right of camp)
-	mp({Size=Vector3.new(2, 6, 2), Position=Vector3.new(18, 3.5, 8),
+	-- How to Play sign post (right of campfire)
+	mp({Size=Vector3.new(2, 7, 2), Position=Vector3.new(26, 4, 20),
 		Material=Enum.Material.Wood, BrickColor=BrickColor.new("Dark orange")})
 	makeSign(
-		Vector3.new(18, 7.5, 8), Vector3.new(12, 6, 1), Enum.NormalId.Back,
+		Vector3.new(26, 9, 20), Vector3.new(14, 7, 1), Enum.NormalId.Left,
 		"HOW TO PLAY", Color3.fromRGB(255, 150, 50),
 		"Clear chambers of creatures\nCollect colored seals\nUnlock matching passages\nDefeat the SANCTUM BOSS!", Color3.fromRGB(220, 220, 200)
 	)
