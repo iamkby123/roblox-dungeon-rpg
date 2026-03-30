@@ -100,7 +100,7 @@ local function firePuzzleComplete(player)
 end
 
 local function awardPuzzleBonus(player)
-	local data = HollowBuilder.GetActiveDungeon(player)
+	local data = HollowBuilder.GetActiveDescent(player)
 	if data then
 		data.PuzzleScore = (data.PuzzleScore or 0) + (RunGrading.PuzzleBonus or 200)
 	end

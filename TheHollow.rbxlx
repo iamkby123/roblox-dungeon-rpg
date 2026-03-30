@@ -2552,7 +2552,7 @@ function CombatService.OnEnemyDied(player, enemyModel)
 		elseif not enemyModel:GetAttribute("IsBoss") then
 			DelverProgression.OnCreatureKill(player, enemyId)
 		end
-		-- Boss XP is awarded via OnDungeonClear when the boss room clears
+		-- Boss XP is awarded via OnDescentClear when the boss room clears
 	end
 
 	-- Notify clients
@@ -4052,7 +4052,7 @@ local HollowRoomBuilder = {}
 -- CONFIG
 --------------------------------------------------------------------------------
 local TILE_SIZE = 200 -- studs between room centers
-local DOOR_TAG = "DungeonDoor" -- CollectionService tag on door parts
+local DOOR_TAG = "HollowDoor" -- CollectionService tag on door parts
 
 --------------------------------------------------------------------------------
 -- INTERNAL: Resolve direction from a door's name or orientation
@@ -4085,7 +4085,7 @@ local function getDoorDirection(doorPart)
 		if mapped then return mapped end
 	end
 
-	-- 2. Parse from the part name (e.g. "Door_North", "DungeonDoor_East")
+	-- 2. Parse from the part name (e.g. "Door_North", "HollowDoor_East")
 	for suffix, dir in pairs(DIRECTION_MAP) do
 		if doorPart.Name:find(suffix) then
 			return dir
@@ -4116,13 +4116,13 @@ local OPPOSITE = {
 --
 -- layout      : the result table from HollowLayout.GenerateGrid()
 -- parentFolder: an Instance (Folder/Model) under which all rooms are placed.
---               If nil a new Folder named "DungeonBuild" is created in workspace.
+--               If nil a new Folder named "ActiveHollow" is created in workspace.
 --
 -- For each cell in layout.Grid:
 --   1. Resolve the room template's workspace folder via DescentRegistry.
 --   2. Clone it and position it at (col * TILE_SIZE, 0, row * TILE_SIZE)
 --      relative to the parentFolder's origin.
---   3. Scan the clone for parts tagged "DungeonDoor".
+--   3. Scan the clone for parts tagged "HollowDoor".
 --   4. Open doors that face an occupied neighbor, seal doors on map edges.
 --
 -- Returns {
@@ -4134,7 +4134,7 @@ local OPPOSITE = {
 function HollowRoomBuilder.BuildFromLayout(layout, parentFolder)
 	if not parentFolder then
 		parentFolder = Instance.new("Folder")
-		parentFolder.Name = "DungeonBuild"
+		parentFolder.Name = "ActiveHollow"
 		parentFolder.Parent = workspace
 	end
 
@@ -4337,7 +4337,7 @@ local DelverDataService
 local DelverProgression
 local PuzzleEncounters
 
-local activeDungeons = {}
+local activeDescents = {}
 
 function HollowBuilder.Init(enemyAISvc, lootSvc, playerDataSvc, catacombsSvc, puzzleSvc)
 	CreatureAI = enemyAISvc
@@ -4492,7 +4492,7 @@ function HollowBuilder.BuildEntranceRoom(parent, origin)
 	local tl = Instance.new("TextLabel"); tl.Size=UDim2.new(1,0,0.5,0); tl.BackgroundTransparency=1; tl.Text="HOLLOW ENTRANCE"; tl.TextColor3=Color3.fromRGB(255,200,50); tl.TextScaled=true; tl.Font=Enum.Font.GothamBold; tl.Parent=sg
 	local il = Instance.new("TextLabel"); il.Size=UDim2.new(1,0,0.5,0); il.Position=UDim2.new(0,0,0.5,0); il.BackgroundTransparency=1; il.Text="Collect seals to unlock passages!"; il.TextColor3=Color3.fromRGB(200,200,200); il.TextScaled=true; il.Font=Enum.Font.Gotham; il.Parent=sg
 
-	-- Class pedestals
+	-- Vocation pedestals
 	for _, pedestalInfo in ipairs(VocationSystem.PedestalLayout) do
 		local vocationData = VocationSystem.Vocations[pedestalInfo.VocationId]
 		if vocationData then
@@ -5127,10 +5127,10 @@ function HollowBuilder.OpenSlidingDoor(door)
 end
 
 --------------------------------------------------------------------------------
--- START DUNGEON -- grid-based construction
+-- START DESCENT -- grid-based construction
 --------------------------------------------------------------------------------
-function HollowBuilder.StartDungeon(player)
-	HollowBuilder.CleanupDungeon(player)
+function HollowBuilder.StartDescent(player)
+	HollowBuilder.CleanupDescent(player)
 
 	-- Hide entire lobby so it doesn't overlap with dungeon rooms
 	local lobby = workspace:FindFirstChild("Lobby")
@@ -5312,23 +5312,23 @@ function HollowBuilder.StartDungeon(player)
 		end
 	end
 
-	activeDungeons[player] = dungeonData
+	activeDescents[player] = dungeonData
 
-	-- Class selection handler
-	dungeonData.SelectedClass = nil
+	-- Vocation selection handler
+	dungeonData.SelectedVocation = nil
 	for _, desc in ipairs(entranceFolder:GetDescendants()) do
 		if desc:IsA("ProximityPrompt") then
 			desc.Triggered:Connect(function(trigPlayer)
 				if trigPlayer ~= player then return end
-				if dungeonData.SelectedClass then return end
+				if dungeonData.SelectedVocation then return end
 
 				local pedestalPart = desc.Parent
 				local vocationId = pedestalPart.Name:gsub("Pedestal_", "")
-				dungeonData.SelectedClass = vocationId
+				dungeonData.SelectedVocation = vocationId
 				DelverDataService.ApplyVocationModifiers(player, vocationId)
 
-				local classRemote = Remotes:GetEvent("VocationSelected")
-				if classRemote then classRemote:FireClient(player, vocationId) end
+				local vocationRemote = Remotes:GetEvent("VocationSelected")
+				if vocationRemote then vocationRemote:FireClient(player, vocationId) end
 
 				local toDestroy = {}
 				for _, child in ipairs(entranceFolder:GetChildren()) do
@@ -5342,7 +5342,7 @@ function HollowBuilder.StartDungeon(player)
 	-- Notify client
 	local remote = Remotes:GetEvent("DescentStateChanged")
 	if remote then
-		remote:FireClient(player, "DungeonStarted", 0, "Dungeon Entrance")
+		remote:FireClient(player, "DescentStarted", 0, "Hollow Entrance")
 	end
 
 	-- Send minimap data to client
@@ -5417,7 +5417,7 @@ function HollowBuilder.StartDungeon(player)
 		local humanoid = char:WaitForChild("Humanoid", 5)
 		if humanoid then
 			humanoid.Died:Connect(function()
-				if activeDungeons[player] then
+				if activeDescents[player] then
 					HollowBuilder.OnPlayerDied(player)
 				end
 			end)
@@ -5427,7 +5427,7 @@ function HollowBuilder.StartDungeon(player)
 	if character then connectDeathHandler(character) end
 
 	dungeonData.CharAddedConn = player.CharacterAdded:Connect(function(newChar)
-		if activeDungeons[player] then
+		if activeDescents[player] then
 			connectDeathHandler(newChar)
 		else
 			if dungeonData.CharAddedConn then
@@ -5588,7 +5588,7 @@ function HollowBuilder.OnEnemyDied(enemyModel)
 	local isBoss = enemyModel:GetAttribute("IsBoss")
 	local dropsKey = enemyModel:GetAttribute("DropsKey")
 
-	for player, data in pairs(activeDungeons) do
+	for player, data in pairs(activeDescents) do
 		for roomIndex, roomFolder in pairs(data.RoomFolders) do
 			if enemyModel:IsDescendantOf(roomFolder) then
 				if LootSystem then LootSystem.GrantLoot(player, enemyId, isBoss) end
@@ -5737,16 +5737,16 @@ function HollowBuilder.RoomCleared(player, data, roomIndex)
 			})
 		end
 
-		if remote then remote:FireClient(player, "DescentComplete", roomIndex, "Dungeon Complete!") end
+		if remote then remote:FireClient(player, "DescentComplete", roomIndex, "Descent Complete!") end
 
-		-- Award dungeon clear XP (scaled by rooms cleared as floor proxy)
+		-- Award descent clear XP (scaled by rooms cleared as floor proxy)
 		if DelverProgression then
 			DelverProgression.OnDescentClear(player, data.ChambersCleared or 1)
 		end
 
 		task.wait(8)
 		HollowBuilder.TeleportToLobby(player)
-		HollowBuilder.CleanupDungeon(player)
+		HollowBuilder.CleanupDescent(player)
 		DelverDataService.ResetStats(player)
 		return
 	end
@@ -5817,7 +5817,7 @@ function HollowBuilder.EnterGhostMode(player)
 	if not humanoid or not rootPart then return end
 
 	-- Teleport ghost to active room
-	local data = activeDungeons[player]
+	local data = activeDescents[player]
 	if data then
 		for i = #HollowConfig.Chambers, 1, -1 do
 			if data.RoomStates[i] == "Active" then
@@ -5878,7 +5878,7 @@ function HollowBuilder.ExitGhostMode(player, originalTransparencies)
 
 	character:SetAttribute("IsGhost", false)
 
-	local data = activeDungeons[player]
+	local data = activeDescents[player]
 	if humanoid then
 		local pds = require(script.Parent:WaitForChild("DelverDataService"))
 		local stats = pds.GetStats(player)
@@ -5903,7 +5903,7 @@ function HollowBuilder.ExitGhostMode(player, originalTransparencies)
 end
 
 function HollowBuilder.OnPlayerDied(player)
-	local data = activeDungeons[player]
+	local data = activeDescents[player]
 	if not data then return end
 	if data.IsGhost then return end
 
@@ -5931,7 +5931,7 @@ function HollowBuilder.OnPlayerDied(player)
 end
 
 function HollowBuilder.RequestEarlyRespawn(player)
-	local data = activeDungeons[player]
+	local data = activeDescents[player]
 	if not data then return end
 	if not data.DeathTime then return end
 	if os.clock() - data.DeathTime < 3 then return end
@@ -5941,8 +5941,8 @@ end
 --------------------------------------------------------------------------------
 -- CLEANUP
 --------------------------------------------------------------------------------
-function HollowBuilder.CleanupDungeon(player)
-	local data = activeDungeons[player]
+function HollowBuilder.CleanupDescent(player)
+	local data = activeDescents[player]
 	if not data then return end
 
 	if data.CharAddedConn then data.CharAddedConn:Disconnect(); data.CharAddedConn = nil end
@@ -5962,13 +5962,13 @@ function HollowBuilder.CleanupDungeon(player)
 		data.Folder:Destroy()
 	end
 
-	activeDungeons[player] = nil
+	activeDescents[player] = nil
 end
 
-function HollowBuilder.CleanupPlayer(player) HollowBuilder.CleanupDungeon(player) end
-function HollowBuilder.GetActiveDungeon(player) return activeDungeons[player] end
+function HollowBuilder.CleanupPlayer(player) HollowBuilder.CleanupDescent(player) end
+function HollowBuilder.GetActiveDescent(player) return activeDescents[player] end
 function HollowBuilder.AddDamageTracking(player, damage)
-	local data = activeDungeons[player]
+	local data = activeDescents[player]
 	if data then data.TotalDamage = (data.TotalDamage or 0) + damage end
 end
 
@@ -6095,7 +6095,7 @@ function HollowBuilder.BuildTrapRoom(parent, config, origin, roomIndex, dungeonD
 	trigger.Touched:Connect(function(hit)
 		local touchPlayer = Players:GetPlayerFromCharacter(hit.Parent)
 		if touchPlayer and touchPlayer == player then
-			local data = activeDungeons[touchPlayer]
+			local data = activeDescents[touchPlayer]
 			if data and data.RoomStates[roomIndex] == "Active" then
 				HollowBuilder.RoomCleared(touchPlayer, data, roomIndex)
 				trigger:Destroy()
@@ -6442,7 +6442,7 @@ local function BuildLobby()
 	end
 
 	-- ===== IRON DOOR =====
-	local door = mp({Name="DungeonDoor", Size=Vector3.new(caveW, caveH, 1.5),
+	local door = mp({Name="HollowGate", Size=Vector3.new(caveW, caveH, 1.5),
 		Position=Vector3.new(0, caveH/2 + 0.5, entranceZ + 2),
 		Material=Enum.Material.DiamondPlate, Color=Color3.fromRGB(60, 55, 50)})
 	-- Door rivets/bars (horizontal iron bars across door)
@@ -6457,12 +6457,12 @@ local function BuildLobby()
 
 	-- Proximity prompt on door handle (visible, not blocked by bars)
 	local prompt = Instance.new("ProximityPrompt")
-	prompt.ObjectText = "Iron Door"; prompt.ActionText = "Enter Dungeon"
+	prompt.ObjectText = "Iron Door"; prompt.ActionText = "Enter the Hollow"
 	prompt.MaxActivationDistance = 20; prompt.HoldDuration = 0.5
 	prompt.RequiresLineOfSight = false
 	prompt.Parent = door
 	prompt.Triggered:Connect(function(player)
-		HollowBuilder.StartDungeon(player)
+		HollowBuilder.StartDescent(player)
 	end)
 
 	-- Subtle glow seeping through door cracks
@@ -6924,7 +6924,7 @@ local function BuildLobby()
 
 	-- Color correction — warm tint, rich contrast, slight desaturation
 	local serverCC = Instance.new("ColorCorrectionEffect")
-	serverCC.Name = "DungeonTone"
+	serverCC.Name = "HollowTone"
 	serverCC.Brightness = -0.02
 	serverCC.Contrast = 0.15
 	serverCC.Saturation = -0.1
@@ -7075,7 +7075,7 @@ local function firePuzzleComplete(player)
 end
 
 local function awardPuzzleBonus(player)
-	local data = HollowBuilder.GetActiveDungeon(player)
+	local data = HollowBuilder.GetActiveDescent(player)
 	if data then
 		data.PuzzleScore = (data.PuzzleScore or 0) + (RunGrading.PuzzleBonus or 200)
 	end
@@ -8180,7 +8180,7 @@ end
 --------------------------------------------------------------------------------
 local function createScreenGui()
 	screenGui = Instance.new("ScreenGui")
-	screenGui.Name = "DungeonHUD"
+	screenGui.Name = "DescentHUD"
 	screenGui.ResetOnSpawn = false
 	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	screenGui.DisplayOrder = 5
@@ -9826,15 +9826,15 @@ function UIController.Init(mainHUD, skillCtrl)
 		end)
 	end
 
-	-- Listen for class selection
-	local classRemote = Remotes:GetEvent("VocationSelected")
-	if classRemote then
-		classRemote.OnClientEvent:Connect(function(classId)
-			UIController.ShowVocationIndicator(classId)
+	-- Listen for vocation selection
+	local vocationRemote = Remotes:GetEvent("VocationSelected")
+	if vocationRemote then
+		vocationRemote.OnClientEvent:Connect(function(vocationId)
+			UIController.ShowVocationIndicator(vocationId)
 		end)
 	end
 
-	-- Listen for dungeon score
+	-- Listen for descent score
 	local scoreRemote = Remotes:GetEvent("DescentScore")
 	if scoreRemote then
 		scoreRemote.OnClientEvent:Connect(function(scoreData)
@@ -10367,12 +10367,12 @@ function UIController.HideDeathOverlay()
 	if respawnBtn then respawnBtn.Visible = false end
 end
 
-function UIController.ShowVocationIndicator(classId)
+function UIController.ShowVocationIndicator(vocationId)
 	local indicator = hud:FindFirstChild("VocationIndicator")
 	if not indicator then return end
 	local label = indicator:FindFirstChild("VocationLabel")
 	if label then
-		label.Text = classId:upper()
+		label.Text = vocationId:upper()
 	end
 	indicator.Visible = true
 end

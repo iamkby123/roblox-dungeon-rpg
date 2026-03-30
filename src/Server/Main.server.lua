@@ -181,7 +181,7 @@ local function BuildLobby()
 	end
 
 	-- ===== IRON DOOR =====
-	local door = mp({Name="DungeonDoor", Size=Vector3.new(caveW, caveH, 1.5),
+	local door = mp({Name="HollowGate", Size=Vector3.new(caveW, caveH, 1.5),
 		Position=Vector3.new(0, caveH/2 + 0.5, entranceZ + 2),
 		Material=Enum.Material.DiamondPlate, Color=Color3.fromRGB(60, 55, 50)})
 	-- Door rivets/bars (horizontal iron bars across door)
@@ -196,12 +196,12 @@ local function BuildLobby()
 
 	-- Proximity prompt on door handle (visible, not blocked by bars)
 	local prompt = Instance.new("ProximityPrompt")
-	prompt.ObjectText = "Iron Door"; prompt.ActionText = "Enter Dungeon"
+	prompt.ObjectText = "Iron Door"; prompt.ActionText = "Enter the Hollow"
 	prompt.MaxActivationDistance = 20; prompt.HoldDuration = 0.5
 	prompt.RequiresLineOfSight = false
 	prompt.Parent = door
 	prompt.Triggered:Connect(function(player)
-		HollowBuilder.StartDungeon(player)
+		HollowBuilder.StartDescent(player)
 	end)
 
 	-- Subtle glow seeping through door cracks
@@ -663,7 +663,7 @@ local function BuildLobby()
 
 	-- Color correction — warm tint, rich contrast, slight desaturation
 	local serverCC = Instance.new("ColorCorrectionEffect")
-	serverCC.Name = "DungeonTone"
+	serverCC.Name = "HollowTone"
 	serverCC.Brightness = -0.02
 	serverCC.Contrast = 0.15
 	serverCC.Saturation = -0.1

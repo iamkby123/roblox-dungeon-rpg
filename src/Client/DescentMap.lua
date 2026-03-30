@@ -118,7 +118,7 @@ end
 --------------------------------------------------------------------------------
 local function createScreenGui()
 	screenGui = Instance.new("ScreenGui")
-	screenGui.Name = "DungeonHUD"
+	screenGui.Name = "DescentHUD"
 	screenGui.ResetOnSpawn = false
 	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	screenGui.DisplayOrder = 5

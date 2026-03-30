@@ -9,7 +9,7 @@ local HollowRoomBuilder = {}
 -- CONFIG
 --------------------------------------------------------------------------------
 local TILE_SIZE = 200 -- studs between room centers
-local DOOR_TAG = "DungeonDoor" -- CollectionService tag on door parts
+local DOOR_TAG = "HollowDoor" -- CollectionService tag on door parts
 
 --------------------------------------------------------------------------------
 -- INTERNAL: Resolve direction from a door's name or orientation
@@ -42,7 +42,7 @@ local function getDoorDirection(doorPart)
 		if mapped then return mapped end
 	end
 
-	-- 2. Parse from the part name (e.g. "Door_North", "DungeonDoor_East")
+	-- 2. Parse from the part name (e.g. "Door_North", "HollowDoor_East")
 	for suffix, dir in pairs(DIRECTION_MAP) do
 		if doorPart.Name:find(suffix) then
 			return dir
@@ -73,13 +73,13 @@ local OPPOSITE = {
 --
 -- layout      : the result table from HollowLayout.GenerateGrid()
 -- parentFolder: an Instance (Folder/Model) under which all rooms are placed.
---               If nil a new Folder named "DungeonBuild" is created in workspace.
+--               If nil a new Folder named "ActiveHollow" is created in workspace.
 --
 -- For each cell in layout.Grid:
 --   1. Resolve the room template's workspace folder via DescentRegistry.
 --   2. Clone it and position it at (col * TILE_SIZE, 0, row * TILE_SIZE)
 --      relative to the parentFolder's origin.
---   3. Scan the clone for parts tagged "DungeonDoor".
+--   3. Scan the clone for parts tagged "HollowDoor".
 --   4. Open doors that face an occupied neighbor, seal doors on map edges.
 --
 -- Returns {
@@ -91,7 +91,7 @@ local OPPOSITE = {
 function HollowRoomBuilder.BuildFromLayout(layout, parentFolder)
 	if not parentFolder then
 		parentFolder = Instance.new("Folder")
-		parentFolder.Name = "DungeonBuild"
+		parentFolder.Name = "ActiveHollow"
 		parentFolder.Parent = workspace
 	end
 

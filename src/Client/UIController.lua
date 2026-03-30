@@ -73,15 +73,15 @@ function UIController.Init(mainHUD, skillCtrl)
 		end)
 	end
 
-	-- Listen for class selection
-	local classRemote = Remotes:GetEvent("VocationSelected")
-	if classRemote then
-		classRemote.OnClientEvent:Connect(function(classId)
-			UIController.ShowVocationIndicator(classId)
+	-- Listen for vocation selection
+	local vocationRemote = Remotes:GetEvent("VocationSelected")
+	if vocationRemote then
+		vocationRemote.OnClientEvent:Connect(function(vocationId)
+			UIController.ShowVocationIndicator(vocationId)
 		end)
 	end
 
-	-- Listen for dungeon score
+	-- Listen for descent score
 	local scoreRemote = Remotes:GetEvent("DescentScore")
 	if scoreRemote then
 		scoreRemote.OnClientEvent:Connect(function(scoreData)
@@ -614,12 +614,12 @@ function UIController.HideDeathOverlay()
 	if respawnBtn then respawnBtn.Visible = false end
 end
 
-function UIController.ShowVocationIndicator(classId)
+function UIController.ShowVocationIndicator(vocationId)
 	local indicator = hud:FindFirstChild("VocationIndicator")
 	if not indicator then return end
 	local label = indicator:FindFirstChild("VocationLabel")
 	if label then
-		label.Text = classId:upper()
+		label.Text = vocationId:upper()
 	end
 	indicator.Visible = true
 end

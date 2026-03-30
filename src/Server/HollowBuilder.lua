@@ -17,7 +17,7 @@ local DelverDataService
 local DelverProgression
 local PuzzleEncounters
 
-local activeDungeons = {}
+local activeDescents = {}
 
 function HollowBuilder.Init(enemyAISvc, lootSvc, playerDataSvc, catacombsSvc, puzzleSvc)
 	CreatureAI = enemyAISvc
@@ -172,7 +172,7 @@ function HollowBuilder.BuildEntranceRoom(parent, origin)
 	local tl = Instance.new("TextLabel"); tl.Size=UDim2.new(1,0,0.5,0); tl.BackgroundTransparency=1; tl.Text="HOLLOW ENTRANCE"; tl.TextColor3=Color3.fromRGB(255,200,50); tl.TextScaled=true; tl.Font=Enum.Font.GothamBold; tl.Parent=sg
 	local il = Instance.new("TextLabel"); il.Size=UDim2.new(1,0,0.5,0); il.Position=UDim2.new(0,0,0.5,0); il.BackgroundTransparency=1; il.Text="Collect seals to unlock passages!"; il.TextColor3=Color3.fromRGB(200,200,200); il.TextScaled=true; il.Font=Enum.Font.Gotham; il.Parent=sg
 
-	-- Class pedestals
+	-- Vocation pedestals
 	for _, pedestalInfo in ipairs(VocationSystem.PedestalLayout) do
 		local vocationData = VocationSystem.Vocations[pedestalInfo.VocationId]
 		if vocationData then
@@ -807,10 +807,10 @@ function HollowBuilder.OpenSlidingDoor(door)
 end
 
 --------------------------------------------------------------------------------
--- START DUNGEON -- grid-based construction
+-- START DESCENT -- grid-based construction
 --------------------------------------------------------------------------------
-function HollowBuilder.StartDungeon(player)
-	HollowBuilder.CleanupDungeon(player)
+function HollowBuilder.StartDescent(player)
+	HollowBuilder.CleanupDescent(player)
 
 	-- Hide entire lobby so it doesn't overlap with dungeon rooms
 	local lobby = workspace:FindFirstChild("Lobby")
@@ -992,23 +992,23 @@ function HollowBuilder.StartDungeon(player)
 		end
 	end
 
-	activeDungeons[player] = dungeonData
+	activeDescents[player] = dungeonData
 
-	-- Class selection handler
-	dungeonData.SelectedClass = nil
+	-- Vocation selection handler
+	dungeonData.SelectedVocation = nil
 	for _, desc in ipairs(entranceFolder:GetDescendants()) do
 		if desc:IsA("ProximityPrompt") then
 			desc.Triggered:Connect(function(trigPlayer)
 				if trigPlayer ~= player then return end
-				if dungeonData.SelectedClass then return end
+				if dungeonData.SelectedVocation then return end
 
 				local pedestalPart = desc.Parent
 				local vocationId = pedestalPart.Name:gsub("Pedestal_", "")
-				dungeonData.SelectedClass = vocationId
+				dungeonData.SelectedVocation = vocationId
 				DelverDataService.ApplyVocationModifiers(player, vocationId)
 
-				local classRemote = Remotes:GetEvent("VocationSelected")
-				if classRemote then classRemote:FireClient(player, vocationId) end
+				local vocationRemote = Remotes:GetEvent("VocationSelected")
+				if vocationRemote then vocationRemote:FireClient(player, vocationId) end
 
 				local toDestroy = {}
 				for _, child in ipairs(entranceFolder:GetChildren()) do
@@ -1022,7 +1022,7 @@ function HollowBuilder.StartDungeon(player)
 	-- Notify client
 	local remote = Remotes:GetEvent("DescentStateChanged")
 	if remote then
-		remote:FireClient(player, "DungeonStarted", 0, "Dungeon Entrance")
+		remote:FireClient(player, "DescentStarted", 0, "Hollow Entrance")
 	end
 
 	-- Send minimap data to client
@@ -1097,7 +1097,7 @@ function HollowBuilder.StartDungeon(player)
 		local humanoid = char:WaitForChild("Humanoid", 5)
 		if humanoid then
 			humanoid.Died:Connect(function()
-				if activeDungeons[player] then
+				if activeDescents[player] then
 					HollowBuilder.OnPlayerDied(player)
 				end
 			end)
@@ -1107,7 +1107,7 @@ function HollowBuilder.StartDungeon(player)
 	if character then connectDeathHandler(character) end
 
 	dungeonData.CharAddedConn = player.CharacterAdded:Connect(function(newChar)
-		if activeDungeons[player] then
+		if activeDescents[player] then
 			connectDeathHandler(newChar)
 		else
 			if dungeonData.CharAddedConn then
@@ -1268,7 +1268,7 @@ function HollowBuilder.OnEnemyDied(enemyModel)
 	local isBoss = enemyModel:GetAttribute("IsBoss")
 	local dropsKey = enemyModel:GetAttribute("DropsKey")
 
-	for player, data in pairs(activeDungeons) do
+	for player, data in pairs(activeDescents) do
 		for roomIndex, roomFolder in pairs(data.RoomFolders) do
 			if enemyModel:IsDescendantOf(roomFolder) then
 				if LootSystem then LootSystem.GrantLoot(player, enemyId, isBoss) end
@@ -1417,16 +1417,16 @@ function HollowBuilder.RoomCleared(player, data, roomIndex)
 			})
 		end
 
-		if remote then remote:FireClient(player, "DescentComplete", roomIndex, "Dungeon Complete!") end
+		if remote then remote:FireClient(player, "DescentComplete", roomIndex, "Descent Complete!") end
 
-		-- Award dungeon clear XP (scaled by rooms cleared as floor proxy)
+		-- Award descent clear XP (scaled by rooms cleared as floor proxy)
 		if DelverProgression then
 			DelverProgression.OnDescentClear(player, data.ChambersCleared or 1)
 		end
 
 		task.wait(8)
 		HollowBuilder.TeleportToLobby(player)
-		HollowBuilder.CleanupDungeon(player)
+		HollowBuilder.CleanupDescent(player)
 		DelverDataService.ResetStats(player)
 		return
 	end
@@ -1497,7 +1497,7 @@ function HollowBuilder.EnterGhostMode(player)
 	if not humanoid or not rootPart then return end
 
 	-- Teleport ghost to active room
-	local data = activeDungeons[player]
+	local data = activeDescents[player]
 	if data then
 		for i = #HollowConfig.Chambers, 1, -1 do
 			if data.RoomStates[i] == "Active" then
@@ -1558,7 +1558,7 @@ function HollowBuilder.ExitGhostMode(player, originalTransparencies)
 
 	character:SetAttribute("IsGhost", false)
 
-	local data = activeDungeons[player]
+	local data = activeDescents[player]
 	if humanoid then
 		local pds = require(script.Parent:WaitForChild("DelverDataService"))
 		local stats = pds.GetStats(player)
@@ -1583,7 +1583,7 @@ function HollowBuilder.ExitGhostMode(player, originalTransparencies)
 end
 
 function HollowBuilder.OnPlayerDied(player)
-	local data = activeDungeons[player]
+	local data = activeDescents[player]
 	if not data then return end
 	if data.IsGhost then return end
 
@@ -1611,7 +1611,7 @@ function HollowBuilder.OnPlayerDied(player)
 end
 
 function HollowBuilder.RequestEarlyRespawn(player)
-	local data = activeDungeons[player]
+	local data = activeDescents[player]
 	if not data then return end
 	if not data.DeathTime then return end
 	if os.clock() - data.DeathTime < 3 then return end
@@ -1621,8 +1621,8 @@ end
 --------------------------------------------------------------------------------
 -- CLEANUP
 --------------------------------------------------------------------------------
-function HollowBuilder.CleanupDungeon(player)
-	local data = activeDungeons[player]
+function HollowBuilder.CleanupDescent(player)
+	local data = activeDescents[player]
 	if not data then return end
 
 	if data.CharAddedConn then data.CharAddedConn:Disconnect(); data.CharAddedConn = nil end
@@ -1642,13 +1642,13 @@ function HollowBuilder.CleanupDungeon(player)
 		data.Folder:Destroy()
 	end
 
-	activeDungeons[player] = nil
+	activeDescents[player] = nil
 end
 
-function HollowBuilder.CleanupPlayer(player) HollowBuilder.CleanupDungeon(player) end
-function HollowBuilder.GetActiveDungeon(player) return activeDungeons[player] end
+function HollowBuilder.CleanupPlayer(player) HollowBuilder.CleanupDescent(player) end
+function HollowBuilder.GetActiveDescent(player) return activeDescents[player] end
 function HollowBuilder.AddDamageTracking(player, damage)
-	local data = activeDungeons[player]
+	local data = activeDescents[player]
 	if data then data.TotalDamage = (data.TotalDamage or 0) + damage end
 end
 
@@ -1775,7 +1775,7 @@ function HollowBuilder.BuildTrapRoom(parent, config, origin, roomIndex, dungeonD
 	trigger.Touched:Connect(function(hit)
 		local touchPlayer = Players:GetPlayerFromCharacter(hit.Parent)
 		if touchPlayer and touchPlayer == player then
-			local data = activeDungeons[touchPlayer]
+			local data = activeDescents[touchPlayer]
 			if data and data.RoomStates[roomIndex] == "Active" then
 				HollowBuilder.RoomCleared(touchPlayer, data, roomIndex)
 				trigger:Destroy()

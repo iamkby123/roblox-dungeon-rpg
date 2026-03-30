@@ -341,7 +341,7 @@ function CombatService.OnEnemyDied(player, enemyModel)
 		elseif not enemyModel:GetAttribute("IsBoss") then
 			DelverProgression.OnCreatureKill(player, enemyId)
 		end
-		-- Boss XP is awarded via OnDungeonClear when the boss room clears
+		-- Boss XP is awarded via OnDescentClear when the boss room clears
 	end
 
 	-- Notify clients
