@@ -1,4 +1,4 @@
-name: Deploy to Roblox
+name: Deploy The Hollow to Roblox
 
 on:
   push:
@@ -18,8 +18,8 @@ jobs:
           unzip rojo.zip -d /usr/local/bin
           chmod +x /usr/local/bin/rojo
 
-      - name: Build place file with Rojo
-        run: rojo build -o DungeonRPG.rbxlx
+      - name: Build The Hollow place file with Rojo
+        run: rojo build -o TheHollow.rbxlx
 
       - name: Publish to Roblox via Open Cloud
         run: |
@@ -27,7 +27,7 @@ jobs:
             "https://apis.roblox.com/universes/v1/${UNIVERSE_ID}/places/${PLACE_ID}/versions?versionType=Published" \
             -H "x-api-key: ${ROBLOX_API_KEY}" \
             -H "Content-Type: application/xml" \
-            --data-binary @DungeonRPG.rbxlx \
+            --data-binary @TheHollow.rbxlx \
             --fail-with-body
         env:
           ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
