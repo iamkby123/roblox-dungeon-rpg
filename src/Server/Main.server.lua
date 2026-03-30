@@ -132,7 +132,7 @@ local function BuildLobby()
 	local campfire = mp({Name="Campfire", Size=Vector3.new(2, 1, 2), Position=Vector3.new(0, 1.2, 20),
 		Material=Enum.Material.Wood, BrickColor=BrickColor.new("Reddish brown")})
 	local cfLight = Instance.new("PointLight"); cfLight.Color=Color3.fromRGB(255,140,45)
-	cfLight.Range=45; cfLight.Brightness=2.5; cfLight.Parent=campfire
+	cfLight.Range=35; cfLight.Brightness=1.5; cfLight.Parent=campfire
 	local cfFire = Instance.new("Fire"); cfFire.Size=8; cfFire.Heat=10; cfFire.Parent=campfire
 
 	-- Sitting logs around campfire
@@ -278,7 +278,7 @@ local function BuildLobby()
 		local post = mp({Name="TorchPost", Size=Vector3.new(2, 8, 2), Position=pos + Vector3.new(0, 4, 0),
 			Material=Enum.Material.Wood, BrickColor=BrickColor.new("Dark orange")})
 		local tl = Instance.new("PointLight"); tl.Color=Color3.fromRGB(255,150,45)
-		tl.Range=range; tl.Brightness=3; tl.Parent=post
+		tl.Range=range; tl.Brightness=1.8; tl.Parent=post
 		local fi = Instance.new("Fire"); fi.Size=size; fi.Heat=8; fi.Parent=post
 		return post
 	end
@@ -592,7 +592,7 @@ local function BuildLobby()
 			Position=Vector3.new(tx, torchY, tz),
 			Material=Enum.Material.Wood, BrickColor=BrickColor.new("Dark orange")})
 		local tl = Instance.new("PointLight"); tl.Color=Color3.fromRGB(255,145,40)
-		tl.Range=50; tl.Brightness=2.5; tl.Parent=tp
+		tl.Range=40; tl.Brightness=1.5; tl.Parent=tp
 		local fi = Instance.new("Fire"); fi.Size=5; fi.Heat=8; fi.Parent=tp
 	end
 
@@ -608,7 +608,7 @@ local function BuildLobby()
 			Position=Vector3.new(tx, torchY, tz),
 			Material=Enum.Material.Wood, BrickColor=BrickColor.new("Dark orange")})
 		local tl = Instance.new("PointLight"); tl.Color=Color3.fromRGB(255,135,35)
-		tl.Range=55; tl.Brightness=2; tl.Parent=tp
+		tl.Range=45; tl.Brightness=1.2; tl.Parent=tp
 		local fi = Instance.new("Fire"); fi.Size=6; fi.Heat=10; fi.Parent=tp
 	end
 
@@ -652,13 +652,13 @@ local function BuildLobby()
 	lighting.ShadowSoftness = 0.15                        -- crisp shadows from torches
 	lighting.EnvironmentDiffuseScale = 0                  -- no environment diffuse
 	lighting.EnvironmentSpecularScale = 0                 -- no environment specular
-	lighting.ExposureCompensation = 0.3                   -- slight exposure boost
+	lighting.ExposureCompensation = 0.1                   -- minimal exposure boost
 
 	-- Bloom — warm glow around fire sources
 	local bloom = Instance.new("BloomEffect")
-	bloom.Intensity = 0.6
-	bloom.Size = 28
-	bloom.Threshold = 1.1
+	bloom.Intensity = 0.35
+	bloom.Size = 20
+	bloom.Threshold = 1.8
 	bloom.Parent = lighting
 
 	-- Color correction — warm tint, rich contrast, slight desaturation

@@ -163,17 +163,17 @@ local function positionWeapon(weaponId, gripCF)
 	local p = data.parts
 
 	if weaponId == "Sword" then
-		-- Tilt upward ~30 degrees for a natural angled hold
-		local tilt = gripCF * CFrame.Angles(math.rad(-30), 0, 0)
+		-- Slight tilt for a natural forward hold
+		local tilt = gripCF * CFrame.Angles(math.rad(-5), 0, 0)
 		p.Handle.CFrame = tilt * CFrame.new(0, 0, -0.5)
 		p.Guard.CFrame = tilt * CFrame.new(0, 0, -1.0)
 		p.Blade.CFrame = tilt * CFrame.new(0, 0, -2.6)
 	elseif weaponId == "Staff" then
-		local tilt = gripCF * CFrame.Angles(math.rad(-25), 0, 0)
+		local tilt = gripCF * CFrame.Angles(math.rad(-5), 0, 0)
 		p.Shaft.CFrame = tilt * CFrame.new(0, 0, -2.0)
 		p.Orb.CFrame = tilt * CFrame.new(0, 0, -4.2)
 	elseif weaponId == "Wand" then
-		local tilt = gripCF * CFrame.Angles(math.rad(-25), 0, 0)
+		local tilt = gripCF * CFrame.Angles(math.rad(-5), 0, 0)
 		p.Stick.CFrame = tilt * CFrame.new(0, 0, -1.1)
 		p.Crystal.CFrame = tilt * CFrame.new(0, 0, -2.4)
 	elseif weaponId == "Shield" then
