@@ -268,13 +268,20 @@ function HollowBuilder.BuildRoom(parent, config, origin, roomIndex, openings)
 		local wallMat = config.WallMaterial
 		local wallCol = config.WallColor
 
+		-- Lintel height (fills gap above corridor opening to room ceiling)
+		local lintelH = size.Y - ch
+		local lintelY = ch + lintelH / 2
+
 		if wallSide == "Left" then -- -X wall
 			if hasOpening then
 				local sideD = (size.Z - cw) / 2
 				makePart({Size=Vector3.new(t,size.Y,sideD), Position=origin+Vector3.new(-size.X/2-t/2, size.Y/2, (cw+sideD)/2), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
 				makePart({Size=Vector3.new(t,size.Y,sideD), Position=origin+Vector3.new(-size.X/2-t/2, size.Y/2, -(cw+sideD)/2), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
+				-- Lintel above opening
+				if lintelH > 0 then
+					makePart({Size=Vector3.new(t,lintelH,cw), Position=origin+Vector3.new(-size.X/2-t/2, lintelY, 0), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
+				end
 			else
-				-- Left/Right walls extend t beyond room in Z to cover corners
 				makePart({Name="LeftWall", Size=Vector3.new(t,size.Y,size.Z+t*2), Position=origin+Vector3.new(-size.X/2-t/2, size.Y/2, 0), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
 			end
 
@@ -283,6 +290,10 @@ function HollowBuilder.BuildRoom(parent, config, origin, roomIndex, openings)
 				local sideD = (size.Z - cw) / 2
 				makePart({Size=Vector3.new(t,size.Y,sideD), Position=origin+Vector3.new(size.X/2+t/2, size.Y/2, (cw+sideD)/2), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
 				makePart({Size=Vector3.new(t,size.Y,sideD), Position=origin+Vector3.new(size.X/2+t/2, size.Y/2, -(cw+sideD)/2), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
+				-- Lintel above opening
+				if lintelH > 0 then
+					makePart({Size=Vector3.new(t,lintelH,cw), Position=origin+Vector3.new(size.X/2+t/2, lintelY, 0), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
+				end
 			else
 				makePart({Name="RightWall", Size=Vector3.new(t,size.Y,size.Z+t*2), Position=origin+Vector3.new(size.X/2+t/2, size.Y/2, 0), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
 			end
@@ -292,8 +303,11 @@ function HollowBuilder.BuildRoom(parent, config, origin, roomIndex, openings)
 				local sideW = (size.X - cw) / 2
 				makePart({Size=Vector3.new(sideW,size.Y,t), Position=origin+Vector3.new(-(cw+sideW)/2, size.Y/2, size.Z/2+t/2), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
 				makePart({Size=Vector3.new(sideW,size.Y,t), Position=origin+Vector3.new((cw+sideW)/2, size.Y/2, size.Z/2+t/2), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
+				-- Lintel above opening
+				if lintelH > 0 then
+					makePart({Size=Vector3.new(cw,lintelH,t), Position=origin+Vector3.new(0, lintelY, size.Z/2+t/2), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
+				end
 			else
-				-- Front/Back walls fit between left/right walls (no corner overlap)
 				makePart({Name="FrontWall", Size=Vector3.new(size.X,size.Y,t), Position=origin+Vector3.new(0, size.Y/2, size.Z/2+t/2), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
 			end
 
@@ -302,6 +316,10 @@ function HollowBuilder.BuildRoom(parent, config, origin, roomIndex, openings)
 				local sideW = (size.X - cw) / 2
 				makePart({Size=Vector3.new(sideW,size.Y,t), Position=origin+Vector3.new(-(cw+sideW)/2, size.Y/2, -size.Z/2-t/2), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
 				makePart({Size=Vector3.new(sideW,size.Y,t), Position=origin+Vector3.new((cw+sideW)/2, size.Y/2, -size.Z/2-t/2), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
+				-- Lintel above opening
+				if lintelH > 0 then
+					makePart({Size=Vector3.new(cw,lintelH,t), Position=origin+Vector3.new(0, lintelY, -size.Z/2-t/2), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
+				end
 			else
 				makePart({Name="BackWall", Size=Vector3.new(size.X,size.Y,t), Position=origin+Vector3.new(0, size.Y/2, -size.Z/2-t/2), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
 			end
@@ -660,12 +678,16 @@ local function buildCorridorZ(parent, x, fromZ, toZ, originY, mat, col, floorCol
 	local t = 4
 	local length = math.abs(fromZ - toZ)
 	local centerZ = (fromZ + toZ) / 2
+	-- Side walls are shorter to avoid overlapping with room walls at junctions
+	local wallLength = math.max(1, length - t * 2)
 
 	local f = Instance.new("Folder"); f.Name = "CorridorZ"; f.Parent = parent
+	-- Floor/ceiling span full length to cover wall gap
 	makePart({Name="Floor", Size=Vector3.new(ow,t,length), Position=Vector3.new(x, originY-t/2, centerZ), Material=Enum.Material.Cobblestone, BrickColor=floorCol, Parent=f})
 	makePart({Name="Ceiling", Size=Vector3.new(ow,t,length), Position=Vector3.new(x, originY+ch+t/2, centerZ), Material=mat, BrickColor=col, Parent=f})
-	makePart({Size=Vector3.new(t,ch,length), Position=Vector3.new(x-ow/2-t/2, originY+ch/2, centerZ), Material=mat, BrickColor=col, Parent=f})
-	makePart({Size=Vector3.new(t,ch,length), Position=Vector3.new(x+ow/2+t/2, originY+ch/2, centerZ), Material=mat, BrickColor=col, Parent=f})
+	-- Side walls shortened to avoid overlapping room walls
+	makePart({Size=Vector3.new(t,ch,wallLength), Position=Vector3.new(x-ow/2-t/2, originY+ch/2, centerZ), Material=mat, BrickColor=col, Parent=f})
+	makePart({Size=Vector3.new(t,ch,wallLength), Position=Vector3.new(x+ow/2+t/2, originY+ch/2, centerZ), Material=mat, BrickColor=col, Parent=f})
 
 	-- Torch (mounted against left wall of corridor)
 	local torch = makePart({Name="Torch", Size=Vector3.new(1,2,1), Position=Vector3.new(x-ow/2+0.5, originY+ch*0.7, centerZ), Material=Enum.Material.Wood, BrickColor=BrickColor.new("Brown"), Parent=f})
@@ -683,12 +705,16 @@ local function buildCorridorX(parent, z, fromX, toX, originY, mat, col, floorCol
 	local t = 4
 	local length = math.abs(fromX - toX)
 	local centerX = (fromX + toX) / 2
+	-- Side walls are shorter to avoid overlapping with room walls at junctions
+	local wallLength = math.max(1, length - t * 2)
 
 	local f = Instance.new("Folder"); f.Name = "CorridorX"; f.Parent = parent
+	-- Floor/ceiling span full length to cover wall gap
 	makePart({Name="Floor", Size=Vector3.new(length,t,ow), Position=Vector3.new(centerX, originY-t/2, z), Material=Enum.Material.Cobblestone, BrickColor=floorCol, Parent=f})
 	makePart({Name="Ceiling", Size=Vector3.new(length,t,ow), Position=Vector3.new(centerX, originY+ch+t/2, z), Material=mat, BrickColor=col, Parent=f})
-	makePart({Size=Vector3.new(length,ch,t), Position=Vector3.new(centerX, originY+ch/2, z-ow/2-t/2), Material=mat, BrickColor=col, Parent=f})
-	makePart({Size=Vector3.new(length,ch,t), Position=Vector3.new(centerX, originY+ch/2, z+ow/2+t/2), Material=mat, BrickColor=col, Parent=f})
+	-- Side walls shortened to avoid overlapping room walls
+	makePart({Size=Vector3.new(wallLength,ch,t), Position=Vector3.new(centerX, originY+ch/2, z-ow/2-t/2), Material=mat, BrickColor=col, Parent=f})
+	makePart({Size=Vector3.new(wallLength,ch,t), Position=Vector3.new(centerX, originY+ch/2, z+ow/2+t/2), Material=mat, BrickColor=col, Parent=f})
 
 	-- Torch (mounted against back wall of corridor)
 	local torch = makePart({Name="Torch", Size=Vector3.new(1,2,1), Position=Vector3.new(centerX, originY+ch*0.7, z-ow/2+0.5), Material=Enum.Material.Wood, BrickColor=BrickColor.new("Brown"), Parent=f})
