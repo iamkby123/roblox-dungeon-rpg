@@ -174,9 +174,9 @@ local function BuildLobby()
 	-- Top arch
 	mp({Name="CaveArchTop", Size=Vector3.new(caveW + 12, 6, 10), Position=Vector3.new(0, caveH + 3.5, entranceZ),
 		Material=Enum.Material.Slate, Color=Color3.fromRGB(45, 40, 35)})
-	-- Mossy drip on arch sides
-	for _, xOff in ipairs({-caveW/2 - 1, caveW/2 + 1}) do
-		mp({Size=Vector3.new(4, 5, 6), Position=Vector3.new(xOff, 2.5, entranceZ + 2),
+	-- Mossy drip on arch sides (pushed outward to avoid clipping into cave opening)
+	for _, xOff in ipairs({-caveW/2 - 4, caveW/2 + 4}) do
+		mp({Size=Vector3.new(3, 4, 4), Position=Vector3.new(xOff, 2, entranceZ + 4),
 			Material=Enum.Material.Grass, Color=Color3.fromRGB(35, 60, 25)})
 	end
 
@@ -330,21 +330,21 @@ local function BuildLobby()
 	makeTorch(Vector3.new(-35, 0.5, -40), 25)
 	makeTorch(Vector3.new(35, 0.5, -40), 25)
 
-	-- ===== INFO SIGNS (wooden, flanking campfire, facing spawn) =====
-	-- Controls sign post (left of campfire)
+	-- ===== INFO SIGNS (wooden, flanking campfire, facing inward) =====
+	-- Controls sign post (left of campfire, text faces +X toward center)
 	mp({Size=Vector3.new(2, 7, 2), Position=Vector3.new(-26, 4, 20),
 		Material=Enum.Material.Wood, BrickColor=BrickColor.new("Dark orange")})
 	makeSign(
-		Vector3.new(-26, 9, 20), Vector3.new(14, 7, 1), Enum.NormalId.Right,
+		Vector3.new(-26, 9, 20), Vector3.new(1, 7, 14), Enum.NormalId.Right,
 		"CONTROLS", Color3.fromRGB(100, 200, 255),
 		"Click = Attack\n[1-4] = Switch Items\n[Tab] = Stats\n[E] = Interact", Color3.fromRGB(220, 220, 200)
 	)
 
-	-- How to Play sign post (right of campfire)
+	-- How to Play sign post (right of campfire, text faces -X toward center)
 	mp({Size=Vector3.new(2, 7, 2), Position=Vector3.new(26, 4, 20),
 		Material=Enum.Material.Wood, BrickColor=BrickColor.new("Dark orange")})
 	makeSign(
-		Vector3.new(26, 9, 20), Vector3.new(14, 7, 1), Enum.NormalId.Left,
+		Vector3.new(26, 9, 20), Vector3.new(1, 7, 14), Enum.NormalId.Left,
 		"HOW TO PLAY", Color3.fromRGB(255, 150, 50),
 		"Clear chambers of creatures\nCollect colored seals\nUnlock matching passages\nDefeat the SANCTUM BOSS!", Color3.fromRGB(220, 220, 200)
 	)
