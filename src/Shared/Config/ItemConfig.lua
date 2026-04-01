@@ -54,4 +54,50 @@ ItemConfig.ChestTiers = {
 	Legendary = { MinItems = 2, MaxItems = 3, RarityWeights = { Uncommon = 20, Rare = 40, Legendary = 40 } },
 }
 
+-- ===== POTIONS (consumable, bought from shop) =====
+ItemConfig.Potions = {
+	HealthPotion = {
+		Name = "Health Potion",
+		Description = "Restores 50 HP instantly.",
+		Effect = "Heal",
+		Value = 50,
+		Price = 15,
+		Color = Color3.fromRGB(255, 80, 80),
+	},
+	GreaterHealthPotion = {
+		Name = "Greater Health Potion",
+		Description = "Restores 120 HP instantly.",
+		Effect = "Heal",
+		Value = 120,
+		Price = 35,
+		Color = Color3.fromRGB(255, 40, 40),
+	},
+	ManaPotion = {
+		Name = "Mana Potion",
+		Description = "Restores 40 Mana instantly.",
+		Effect = "Mana",
+		Value = 40,
+		Price = 15,
+		Color = Color3.fromRGB(80, 120, 255),
+	},
+	ShieldElixir = {
+		Name = "Shield Elixir",
+		Description = "+30 Defense for 10 seconds.",
+		Effect = "Shield",
+		Value = 30,
+		Duration = 10,
+		Price = 25,
+		Color = Color3.fromRGB(255, 215, 0),
+	},
+	SwiftnessPotion = {
+		Name = "Swiftness Potion",
+		Description = "+8 Speed for 12 seconds.",
+		Effect = "Speed",
+		Value = 8,
+		Duration = 12,
+		Price = 20,
+		Color = Color3.fromRGB(80, 255, 120),
+	},
+}
+
 return ItemConfig

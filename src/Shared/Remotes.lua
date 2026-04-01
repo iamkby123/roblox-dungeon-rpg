@@ -37,6 +37,10 @@ local remoteEvents = {
 	"HazardHit",
 	"AllWardensFelled",
 	"SecretFound",
+	"CoinsUpdated",
+	"PotionsUpdated",
+	"ShopPurchase",
+	"UsePotion",
 }
 
 local remoteFunctions = {

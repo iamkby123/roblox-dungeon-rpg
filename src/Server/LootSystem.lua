@@ -79,6 +79,10 @@ function LootSystem.GrantLoot(player, creatureConfigId, isBoss)
 			})
 		end
 	end
+
+	-- Award coins on kill
+	local coinDrop = isBoss and math.random(50, 100) or math.random(5, 15)
+	DelverDataService.AddCoins(player, coinDrop)
 end
 
 function LootSystem.GrantCacheLoot(player, roomIndex)
@@ -110,6 +114,12 @@ function LootSystem.GrantCacheLoot(player, roomIndex)
 			end
 		end
 	end
+
+	-- Award coins from chest
+	local chestCoins = tierName == "Legendary" and math.random(30, 60)
+		or tierName == "Rare" and math.random(15, 30)
+		or math.random(5, 15)
+	DelverDataService.AddCoins(player, chestCoins)
 end
 
 function LootSystem.WeightedRandomByRarity(rarityWeights)

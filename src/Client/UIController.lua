@@ -7,12 +7,18 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SkillConfig = require(ReplicatedStorage:WaitForChild("Config"):WaitForChild("SkillConfig"))
 local Remotes = require(ReplicatedStorage:WaitForChild("Remotes"))
 
+local ItemConfig = require(ReplicatedStorage:WaitForChild("Config"):WaitForChild("ItemConfig"))
+
 local UIController = {}
 
 local hud -- the ScreenGui
 local SkillController -- for cooldown display
 local currentStats = nil
 local descentStartTime = nil
+local coinLabel = nil
+local shopFrame = nil
+local shopOpen = false
+local playerCoins = 0
 
 function UIController.Init(mainHUD, skillCtrl)
 	hud = mainHUD
@@ -925,6 +931,317 @@ function UIController.ShowLevelUpOverlay(data)
 		task.delay(0.8, function()
 			if overlay and overlay.Parent then overlay:Destroy() end
 		end)
+	end)
+end
+
+-- ===== COIN DISPLAY =====
+
+function UIController.CreateCoinDisplay()
+	if coinLabel then return end
+
+	local frame = Instance.new("Frame")
+	frame.Name = "CoinDisplay"
+	frame.Size = UDim2.new(0, 160, 0, 40)
+	frame.Position = UDim2.new(1, -170, 0, 10)
+	frame.BackgroundColor3 = Color3.fromRGB(30, 25, 20)
+	frame.BackgroundTransparency = 0.3
+	frame.BorderSizePixel = 0
+	frame.Parent = hud
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 8)
+	corner.Parent = frame
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(200, 170, 50)
+	stroke.Thickness = 2
+	stroke.Parent = frame
+
+	-- Coin icon
+	local icon = Instance.new("TextLabel")
+	icon.Size = UDim2.new(0, 35, 1, 0)
+	icon.Position = UDim2.new(0, 5, 0, 0)
+	icon.BackgroundTransparency = 1
+	icon.Text = "O"
+	icon.TextColor3 = Color3.fromRGB(255, 215, 0)
+	icon.TextScaled = true
+	icon.Font = Enum.Font.GothamBold
+	icon.Parent = frame
+
+	coinLabel = Instance.new("TextLabel")
+	coinLabel.Size = UDim2.new(1, -45, 1, 0)
+	coinLabel.Position = UDim2.new(0, 40, 0, 0)
+	coinLabel.BackgroundTransparency = 1
+	coinLabel.Text = tostring(playerCoins)
+	coinLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
+	coinLabel.TextScaled = true
+	coinLabel.TextXAlignment = Enum.TextXAlignment.Left
+	coinLabel.Font = Enum.Font.GothamBold
+	coinLabel.Parent = frame
+end
+
+function UIController.UpdateCoins(amount)
+	playerCoins = amount
+	if coinLabel then
+		coinLabel.Text = tostring(amount)
+	end
+end
+
+-- ===== SHOP MOUSE UNLOCK =====
+
+function UIController.SetShopMouseFree(free)
+	local player = Players.LocalPlayer
+
+	if free then
+		-- Switch out of LockFirstPerson so camera stops overriding mouse
+		player.CameraMode = Enum.CameraMode.Classic
+		player.CameraMaxZoomDistance = 0.5
+		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+		UserInputService.MouseIconEnabled = true
+	else
+		-- Restore first-person lock
+		player.CameraMode = Enum.CameraMode.LockFirstPerson
+		player.CameraMaxZoomDistance = 0.5
+		UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+		UserInputService.MouseIconEnabled = false
+	end
+end
+
+-- ===== POTION SHOP UI =====
+
+function UIController.OpenShop(shopData)
+	if shopFrame then shopFrame:Destroy() end
+	shopOpen = true
+	UIController.SetShopMouseFree(true)
+
+	shopFrame = Instance.new("Frame")
+	shopFrame.Name = "PotionShop"
+	shopFrame.Size = UDim2.new(0, 400, 0, 450)
+	shopFrame.Position = UDim2.new(0.5, -200, 0.5, -225)
+	shopFrame.BackgroundColor3 = Color3.fromRGB(25, 20, 30)
+	shopFrame.BackgroundTransparency = 0.1
+	shopFrame.BorderSizePixel = 0
+	shopFrame.Parent = hud
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 12)
+	corner.Parent = shopFrame
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(180, 120, 255)
+	stroke.Thickness = 2
+	stroke.Parent = shopFrame
+
+	-- Title
+	local title = Instance.new("TextLabel")
+	title.Size = UDim2.new(1, 0, 0, 45)
+	title.BackgroundTransparency = 1
+	title.Text = "Elara's Potion Shop"
+	title.TextColor3 = Color3.fromRGB(255, 200, 80)
+	title.TextScaled = true
+	title.Font = Enum.Font.Fantasy
+	title.Parent = shopFrame
+
+	-- Close button
+	local closeBtn = Instance.new("TextButton")
+	closeBtn.Size = UDim2.new(0, 35, 0, 35)
+	closeBtn.Position = UDim2.new(1, -40, 0, 5)
+	closeBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+	closeBtn.Text = "X"
+	closeBtn.TextColor3 = Color3.new(1, 1, 1)
+	closeBtn.TextScaled = true
+	closeBtn.Font = Enum.Font.GothamBold
+	closeBtn.Parent = shopFrame
+	Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 6)
+	closeBtn.MouseButton1Click:Connect(function()
+		UIController.CloseShop()
+	end)
+
+	-- Coin display in shop
+	local coinInfo = Instance.new("TextLabel")
+	coinInfo.Name = "ShopCoins"
+	coinInfo.Size = UDim2.new(1, 0, 0, 30)
+	coinInfo.Position = UDim2.new(0, 0, 0, 45)
+	coinInfo.BackgroundTransparency = 1
+	coinInfo.Text = "Your Coins: " .. tostring(playerCoins)
+	coinInfo.TextColor3 = Color3.fromRGB(255, 215, 0)
+	coinInfo.TextScaled = true
+	coinInfo.Font = Enum.Font.GothamBold
+	coinInfo.Parent = shopFrame
+
+	-- Scrolling list of potions
+	local listFrame = Instance.new("ScrollingFrame")
+	listFrame.Size = UDim2.new(1, -20, 1, -90)
+	listFrame.Position = UDim2.new(0, 10, 0, 80)
+	listFrame.BackgroundTransparency = 1
+	listFrame.ScrollBarThickness = 4
+	listFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+	listFrame.Parent = shopFrame
+
+	local layout = Instance.new("UIListLayout")
+	layout.Padding = UDim.new(0, 8)
+	layout.Parent = listFrame
+
+	-- Sort potions by price
+	local sorted = {}
+	for potionId, data in pairs(shopData or ItemConfig.Potions) do
+		table.insert(sorted, { id = potionId, data = data })
+	end
+	table.sort(sorted, function(a, b)
+		return (a.data.Price or 0) < (b.data.Price or 0)
+	end)
+
+	for _, entry in ipairs(sorted) do
+		local potionId = entry.id
+		local data = entry.data
+
+		local row = Instance.new("Frame")
+		row.Size = UDim2.new(1, 0, 0, 65)
+		row.BackgroundColor3 = Color3.fromRGB(40, 35, 50)
+		row.BackgroundTransparency = 0.3
+		row.BorderSizePixel = 0
+		row.Parent = listFrame
+		Instance.new("UICorner", row).CornerRadius = UDim.new(0, 8)
+
+		-- Color indicator
+		local colorBar = Instance.new("Frame")
+		colorBar.Size = UDim2.new(0, 6, 0.8, 0)
+		colorBar.Position = UDim2.new(0, 5, 0.1, 0)
+		local potionColor = data.Color
+		if type(potionColor) == "table" then
+			colorBar.BackgroundColor3 = Color3.new(potionColor[1], potionColor[2], potionColor[3])
+		else
+			colorBar.BackgroundColor3 = potionColor or Color3.new(1, 1, 1)
+		end
+		colorBar.BorderSizePixel = 0
+		colorBar.Parent = row
+		Instance.new("UICorner", colorBar).CornerRadius = UDim.new(0, 3)
+
+		-- Name
+		local nameLabel = Instance.new("TextLabel")
+		nameLabel.Size = UDim2.new(0.5, -20, 0, 25)
+		nameLabel.Position = UDim2.new(0, 18, 0, 5)
+		nameLabel.BackgroundTransparency = 1
+		nameLabel.Text = data.Name or potionId
+		nameLabel.TextColor3 = Color3.new(1, 1, 1)
+		nameLabel.TextScaled = true
+		nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+		nameLabel.Font = Enum.Font.GothamBold
+		nameLabel.Parent = row
+
+		-- Description
+		local descLabel = Instance.new("TextLabel")
+		descLabel.Size = UDim2.new(0.6, -20, 0, 20)
+		descLabel.Position = UDim2.new(0, 18, 0, 32)
+		descLabel.BackgroundTransparency = 1
+		descLabel.Text = data.Description or ""
+		descLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+		descLabel.TextScaled = true
+		descLabel.TextXAlignment = Enum.TextXAlignment.Left
+		descLabel.Font = Enum.Font.Gotham
+		descLabel.Parent = row
+
+		-- Buy button
+		local buyBtn = Instance.new("TextButton")
+		buyBtn.Size = UDim2.new(0, 90, 0, 35)
+		buyBtn.Position = UDim2.new(1, -100, 0.5, -17)
+		buyBtn.BackgroundColor3 = playerCoins >= (data.Price or 0)
+			and Color3.fromRGB(60, 160, 60)
+			or Color3.fromRGB(100, 60, 60)
+		buyBtn.Text = tostring(data.Price or 0) .. " coins"
+		buyBtn.TextColor3 = Color3.new(1, 1, 1)
+		buyBtn.TextScaled = true
+		buyBtn.Font = Enum.Font.GothamBold
+		buyBtn.Parent = row
+		Instance.new("UICorner", buyBtn).CornerRadius = UDim.new(0, 6)
+
+		buyBtn.MouseButton1Click:Connect(function()
+			if playerCoins >= (data.Price or 0) then
+				local remote = Remotes:GetEvent("ShopPurchase")
+				if remote then
+					remote:FireServer(potionId)
+				end
+			end
+		end)
+	end
+
+	-- Update canvas size
+	layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+		listFrame.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 10)
+	end)
+	listFrame.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 10)
+end
+
+function UIController.CloseShop()
+	shopOpen = false
+	UIController.SetShopMouseFree(false)
+	if shopFrame then
+		shopFrame:Destroy()
+		shopFrame = nil
+	end
+end
+
+function UIController.IsShopOpen()
+	return shopOpen
+end
+
+-- ===== WIRE UP COIN/SHOP REMOTES =====
+
+function UIController.InitShopRemotes()
+	UIController.CreateCoinDisplay()
+
+	local coinsRemote = Remotes:GetEvent("CoinsUpdated")
+	if coinsRemote then
+		coinsRemote.OnClientEvent:Connect(function(coins, shopData)
+			UIController.UpdateCoins(coins)
+			-- If shopData is included, open the shop UI
+			if shopData and type(shopData) == "table" then
+				UIController.OpenShop(shopData)
+			end
+		end)
+	end
+
+	local potionsRemote = Remotes:GetEvent("PotionsUpdated")
+	if potionsRemote then
+		potionsRemote.OnClientEvent:Connect(function(potions)
+			-- Refresh shop coin display if open
+			if shopFrame then
+				local coinInfo = shopFrame:FindFirstChild("ShopCoins")
+				if coinInfo then
+					coinInfo.Text = "Your Coins: " .. tostring(playerCoins)
+				end
+			end
+		end)
+	end
+
+	-- Use potion with number keys (1-5 mapped to potions)
+	local potionKeys = {
+		Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three,
+		Enum.KeyCode.Four, Enum.KeyCode.Five,
+	}
+	local potionOrder = { "HealthPotion", "ManaPotion", "GreaterHealthPotion", "ShieldElixir", "SwiftnessPotion" }
+
+	UserInputService.InputBegan:Connect(function(input, processed)
+		if processed or shopOpen then return end
+		for i, key in ipairs(potionKeys) do
+			if input.KeyCode == key then
+				local potionId = potionOrder[i]
+				if potionId then
+					local remote = Remotes:GetEvent("UsePotion")
+					if remote then
+						remote:FireServer(potionId)
+					end
+				end
+				break
+			end
+		end
+	end)
+
+	-- Escape to close shop
+	UserInputService.InputBegan:Connect(function(input, processed)
+		if input.KeyCode == Enum.KeyCode.Escape and shopOpen then
+			UIController.CloseShop()
+		end
 	end)
 end
 

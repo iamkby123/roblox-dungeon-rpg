@@ -14,6 +14,7 @@ local HollowBuilder = require(script.Parent:WaitForChild("HollowBuilder"))
 local DelverProgression = require(script.Parent:WaitForChild("DelverProgression"))
 local CreatureSpawner = require(script.Parent:WaitForChild("CreatureSpawner"))
 local PuzzleEncounters = require(script.Parent:WaitForChild("PuzzleEncounters"))
+local PotionShopService = require(script.Parent:WaitForChild("PotionShopService"))
 
 -- Initialize services with dependencies
 DelverDataService.Init()
@@ -25,6 +26,7 @@ CreatureAI.Init(CombatService, HollowBuilder)
 PuzzleEncounters.Init(HollowBuilder)
 HollowBuilder.Init(CreatureAI, LootSystem, DelverDataService, DelverProgression, PuzzleEncounters)
 CreatureSpawner.Init(HollowBuilder, CreatureAI)
+PotionShopService.Init(DelverDataService)
 
 -- Start enemy AI loop
 CreatureAI.StartLoop()
@@ -655,16 +657,16 @@ local function BuildLobby()
 	mp({Size=Vector3.new(ARENA_RADIUS*2+40, 1, ARENA_RADIUS*2+40), Position=Vector3.new(0, GROUND_Y + WALL_HEIGHT + 10, 0),
 		Transparency=1, CanCollide=true, Name="Boundary"})
 
-	-- ===== GLOBAL LIGHTING — dark dungeon with subtle warm accents =====
+	-- ===== GLOBAL LIGHTING — dark moody dungeon atmosphere =====
 	local lighting = game:GetService("Lighting")
-	lighting.Ambient = Color3.fromRGB(20, 18, 16)       -- neutral dark shadow fill
-	lighting.OutdoorAmbient = Color3.fromRGB(22, 20, 18) -- neutral outdoor fill
-	lighting.Brightness = 0.1                             -- very low sky contribution
-	lighting.FogEnd = 500                                 -- fog further out
-	lighting.FogStart = 60                                -- starts a bit further
-	lighting.FogColor = Color3.fromRGB(6, 5, 5)          -- near-black fog
-	lighting.ClockTime = 0                                -- midnight, no sky light
-	lighting.GeographicLatitude = 0
+	lighting.Ambient = Color3.fromRGB(30, 32, 40)        -- dark cool shadow fill
+	lighting.OutdoorAmbient = Color3.fromRGB(40, 45, 55) -- dim outdoor fill
+	lighting.Brightness = 0.4                             -- low sky contribution
+	lighting.FogEnd = 500                                 -- moderate fog distance
+	lighting.FogStart = 60                                -- fog starts fairly close
+	lighting.FogColor = Color3.fromRGB(20, 22, 30)       -- dark blue-grey fog
+	lighting.ClockTime = 21.5                             -- late evening, no harsh sun
+	lighting.GeographicLatitude = 40
 	lighting.GlobalShadows = true
 	lighting.ShadowSoftness = 0.15                        -- crisp shadows from torches
 	lighting.EnvironmentDiffuseScale = 0                  -- no environment diffuse
@@ -707,6 +709,132 @@ local function BuildLobby()
 end
 
 BuildLobby()
+
+-- ===== POTION SHOP NPC =====
+do
+	local shopNPC = Instance.new("Model")
+	shopNPC.Name = "PotionShopNPC"
+
+	-- Body
+	local torso = Instance.new("Part")
+	torso.Name = "HumanoidRootPart"
+	torso.Size = Vector3.new(2, 3, 1.5)
+	torso.Position = Vector3.new(18, 3.2, 15)
+	torso.Anchored = true
+	torso.CanCollide = true
+	torso.Material = Enum.Material.Fabric
+	torso.BrickColor = BrickColor.new("Reddish brown")
+	torso.Parent = shopNPC
+
+	-- Head
+	local head = Instance.new("Part")
+	head.Name = "Head"
+	head.Size = Vector3.new(1.6, 1.6, 1.6)
+	head.Shape = Enum.PartType.Ball
+	head.Position = Vector3.new(18, 5.3, 15)
+	head.Anchored = true
+	head.CanCollide = false
+	head.Material = Enum.Material.SmoothPlastic
+	head.BrickColor = BrickColor.new("Light orange")
+	head.Parent = shopNPC
+
+	-- Hood
+	local hood = Instance.new("Part")
+	hood.Name = "Hood"
+	hood.Size = Vector3.new(2, 1, 2)
+	hood.Position = Vector3.new(18, 5.8, 15)
+	hood.Anchored = true
+	hood.CanCollide = false
+	hood.Material = Enum.Material.Fabric
+	hood.BrickColor = BrickColor.new("Dark indigo")
+	hood.Parent = shopNPC
+
+	-- Potion belt (decorative)
+	local belt = Instance.new("Part")
+	belt.Name = "PotionBelt"
+	belt.Size = Vector3.new(2.2, 0.4, 1.7)
+	belt.Position = Vector3.new(18, 2.2, 15)
+	belt.Anchored = true
+	belt.CanCollide = false
+	belt.Material = Enum.Material.Leather
+	belt.BrickColor = BrickColor.new("Brown")
+	belt.Parent = shopNPC
+
+	-- Potion vials on belt
+	local vialColors = {
+		BrickColor.new("Bright red"),
+		BrickColor.new("Bright blue"),
+		BrickColor.new("Bright green"),
+	}
+	for i, col in ipairs(vialColors) do
+		local vial = Instance.new("Part")
+		vial.Name = "Vial" .. i
+		vial.Size = Vector3.new(0.3, 0.7, 0.3)
+		vial.Position = Vector3.new(17.4 + (i - 1) * 0.3, 2.6, 15.6)
+		vial.Anchored = true
+		vial.CanCollide = false
+		vial.Material = Enum.Material.Glass
+		vial.BrickColor = col
+		vial.Transparency = 0.3
+		vial.Parent = shopNPC
+	end
+
+	-- Floating name label
+	local nameGui = Instance.new("BillboardGui")
+	nameGui.Size = UDim2.new(0, 200, 0, 50)
+	nameGui.StudsOffset = Vector3.new(0, 3.5, 0)
+	nameGui.AlwaysOnTop = true
+	nameGui.Parent = head
+	local nameLabel = Instance.new("TextLabel")
+	nameLabel.Size = UDim2.new(1, 0, 1, 0)
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.Text = "Elara the Alchemist"
+	nameLabel.TextColor3 = Color3.fromRGB(255, 200, 80)
+	nameLabel.TextStrokeTransparency = 0.5
+	nameLabel.TextScaled = true
+	nameLabel.Font = Enum.Font.Fantasy
+	nameLabel.Parent = nameGui
+
+	-- Glow light
+	local shopLight = Instance.new("PointLight")
+	shopLight.Color = Color3.fromRGB(180, 120, 255)
+	shopLight.Range = 15
+	shopLight.Brightness = 0.8
+	shopLight.Parent = torso
+
+	-- ProximityPrompt to open shop
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.ActionText = "Browse Potions"
+	prompt.ObjectText = "Potion Shop"
+	prompt.MaxActivationDistance = 10
+	prompt.HoldDuration = 0
+	prompt.Parent = torso
+
+	prompt.Triggered:Connect(function(player)
+		local remote = Remotes:GetEvent("ShopPurchase")
+		if remote then
+			-- Send shop inventory to client so it can open the UI
+			local shopData = {}
+			for potionId, data in pairs(ItemConfig.Potions) do
+				shopData[potionId] = {
+					Name = data.Name,
+					Description = data.Description,
+					Price = data.Price,
+					Color = { data.Color.R, data.Color.G, data.Color.B },
+				}
+			end
+			local openRemote = Remotes:GetEvent("CoinsUpdated")
+			if openRemote then
+				openRemote:FireClient(player, DelverDataService.GetCoins(player), shopData)
+			end
+		end
+	end)
+
+	shopNPC.PrimaryPart = torso
+	shopNPC.Parent = workspace
+end
+
+local ItemConfig = require(ReplicatedStorage:WaitForChild("Config"):WaitForChild("ItemConfig"))
 
 -- Listen for early respawn requests
 local requestRespawn = Remotes:GetEvent("RequestRespawn")

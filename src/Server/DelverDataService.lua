@@ -12,6 +12,8 @@ local delverMana = {} -- [player] = current mana (tracked separately for regen)
 local shieldBuffs = {} -- [player] = { DefenseBonus = 50, ExpiresAt = os.clock() + 5 }
 local delverInventory = {} -- [player] = { {ItemId="IronSword", ...}, ... }
 local delverVocation = {} -- [player] = vocationId
+local delverCoins = {} -- [player] = number
+local delverPotions = {} -- [player] = { {PotionId="HealthPotion", ...}, ... }
 
 function DelverDataService.Init()
 	Players.PlayerAdded:Connect(function(player)
@@ -65,6 +67,8 @@ function DelverDataService.OnPlayerJoined(player)
 	delverStats[player] = stats
 	delverMana[player] = stats.Mana
 	delverInventory[player] = {}
+	delverCoins[player] = 0
+	delverPotions[player] = {}
 
 	player.CharacterAdded:Connect(function(character)
 		DelverDataService.ApplyStatsToCharacter(player, character)
@@ -81,6 +85,8 @@ function DelverDataService.OnPlayerLeft(player)
 	shieldBuffs[player] = nil
 	delverInventory[player] = nil
 	delverVocation[player] = nil
+	delverCoins[player] = nil
+	delverPotions[player] = nil
 end
 
 function DelverDataService.ApplyStatsToCharacter(player, character)
@@ -256,6 +262,117 @@ end
 
 function DelverDataService.GetVocation(player)
 	return delverVocation[player]
+end
+
+-- ===== COIN SYSTEM =====
+
+function DelverDataService.GetCoins(player)
+	return delverCoins[player] or 0
+end
+
+function DelverDataService.AddCoins(player, amount)
+	delverCoins[player] = (delverCoins[player] or 0) + amount
+	local remote = Remotes:GetEvent("CoinsUpdated")
+	if remote then
+		remote:FireClient(player, delverCoins[player])
+	end
+end
+
+function DelverDataService.SpendCoins(player, amount)
+	local current = delverCoins[player] or 0
+	if current < amount then
+		return false
+	end
+	delverCoins[player] = current - amount
+	local remote = Remotes:GetEvent("CoinsUpdated")
+	if remote then
+		remote:FireClient(player, delverCoins[player])
+	end
+	return true
+end
+
+-- ===== POTION SYSTEM =====
+
+function DelverDataService.GetPotions(player)
+	return delverPotions[player] or {}
+end
+
+function DelverDataService.AddPotion(player, potionId)
+	local ItemConfig = require(ReplicatedStorage:WaitForChild("Config"):WaitForChild("ItemConfig"))
+	local potionData = ItemConfig.Potions[potionId]
+	if not potionData then return end
+
+	if not delverPotions[player] then
+		delverPotions[player] = {}
+	end
+
+	-- Stack potions: increment count if already owned
+	for _, entry in ipairs(delverPotions[player]) do
+		if entry.PotionId == potionId then
+			entry.Count = entry.Count + 1
+			local remote = Remotes:GetEvent("PotionsUpdated")
+			if remote then remote:FireClient(player, delverPotions[player]) end
+			return
+		end
+	end
+
+	table.insert(delverPotions[player], {
+		PotionId = potionId,
+		Name = potionData.Name,
+		Count = 1,
+	})
+
+	local remote = Remotes:GetEvent("PotionsUpdated")
+	if remote then remote:FireClient(player, delverPotions[player]) end
+end
+
+function DelverDataService.UsePotion(player, potionId)
+	local ItemConfig = require(ReplicatedStorage:WaitForChild("Config"):WaitForChild("ItemConfig"))
+	local potionData = ItemConfig.Potions[potionId]
+	if not potionData then return false end
+
+	local potions = delverPotions[player]
+	if not potions then return false end
+
+	-- Find and consume one potion
+	for i, entry in ipairs(potions) do
+		if entry.PotionId == potionId then
+			entry.Count = entry.Count - 1
+			if entry.Count <= 0 then
+				table.remove(potions, i)
+			end
+
+			-- Apply potion effect
+			local stats = delverStats[player]
+			local char = player.Character
+			local humanoid = char and char:FindFirstChild("Humanoid")
+
+			if potionData.Effect == "Heal" and humanoid and stats then
+				humanoid.Health = math.min(humanoid.Health + potionData.Value, stats.Health)
+			elseif potionData.Effect == "Mana" and stats then
+				delverMana[player] = math.min((delverMana[player] or 0) + potionData.Value, stats.Mana)
+				if char then
+					char:SetAttribute("CurrentMana", math.floor(delverMana[player]))
+				end
+			elseif potionData.Effect == "Shield" then
+				DelverDataService.ApplyShieldBuff(player, potionData.Value, potionData.Duration or 10)
+			elseif potionData.Effect == "Speed" and stats and humanoid then
+				local originalSpeed = stats.Speed
+				humanoid.WalkSpeed = originalSpeed + potionData.Value
+				task.delay(potionData.Duration or 10, function()
+					if humanoid and humanoid.Parent then
+						humanoid.WalkSpeed = originalSpeed
+					end
+				end)
+			end
+
+			local remote = Remotes:GetEvent("PotionsUpdated")
+			if remote then remote:FireClient(player, potions) end
+			return true
+		end
+	end
+
+	return false
 end
 
 return DelverDataService
