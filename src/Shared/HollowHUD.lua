@@ -237,6 +237,87 @@ function HollowHUD.Create()
 		cdText.Parent = slot
 	end
 
+	-- ===== POTION HOTBAR (below skill bar) =====
+	local potionBar = Instance.new("Frame")
+	potionBar.Name = "PotionBar"
+	potionBar.Size = UDim2.new(0, 232, 0, 52)
+	potionBar.Position = UDim2.new(0.5, -116, 1, -10)
+	potionBar.BackgroundColor3 = Color3.fromRGB(25, 20, 35)
+	potionBar.BackgroundTransparency = 0.35
+	potionBar.BorderSizePixel = 0
+	potionBar.Parent = screenGui
+
+	local potionBarCorner = Instance.new("UICorner")
+	potionBarCorner.CornerRadius = UDim.new(0, 8)
+	potionBarCorner.Parent = potionBar
+
+	local potionLayout = Instance.new("UIListLayout")
+	potionLayout.FillDirection = Enum.FillDirection.Horizontal
+	potionLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	potionLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+	potionLayout.Padding = UDim.new(0, 6)
+	potionLayout.Parent = potionBar
+
+	for i = 1, 4 do
+		local slot = Instance.new("TextButton")
+		slot.Name = "Potion" .. i
+		slot.Size = UDim2.new(0, 48, 0, 48)
+		slot.BackgroundColor3 = Color3.fromRGB(40, 35, 50)
+		slot.BorderSizePixel = 0
+		slot.LayoutOrder = i
+		slot.Text = ""
+		slot.AutoButtonColor = false
+		slot.Parent = potionBar
+
+		local slotCorner = Instance.new("UICorner")
+		slotCorner.CornerRadius = UDim.new(0, 6)
+		slotCorner.Parent = slot
+
+		local border = Instance.new("UIStroke")
+		border.Name = "Border"
+		border.Color = Color3.fromRGB(80, 70, 100)
+		border.Thickness = 1
+		border.Parent = slot
+
+		-- Potion color icon (hidden by default)
+		local icon = Instance.new("Frame")
+		icon.Name = "Icon"
+		icon.Size = UDim2.new(0, 20, 0, 26)
+		icon.Position = UDim2.new(0.5, -10, 0, 4)
+		icon.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+		icon.BackgroundTransparency = 0.6
+		icon.BorderSizePixel = 0
+		icon.Parent = slot
+
+		local iconCorner = Instance.new("UICorner")
+		iconCorner.CornerRadius = UDim.new(0, 3)
+		iconCorner.Parent = icon
+
+		-- Key hint
+		local keyLabel = Instance.new("TextLabel")
+		keyLabel.Name = "Key"
+		keyLabel.Size = UDim2.new(1, 0, 0, 14)
+		keyLabel.Position = UDim2.new(0, 0, 1, -15)
+		keyLabel.BackgroundTransparency = 1
+		keyLabel.Text = "[" .. (i + 4) .. "]"
+		keyLabel.TextColor3 = Color3.fromRGB(120, 120, 120)
+		keyLabel.TextScaled = true
+		keyLabel.Font = Enum.Font.Gotham
+		keyLabel.Parent = slot
+
+		-- Potion name (short, hidden by default)
+		local nameLabel = Instance.new("TextLabel")
+		nameLabel.Name = "Label"
+		nameLabel.Size = UDim2.new(1, -4, 0, 10)
+		nameLabel.Position = UDim2.new(0, 2, 0, 30)
+		nameLabel.BackgroundTransparency = 1
+		nameLabel.Text = ""
+		nameLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+		nameLabel.TextScaled = true
+		nameLabel.Font = Enum.Font.Gotham
+		nameLabel.Parent = slot
+	end
+
 	-- ===== STAT PANEL (top-right, toggleable) =====
 	local statPanel = Instance.new("Frame")
 	statPanel.Name = "StatPanel"

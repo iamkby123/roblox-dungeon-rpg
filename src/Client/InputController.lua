@@ -4,6 +4,7 @@ local Players = game:GetService("Players")
 local InputController = {}
 
 local SkillController -- set via Init
+local UIControllerRef -- set via Init for potion hotbar
 local isSprinting = false
 local WALK_SPEED = 16
 local SPRINT_SPEED = 24
@@ -15,8 +16,16 @@ local keyMap = {
 	[Enum.KeyCode.Four] = 4,
 }
 
-function InputController.Init(skillCtrl)
+local potionKeyMap = {
+	[Enum.KeyCode.Five] = 1,
+	[Enum.KeyCode.Six] = 2,
+	[Enum.KeyCode.Seven] = 3,
+	[Enum.KeyCode.Eight] = 4,
+}
+
+function InputController.Init(skillCtrl, uiCtrl)
 	SkillController = skillCtrl
+	UIControllerRef = uiCtrl
 
 	UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		if gameProcessed then return end
@@ -25,6 +34,13 @@ function InputController.Init(skillCtrl)
 		local slot = keyMap[input.KeyCode]
 		if slot then
 			SkillController.EquipSlot(slot)
+			return
+		end
+
+		-- Keys 5-8 to use potions from hotbar
+		local potionSlot = potionKeyMap[input.KeyCode]
+		if potionSlot and UIControllerRef then
+			UIControllerRef.UsePotionSlot(potionSlot)
 			return
 		end
 

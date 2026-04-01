@@ -1497,6 +1497,87 @@ function HollowHUD.Create()
 		cdText.Parent = slot
 	end
 
+	-- ===== POTION HOTBAR (below skill bar) =====
+	local potionBar = Instance.new("Frame")
+	potionBar.Name = "PotionBar"
+	potionBar.Size = UDim2.new(0, 232, 0, 52)
+	potionBar.Position = UDim2.new(0.5, -116, 1, -10)
+	potionBar.BackgroundColor3 = Color3.fromRGB(25, 20, 35)
+	potionBar.BackgroundTransparency = 0.35
+	potionBar.BorderSizePixel = 0
+	potionBar.Parent = screenGui
+
+	local potionBarCorner = Instance.new("UICorner")
+	potionBarCorner.CornerRadius = UDim.new(0, 8)
+	potionBarCorner.Parent = potionBar
+
+	local potionLayout = Instance.new("UIListLayout")
+	potionLayout.FillDirection = Enum.FillDirection.Horizontal
+	potionLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	potionLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+	potionLayout.Padding = UDim.new(0, 6)
+	potionLayout.Parent = potionBar
+
+	for i = 1, 4 do
+		local slot = Instance.new("TextButton")
+		slot.Name = "Potion" .. i
+		slot.Size = UDim2.new(0, 48, 0, 48)
+		slot.BackgroundColor3 = Color3.fromRGB(40, 35, 50)
+		slot.BorderSizePixel = 0
+		slot.LayoutOrder = i
+		slot.Text = ""
+		slot.AutoButtonColor = false
+		slot.Parent = potionBar
+
+		local slotCorner = Instance.new("UICorner")
+		slotCorner.CornerRadius = UDim.new(0, 6)
+		slotCorner.Parent = slot
+
+		local border = Instance.new("UIStroke")
+		border.Name = "Border"
+		border.Color = Color3.fromRGB(80, 70, 100)
+		border.Thickness = 1
+		border.Parent = slot
+
+		-- Potion color icon (hidden by default)
+		local icon = Instance.new("Frame")
+		icon.Name = "Icon"
+		icon.Size = UDim2.new(0, 20, 0, 26)
+		icon.Position = UDim2.new(0.5, -10, 0, 4)
+		icon.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+		icon.BackgroundTransparency = 0.6
+		icon.BorderSizePixel = 0
+		icon.Parent = slot
+
+		local iconCorner = Instance.new("UICorner")
+		iconCorner.CornerRadius = UDim.new(0, 3)
+		iconCorner.Parent = icon
+
+		-- Key hint
+		local keyLabel = Instance.new("TextLabel")
+		keyLabel.Name = "Key"
+		keyLabel.Size = UDim2.new(1, 0, 0, 14)
+		keyLabel.Position = UDim2.new(0, 0, 1, -15)
+		keyLabel.BackgroundTransparency = 1
+		keyLabel.Text = "[" .. (i + 4) .. "]"
+		keyLabel.TextColor3 = Color3.fromRGB(120, 120, 120)
+		keyLabel.TextScaled = true
+		keyLabel.Font = Enum.Font.Gotham
+		keyLabel.Parent = slot
+
+		-- Potion name (short, hidden by default)
+		local nameLabel = Instance.new("TextLabel")
+		nameLabel.Name = "Label"
+		nameLabel.Size = UDim2.new(1, -4, 0, 10)
+		nameLabel.Position = UDim2.new(0, 2, 0, 30)
+		nameLabel.BackgroundTransparency = 1
+		nameLabel.Text = ""
+		nameLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+		nameLabel.TextScaled = true
+		nameLabel.Font = Enum.Font.Gotham
+		nameLabel.Parent = slot
+	end
+
 	-- ===== STAT PANEL (top-right, toggleable) =====
 	local statPanel = Instance.new("Frame")
 	statPanel.Name = "StatPanel"
@@ -9057,6 +9138,7 @@ local Players = game:GetService("Players")
 local InputController = {}
 
 local SkillController -- set via Init
+local UIControllerRef -- set via Init for potion hotbar
 local isSprinting = false
 local WALK_SPEED = 16
 local SPRINT_SPEED = 24
@@ -9068,8 +9150,16 @@ local keyMap = {
 	[Enum.KeyCode.Four] = 4,
 }
 
-function InputController.Init(skillCtrl)
+local potionKeyMap = {
+	[Enum.KeyCode.Five] = 1,
+	[Enum.KeyCode.Six] = 2,
+	[Enum.KeyCode.Seven] = 3,
+	[Enum.KeyCode.Eight] = 4,
+}
+
+function InputController.Init(skillCtrl, uiCtrl)
 	SkillController = skillCtrl
+	UIControllerRef = uiCtrl
 
 	UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		if gameProcessed then return end
@@ -9078,6 +9168,13 @@ function InputController.Init(skillCtrl)
 		local slot = keyMap[input.KeyCode]
 		if slot then
 			SkillController.EquipSlot(slot)
+			return
+		end
+
+		-- Keys 5-8 to use potions from hotbar
+		local potionSlot = potionKeyMap[input.KeyCode]
+		if potionSlot and UIControllerRef then
+			UIControllerRef.UsePotionSlot(potionSlot)
 			return
 		end
 
@@ -9186,10 +9283,10 @@ hud.Parent = player:WaitForChild("PlayerGui")
 
 -- Initialize all controllers
 SkillController.Init()
-InputController.Init(SkillController)
 DamageNumbers.Init()
 CombatController.Init(hud)
 UIController.Init(hud, SkillController)
+InputController.Init(SkillController, UIController)
 ViewmodelController.Init(SkillController)
 FootstepController.Init()
 StatsWindow.Init()
@@ -9862,6 +9959,8 @@ local SkillController -- for cooldown display
 local currentStats = nil
 local descentStartTime = nil
 local shopOpen = false
+local potionSlotData = {} -- [1-4] = { inventoryIndex = n, item = {...} } or nil
+local currentInventory = {} -- latest inventory from server
 
 function UIController.Init(mainHUD, skillCtrl)
 	hud = mainHUD
@@ -9966,9 +10065,27 @@ function UIController.Init(mainHUD, skillCtrl)
 	local invRemote = Remotes:GetEvent("InventoryUpdated")
 	if invRemote then
 		invRemote.OnClientEvent:Connect(function(inventory)
+			currentInventory = inventory
 			UIController.UpdateInventoryPanel(inventory)
+			UIController.UpdatePotionHotbar(inventory)
 		end)
 	end
+
+	-- Wire potion hotbar click handlers
+	task.defer(function()
+		local potionBar = hud:FindFirstChild("PotionBar")
+		if potionBar then
+			for i = 1, 4 do
+				local slot = potionBar:FindFirstChild("Potion" .. i)
+				if slot then
+					local slotIndex = i
+					slot.MouseButton1Click:Connect(function()
+						UIController.UsePotionSlot(slotIndex)
+					end)
+				end
+			end
+		end
+	end)
 
 	-- Tab to toggle stat panel, E to toggle inventory
 	UserInputService.InputBegan:Connect(function(input, gameProcessed)
@@ -11100,6 +11217,105 @@ function UIController.CreatePotionShopUI()
 		end)
 
 		yOffset = yOffset + 78
+	end
+end
+
+-- ===== POTION HOTBAR =====
+
+function UIController.UpdatePotionHotbar(inventory)
+	local potionBar = hud:FindFirstChild("PotionBar")
+	if not potionBar then return end
+
+	-- Gather potions from inventory with their indices
+	local potions = {}
+	for i, item in ipairs(inventory) do
+		if item.Type == "Potion" then
+			table.insert(potions, { inventoryIndex = i, item = item })
+		end
+	end
+
+	-- Assign first 4 potions to hotbar slots
+	for i = 1, 4 do
+		local slot = potionBar:FindFirstChild("Potion" .. i)
+		if not slot then continue end
+
+		local icon = slot:FindFirstChild("Icon")
+		local label = slot:FindFirstChild("Label")
+		local border = slot:FindFirstChild("Border")
+		local keyLabel = slot:FindFirstChild("Key")
+
+		local potionEntry = potions[i]
+
+		if potionEntry then
+			potionSlotData[i] = potionEntry
+			local item = potionEntry.item
+			local color = Color3.fromRGB(item.Color[1] or 255, item.Color[2] or 255, item.Color[3] or 255)
+
+			if icon then
+				icon.BackgroundColor3 = color
+				icon.BackgroundTransparency = 0
+			end
+			if label then
+				-- Short name (e.g., "Health" from "Health Potion")
+				local shortName = string.gsub(item.Name, " Potion", "")
+				label.Text = shortName
+				label.TextColor3 = color
+			end
+			if border then
+				border.Color = color
+				border.Thickness = 2
+			end
+			if keyLabel then
+				keyLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+			end
+			slot.BackgroundColor3 = Color3.fromRGB(35, 30, 48)
+		else
+			-- Empty slot
+			potionSlotData[i] = nil
+
+			if icon then
+				icon.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+				icon.BackgroundTransparency = 0.6
+			end
+			if label then
+				label.Text = ""
+				label.TextColor3 = Color3.fromRGB(150, 150, 150)
+			end
+			if border then
+				border.Color = Color3.fromRGB(80, 70, 100)
+				border.Thickness = 1
+			end
+			if keyLabel then
+				keyLabel.TextColor3 = Color3.fromRGB(120, 120, 120)
+			end
+			slot.BackgroundColor3 = Color3.fromRGB(40, 35, 50)
+		end
+	end
+end
+
+function UIController.UsePotionSlot(slotIndex)
+	local data = potionSlotData[slotIndex]
+	if not data then return end
+
+	local usePotionRemote = Remotes:GetFunction("UsePotion")
+	if not usePotionRemote then return end
+
+	local result = usePotionRemote:InvokeServer(data.inventoryIndex)
+	if result and result.success then
+		-- Flash the slot green briefly
+		local potionBar = hud:FindFirstChild("PotionBar")
+		if potionBar then
+			local slot = potionBar:FindFirstChild("Potion" .. slotIndex)
+			if slot then
+				slot.BackgroundColor3 = Color3.fromRGB(50, 200, 80)
+				task.delay(0.3, function()
+					if slot.Parent then
+						slot.BackgroundColor3 = Color3.fromRGB(40, 35, 50)
+					end
+				end)
+			end
+		end
+		-- Inventory update will come from server via InventoryUpdated remote
 	end
 end
 

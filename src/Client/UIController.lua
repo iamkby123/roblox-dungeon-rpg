@@ -15,6 +15,8 @@ local SkillController -- for cooldown display
 local currentStats = nil
 local descentStartTime = nil
 local shopOpen = false
+local potionSlotData = {} -- [1-4] = { inventoryIndex = n, item = {...} } or nil
+local currentInventory = {} -- latest inventory from server
 
 function UIController.Init(mainHUD, skillCtrl)
 	hud = mainHUD
@@ -119,9 +121,27 @@ function UIController.Init(mainHUD, skillCtrl)
 	local invRemote = Remotes:GetEvent("InventoryUpdated")
 	if invRemote then
 		invRemote.OnClientEvent:Connect(function(inventory)
+			currentInventory = inventory
 			UIController.UpdateInventoryPanel(inventory)
+			UIController.UpdatePotionHotbar(inventory)
 		end)
 	end
+
+	-- Wire potion hotbar click handlers
+	task.defer(function()
+		local potionBar = hud:FindFirstChild("PotionBar")
+		if potionBar then
+			for i = 1, 4 do
+				local slot = potionBar:FindFirstChild("Potion" .. i)
+				if slot then
+					local slotIndex = i
+					slot.MouseButton1Click:Connect(function()
+						UIController.UsePotionSlot(slotIndex)
+					end)
+				end
+			end
+		end
+	end)
 
 	-- Tab to toggle stat panel, E to toggle inventory
 	UserInputService.InputBegan:Connect(function(input, gameProcessed)
@@ -1253,6 +1273,105 @@ function UIController.CreatePotionShopUI()
 		end)
 
 		yOffset = yOffset + 78
+	end
+end
+
+-- ===== POTION HOTBAR =====
+
+function UIController.UpdatePotionHotbar(inventory)
+	local potionBar = hud:FindFirstChild("PotionBar")
+	if not potionBar then return end
+
+	-- Gather potions from inventory with their indices
+	local potions = {}
+	for i, item in ipairs(inventory) do
+		if item.Type == "Potion" then
+			table.insert(potions, { inventoryIndex = i, item = item })
+		end
+	end
+
+	-- Assign first 4 potions to hotbar slots
+	for i = 1, 4 do
+		local slot = potionBar:FindFirstChild("Potion" .. i)
+		if not slot then continue end
+
+		local icon = slot:FindFirstChild("Icon")
+		local label = slot:FindFirstChild("Label")
+		local border = slot:FindFirstChild("Border")
+		local keyLabel = slot:FindFirstChild("Key")
+
+		local potionEntry = potions[i]
+
+		if potionEntry then
+			potionSlotData[i] = potionEntry
+			local item = potionEntry.item
+			local color = Color3.fromRGB(item.Color[1] or 255, item.Color[2] or 255, item.Color[3] or 255)
+
+			if icon then
+				icon.BackgroundColor3 = color
+				icon.BackgroundTransparency = 0
+			end
+			if label then
+				-- Short name (e.g., "Health" from "Health Potion")
+				local shortName = string.gsub(item.Name, " Potion", "")
+				label.Text = shortName
+				label.TextColor3 = color
+			end
+			if border then
+				border.Color = color
+				border.Thickness = 2
+			end
+			if keyLabel then
+				keyLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+			end
+			slot.BackgroundColor3 = Color3.fromRGB(35, 30, 48)
+		else
+			-- Empty slot
+			potionSlotData[i] = nil
+
+			if icon then
+				icon.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+				icon.BackgroundTransparency = 0.6
+			end
+			if label then
+				label.Text = ""
+				label.TextColor3 = Color3.fromRGB(150, 150, 150)
+			end
+			if border then
+				border.Color = Color3.fromRGB(80, 70, 100)
+				border.Thickness = 1
+			end
+			if keyLabel then
+				keyLabel.TextColor3 = Color3.fromRGB(120, 120, 120)
+			end
+			slot.BackgroundColor3 = Color3.fromRGB(40, 35, 50)
+		end
+	end
+end
+
+function UIController.UsePotionSlot(slotIndex)
+	local data = potionSlotData[slotIndex]
+	if not data then return end
+
+	local usePotionRemote = Remotes:GetFunction("UsePotion")
+	if not usePotionRemote then return end
+
+	local result = usePotionRemote:InvokeServer(data.inventoryIndex)
+	if result and result.success then
+		-- Flash the slot green briefly
+		local potionBar = hud:FindFirstChild("PotionBar")
+		if potionBar then
+			local slot = potionBar:FindFirstChild("Potion" .. slotIndex)
+			if slot then
+				slot.BackgroundColor3 = Color3.fromRGB(50, 200, 80)
+				task.delay(0.3, function()
+					if slot.Parent then
+						slot.BackgroundColor3 = Color3.fromRGB(40, 35, 50)
+					end
+				end)
+			end
+		end
+		-- Inventory update will come from server via InventoryUpdated remote
 	end
 end
 

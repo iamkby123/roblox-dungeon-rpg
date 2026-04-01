@@ -31,10 +31,10 @@ hud.Parent = player:WaitForChild("PlayerGui")
 
 -- Initialize all controllers
 SkillController.Init()
-InputController.Init(SkillController)
 DamageNumbers.Init()
 CombatController.Init(hud)
 UIController.Init(hud, SkillController)
+InputController.Init(SkillController, UIController)
 ViewmodelController.Init(SkillController)
 FootstepController.Init()
 StatsWindow.Init()
