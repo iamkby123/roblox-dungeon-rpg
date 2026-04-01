@@ -13,8 +13,12 @@ local currentWeaponId = nil
 local initialized = false
 
 -- Direct part references (no FindFirstChild each frame)
-local armParts = {}   -- all arm/hand/wrap parts for positioning
+local armPart = nil
+local handPart = nil
 local gripPart = nil
+
+-- Arm gear overlay parts
+local armGearParts = {}
 
 -- Viewmodel offset from camera (right side, slightly down and forward)
 local BASE_OFFSET = CFrame.new(1.5, -1.4, -2.2)
@@ -39,7 +43,7 @@ local IDLE_AMOUNT = 0.015
 ----------------------------------------------------------------------
 -- Helper: create a Part with common viewmodel properties
 ----------------------------------------------------------------------
-local function mp(name, size, color, material, parent)
+local function makePart(name, size, color, material, parent)
 	local p = Instance.new("Part")
 	p.Name = name
 	p.Size = size
@@ -55,65 +59,82 @@ local function mp(name, size, color, material, parent)
 end
 
 ----------------------------------------------------------------------
--- COLOR PALETTE — dungeon / assassin theme
-----------------------------------------------------------------------
-local SKIN           = Color3.fromRGB(215, 175, 135)
-local LEATHER_DARK   = Color3.fromRGB(45, 30, 18)
-local LEATHER_MED    = Color3.fromRGB(70, 48, 28)
-local LEATHER_WORN   = Color3.fromRGB(90, 65, 38)
-local WRAP_LINEN     = Color3.fromRGB(160, 145, 120)
-local WRAP_DIRTY     = Color3.fromRGB(130, 118, 95)
-local BUCKLE_IRON    = Color3.fromRGB(95, 90, 82)
-local STITCH_DARK    = Color3.fromRGB(55, 40, 25)
-
-----------------------------------------------------------------------
--- Build the arm + hand — Assassin's Creed inspired
+-- Build the arm + hand
 ----------------------------------------------------------------------
 local function createArmModel(parent)
 	local model = Instance.new("Model")
 	model.Name = "Viewmodel"
 
-	-- === FOREARM ===
-	-- Main forearm (skin visible between wraps)
-	armParts.Forearm = mp("Forearm", Vector3.new(0.95, 0.95, 2.8), SKIN, Enum.Material.SmoothPlastic, model)
+	local skin = Color3.fromRGB(245, 205, 160)
+	local bandageColor = Color3.fromRGB(195, 180, 155)
+	local bandageDirty = Color3.fromRGB(170, 155, 130)
+	local leatherColor = Color3.fromRGB(75, 50, 30)
+	local leatherDark = Color3.fromRGB(55, 35, 20)
+	local metalColor = Color3.fromRGB(120, 110, 95)
+	local stitchColor = Color3.fromRGB(100, 85, 65)
 
-	-- === LEATHER BRACER (upper forearm, AC-style vambrace) ===
-	-- Main bracer shell — dark leather wrapping the upper forearm
-	armParts.BracerBase = mp("BracerBase", Vector3.new(1.08, 1.08, 1.4), LEATHER_DARK, Enum.Material.Leather, model)
-	-- Bracer top plate — slightly raised, worn leather
-	armParts.BracerPlate = mp("BracerPlate", Vector3.new(0.9, 0.25, 1.2), LEATHER_MED, Enum.Material.Leather, model)
-	-- Bracer stitching lines (thin strips across the bracer)
-	armParts.BracerStitch1 = mp("BracerStitch1", Vector3.new(1.1, 0.06, 0.12), STITCH_DARK, Enum.Material.Fabric, model)
-	armParts.BracerStitch2 = mp("BracerStitch2", Vector3.new(1.1, 0.06, 0.12), STITCH_DARK, Enum.Material.Fabric, model)
-	armParts.BracerStitch3 = mp("BracerStitch3", Vector3.new(1.1, 0.06, 0.12), STITCH_DARK, Enum.Material.Fabric, model)
-	-- Iron buckle/clasp on the bracer
-	armParts.Buckle1 = mp("Buckle1", Vector3.new(0.35, 0.15, 0.2), BUCKLE_IRON, Enum.Material.Metal, model)
-	armParts.Buckle2 = mp("Buckle2", Vector3.new(0.35, 0.15, 0.2), BUCKLE_IRON, Enum.Material.Metal, model)
-	-- Thin leather strap loops through buckles
-	armParts.Strap1 = mp("Strap1", Vector3.new(1.15, 0.08, 0.15), LEATHER_WORN, Enum.Material.Leather, model)
-	armParts.Strap2 = mp("Strap2", Vector3.new(1.15, 0.08, 0.15), LEATHER_WORN, Enum.Material.Leather, model)
+	-- Base arm and hand (same square shape)
+	armPart = makePart("Arm", Vector3.new(1, 1, 2.8), skin, Enum.Material.SmoothPlastic, model)
+	handPart = makePart("Hand", Vector3.new(1.1, 1.1, 0.9), skin, Enum.Material.SmoothPlastic, model)
 
-	-- === LINEN WRAPS (lower forearm to wrist, layered and crisscrossed) ===
-	-- Multiple angled wrap strips for layered look
-	armParts.WrapA = mp("WrapA", Vector3.new(1.02, 0.12, 0.7), WRAP_LINEN, Enum.Material.Fabric, model)
-	armParts.WrapB = mp("WrapB", Vector3.new(1.02, 0.12, 0.6), WRAP_DIRTY, Enum.Material.Fabric, model)
-	armParts.WrapC = mp("WrapC", Vector3.new(1.02, 0.12, 0.5), WRAP_LINEN, Enum.Material.Fabric, model)
-	armParts.WrapD = mp("WrapD", Vector3.new(1.02, 0.12, 0.55), WRAP_DIRTY, Enum.Material.Fabric, model)
-	-- Diagonal cross-wrap accent
-	armParts.CrossWrap = mp("CrossWrap", Vector3.new(0.15, 1.05, 0.6), WRAP_DIRTY, Enum.Material.Fabric, model)
+	-- ===== ARM GEAR: Bandages, bracer, and wrappings =====
+	armGearParts = {}
 
-	-- === HAND ===
-	armParts.Hand = mp("Hand", Vector3.new(0.95, 0.88, 0.85), SKIN, Enum.Material.SmoothPlastic, model)
-	-- Fingerless glove layer on the hand
-	armParts.GloveBase = mp("GloveBase", Vector3.new(0.98, 0.82, 0.6), LEATHER_DARK, Enum.Material.Leather, model)
-	-- Exposed knuckles (skin showing through fingerless glove)
-	armParts.Knuckles = mp("Knuckles", Vector3.new(0.85, 0.22, 0.15), SKIN, Enum.Material.SmoothPlastic, model)
-	-- Knuckle wrap (thin linen over knuckles for protection)
-	armParts.KnuckleWrap = mp("KnuckleWrap", Vector3.new(0.88, 0.1, 0.18), WRAP_LINEN, Enum.Material.Fabric, model)
-	-- Thumb guard (small leather strip)
-	armParts.ThumbGuard = mp("ThumbGuard", Vector3.new(0.2, 0.3, 0.4), LEATHER_MED, Enum.Material.Leather, model)
+	-- Forearm bandage wraps (overlapping strips at slight angles)
+	armGearParts.BandageWrap1 = makePart("BandageWrap1", Vector3.new(1.08, 1.08, 0.2), bandageColor, Enum.Material.Fabric, model)
+	armGearParts.BandageWrap2 = makePart("BandageWrap2", Vector3.new(1.08, 1.08, 0.2), bandageDirty, Enum.Material.Fabric, model)
+	armGearParts.BandageWrap3 = makePart("BandageWrap3", Vector3.new(1.08, 1.08, 0.2), bandageColor, Enum.Material.Fabric, model)
+	armGearParts.BandageWrap4 = makePart("BandageWrap4", Vector3.new(1.08, 1.08, 0.2), bandageDirty, Enum.Material.Fabric, model)
+	armGearParts.BandageWrap5 = makePart("BandageWrap5", Vector3.new(1.08, 1.08, 0.2), bandageColor, Enum.Material.Fabric, model)
 
-	-- === GRIP POINT (invisible) ===
+	-- Loose bandage tail (hangs off the wrist area)
+	armGearParts.BandageTail = makePart("BandageTail", Vector3.new(0.12, 0.08, 0.6), bandageColor, Enum.Material.Fabric, model)
+
+	-- Leather bracer (worn arm guard over the bandages)
+	armGearParts.Bracer = makePart("Bracer", Vector3.new(1.12, 1.12, 1.0), leatherColor, Enum.Material.Leather, model)
+	-- Bracer edge trim (darker leather lip at each end)
+	armGearParts.BracerTrimA = makePart("BracerTrimA", Vector3.new(1.15, 1.15, 0.08), leatherDark, Enum.Material.Leather, model)
+	armGearParts.BracerTrimB = makePart("BracerTrimB", Vector3.new(1.15, 1.15, 0.08), leatherDark, Enum.Material.Leather, model)
+	-- Bracer buckle strap
+	armGearParts.BracerStrap = makePart("BracerStrap", Vector3.new(1.18, 0.08, 0.2), leatherDark, Enum.Material.Leather, model)
+	-- Small metal buckle on the strap
+	armGearParts.Buckle = makePart("Buckle", Vector3.new(1.2, 0.15, 0.15), metalColor, Enum.Material.Metal, model)
+
+	-- Stitch detail lines on bracer (thin dark strips)
+	armGearParts.Stitch1 = makePart("Stitch1", Vector3.new(1.13, 0.04, 0.04), stitchColor, Enum.Material.Fabric, model)
+	armGearParts.Stitch2 = makePart("Stitch2", Vector3.new(1.13, 0.04, 0.04), stitchColor, Enum.Material.Fabric, model)
+
+	-- ===== HAND GEAR: Fingerless glove wraps =====
+	-- Knuckle guard (thin leather strip across top of hand)
+	armGearParts.KnuckleGuard = makePart("KnuckleGuard", Vector3.new(0.06, 1.15, 0.35), leatherColor, Enum.Material.Leather, model)
+	-- Hand bandage wraps (two crossing the palm area)
+	armGearParts.HandWrap1 = makePart("HandWrap1", Vector3.new(1.15, 1.15, 0.12), bandageColor, Enum.Material.Fabric, model)
+	armGearParts.HandWrap2 = makePart("HandWrap2", Vector3.new(1.15, 1.15, 0.12), bandageDirty, Enum.Material.Fabric, model)
+	-- Wrist cuff (transition from arm to hand)
+	armGearParts.WristCuff = makePart("WristCuff", Vector3.new(1.16, 1.16, 0.15), leatherDark, Enum.Material.Leather, model)
+	-- Metal wrist stud (small decorative rivet)
+	armGearParts.WristStud = makePart("WristStud", Vector3.new(1.18, 0.12, 0.12), metalColor, Enum.Material.Metal, model)
+
+	-- ===== ADDITIONAL ARM GEAR DETAILS =====
+	-- Finger wraps (3 thin fabric rings on the hand)
+	armGearParts.FingerWrap1 = makePart("FingerWrap1", Vector3.new(1.14, 0.25, 0.06), bandageColor, Enum.Material.Fabric, model)
+	armGearParts.FingerWrap2 = makePart("FingerWrap2", Vector3.new(1.14, 0.25, 0.06), bandageDirty, Enum.Material.Fabric, model)
+	armGearParts.FingerWrap3 = makePart("FingerWrap3", Vector3.new(1.14, 0.25, 0.06), bandageColor, Enum.Material.Fabric, model)
+	-- Scar mark (thin dark line on skin between bandages)
+	armGearParts.ScarMark = makePart("ScarMark", Vector3.new(1.02, 0.03, 0.18), Color3.fromRGB(180, 140, 110), Enum.Material.SmoothPlastic, model)
+	-- Leather pad (small square pad on the back of the hand)
+	armGearParts.LeatherPad = makePart("LeatherPad", Vector3.new(0.06, 0.4, 0.35), leatherColor, Enum.Material.Leather, model)
+	-- Arm ring (thin metal band above the bracer)
+	armGearParts.ArmRing = makePart("ArmRing", Vector3.new(1.14, 1.14, 0.06), metalColor, Enum.Material.Metal, model)
+	-- Torn bandage (second loose bandage end, different angle)
+	armGearParts.TornBandage = makePart("TornBandage", Vector3.new(0.1, 0.06, 0.5), bandageDirty, Enum.Material.Fabric, model)
+	-- Vein ridge (very thin raised line along inner arm, subtle)
+	armGearParts.VeinRidge = makePart("VeinRidge", Vector3.new(1.01, 0.02, 1.2), Color3.fromRGB(220, 175, 140), Enum.Material.SmoothPlastic, model)
+	-- Thumb guard (small leather nub on hand side)
+	armGearParts.ThumbGuard = makePart("ThumbGuard", Vector3.new(0.15, 0.18, 0.2), leatherColor, Enum.Material.Leather, model)
+	-- Nail detail (tiny dark square on top knuckle area)
+	armGearParts.NailDetail = makePart("NailDetail", Vector3.new(0.06, 0.14, 0.1), Color3.fromRGB(200, 170, 135), Enum.Material.SmoothPlastic, model)
+
 	gripPart = Instance.new("Part")
 	gripPart.Name = "Grip"
 	gripPart.Size = Vector3.new(0.1, 0.1, 0.1)
@@ -124,196 +145,200 @@ local function createArmModel(parent)
 	gripPart.CanTouch = false
 	gripPart.Parent = model
 
-	model.PrimaryPart = armParts.Forearm
+	model.PrimaryPart = armPart
 	model.Parent = parent
 	return model
 end
 
 ----------------------------------------------------------------------
--- Position arm parts relative to the base CFrame each frame
+-- Weapon builders — each returns { model, parts = {name=Part} }
 ----------------------------------------------------------------------
-local function positionArm(finalCF)
-	local p = armParts
-
-	-- Forearm
-	p.Forearm.CFrame = finalCF
-
-	-- Bracer (upper forearm area, z ~ +0.4 to +1.1 from center)
-	local bracerCF = finalCF * CFrame.new(0, 0, 0.7)
-	p.BracerBase.CFrame = bracerCF
-	p.BracerPlate.CFrame = bracerCF * CFrame.new(0, 0.55, 0) -- on top
-	p.BracerStitch1.CFrame = bracerCF * CFrame.new(0, 0, -0.4)
-	p.BracerStitch2.CFrame = bracerCF * CFrame.new(0, 0, 0)
-	p.BracerStitch3.CFrame = bracerCF * CFrame.new(0, 0, 0.4)
-	p.Buckle1.CFrame = bracerCF * CFrame.new(0, 0.55, -0.3)
-	p.Buckle2.CFrame = bracerCF * CFrame.new(0, 0.55, 0.3)
-	p.Strap1.CFrame = bracerCF * CFrame.new(0, 0.42, -0.3)
-	p.Strap2.CFrame = bracerCF * CFrame.new(0, 0.42, 0.3)
-
-	-- Linen wraps (lower forearm, z ~ -0.2 to -1.0)
-	local wristArea = finalCF * CFrame.new(0, 0, -0.5)
-	p.WrapA.CFrame = wristArea * CFrame.new(0, 0.35, 0.15)
-	p.WrapB.CFrame = wristArea * CFrame.new(0, -0.35, 0.05)
-	p.WrapC.CFrame = wristArea * CFrame.new(0, 0.15, -0.2)
-	p.WrapD.CFrame = wristArea * CFrame.new(0, -0.15, -0.35)
-	p.CrossWrap.CFrame = wristArea * CFrame.Angles(0, 0, math.rad(35)) * CFrame.new(0.1, 0, -0.1)
-
-	-- Hand
-	local handCF = finalCF * CFrame.new(0, 0, -1.85)
-	p.Hand.CFrame = handCF
-	p.GloveBase.CFrame = handCF * CFrame.new(0, -0.02, 0.1)
-	p.Knuckles.CFrame = handCF * CFrame.new(0, 0.25, -0.3)
-	p.KnuckleWrap.CFrame = handCF * CFrame.new(0, 0.32, -0.3)
-	p.ThumbGuard.CFrame = handCF * CFrame.new(0.45, 0, 0.05)
-end
-
-----------------------------------------------------------------------
--- WEAPON BUILDERS — detailed dungeon-themed models
-----------------------------------------------------------------------
-
--- ======================== SWORD ========================
--- Worn iron longsword: leather-wrapped grip, iron crossguard, fuller in blade
 local function buildSword(parent)
 	local m = Instance.new("Model"); m.Name = "Weapon_Sword"
 	local parts = {}
-
-	-- Pommel (round iron cap at base)
-	parts.Pommel = mp("Pommel", Vector3.new(0.35, 0.35, 0.25), Color3.fromRGB(80, 75, 68), Enum.Material.Metal, m)
-	-- Grip (leather-wrapped handle)
-	parts.Grip = mp("Grip", Vector3.new(0.22, 0.22, 1.1), LEATHER_DARK, Enum.Material.Leather, m)
-	-- Grip wrap spirals (thin leather strips wound around grip)
-	parts.GripWrap1 = mp("GripWrap1", Vector3.new(0.26, 0.08, 0.18), LEATHER_WORN, Enum.Material.Leather, m)
-	parts.GripWrap2 = mp("GripWrap2", Vector3.new(0.26, 0.08, 0.18), LEATHER_WORN, Enum.Material.Leather, m)
-	parts.GripWrap3 = mp("GripWrap3", Vector3.new(0.26, 0.08, 0.18), LEATHER_WORN, Enum.Material.Leather, m)
-	parts.GripWrap4 = mp("GripWrap4", Vector3.new(0.26, 0.08, 0.18), LEATHER_WORN, Enum.Material.Leather, m)
-	-- Crossguard (iron, slightly curved)
-	parts.Guard = mp("Guard", Vector3.new(0.25, 1.4, 0.2), Color3.fromRGB(90, 85, 75), Enum.Material.Metal, m)
-	-- Guard ends (flared tips)
-	parts.GuardTipL = mp("GuardTipL", Vector3.new(0.2, 0.25, 0.25), Color3.fromRGB(85, 80, 72), Enum.Material.Metal, m)
-	parts.GuardTipR = mp("GuardTipR", Vector3.new(0.2, 0.25, 0.25), Color3.fromRGB(85, 80, 72), Enum.Material.Metal, m)
-	-- Blade (wide base, tapered)
-	parts.Blade = mp("Blade", Vector3.new(0.12, 0.35, 3.0), Color3.fromRGB(180, 180, 190), Enum.Material.Metal, m)
-	-- Fuller (groove running down the blade center)
-	parts.Fuller = mp("Fuller", Vector3.new(0.14, 0.1, 2.4), Color3.fromRGB(140, 140, 155), Enum.Material.Metal, m)
-	-- Blade tip (narrower point)
-	parts.BladeTip = mp("BladeTip", Vector3.new(0.1, 0.2, 0.6), Color3.fromRGB(190, 190, 200), Enum.Material.Metal, m)
-	-- Blood/rust stain near base (worn detail)
-	parts.RustStain = mp("RustStain", Vector3.new(0.13, 0.15, 0.5), Color3.fromRGB(120, 70, 50), Enum.Material.CorrodedMetal, m)
-
-	m.PrimaryPart = parts.Grip
+	-- Pommel (rounded end-cap)
+	parts.Pommel = makePart("Pommel", Vector3.new(0.35, 0.35, 0.25), Color3.fromRGB(160, 140, 40), Enum.Material.Metal, m)
+	-- Pommel Gem (tiny red neon ball inset in pommel)
+	parts.PommelGem = makePart("PommelGem", Vector3.new(0.14, 0.14, 0.14), Color3.fromRGB(220, 30, 30), Enum.Material.Neon, m)
+	parts.PommelGem.Shape = Enum.PartType.Ball
+	-- Leather-wrapped grip
+	parts.Handle = makePart("Handle", Vector3.new(0.22, 0.22, 1.0), Color3.fromRGB(70, 40, 20), Enum.Material.Fabric, m)
+	-- Leather wrapping strips (3 rings around the handle)
+	parts.Wrap1 = makePart("Wrap1", Vector3.new(0.28, 0.28, 0.08), Color3.fromRGB(50, 30, 15), Enum.Material.Fabric, m)
+	parts.Wrap2 = makePart("Wrap2", Vector3.new(0.28, 0.28, 0.08), Color3.fromRGB(50, 30, 15), Enum.Material.Fabric, m)
+	parts.Wrap3 = makePart("Wrap3", Vector3.new(0.28, 0.28, 0.08), Color3.fromRGB(50, 30, 15), Enum.Material.Fabric, m)
+	-- Crossguard (ornate, wider with swept ends)
+	parts.Guard = makePart("Guard", Vector3.new(0.25, 1.4, 0.3), Color3.fromRGB(180, 160, 50), Enum.Material.Metal, m)
+	parts.GuardTipL = makePart("GuardTipL", Vector3.new(0.2, 0.25, 0.2), Color3.fromRGB(200, 180, 60), Enum.Material.Metal, m)
+	parts.GuardTipR = makePart("GuardTipR", Vector3.new(0.2, 0.25, 0.2), Color3.fromRGB(200, 180, 60), Enum.Material.Metal, m)
+	-- Guard gem (small inset jewel)
+	parts.GuardGem = makePart("GuardGem", Vector3.new(0.12, 0.12, 0.12), Color3.fromRGB(200, 40, 40), Enum.Material.Neon, m)
+	-- Rain Guard (small leather disc below the guard)
+	parts.RainGuard = makePart("RainGuard", Vector3.new(0.2, 0.6, 0.1), Color3.fromRGB(80, 50, 25), Enum.Material.Leather, m)
+	-- Ricasso (unsharpened section between guard and blade, slightly wider than blade)
+	parts.Ricasso = makePart("Ricasso", Vector3.new(0.16, 0.4, 0.5), Color3.fromRGB(190, 190, 205), Enum.Material.Metal, m)
+	-- Blade (main body, tapered feel via two overlapping parts)
+	parts.Blade = makePart("Blade", Vector3.new(0.15, 0.35, 2.6), Color3.fromRGB(200, 200, 215), Enum.Material.Metal, m)
+	-- Blade edge strips (thin bright edges on each side)
+	parts.EdgeL = makePart("EdgeL", Vector3.new(0.08, 0.04, 2.4), Color3.fromRGB(230, 230, 240), Enum.Material.Metal, m)
+	parts.EdgeR = makePart("EdgeR", Vector3.new(0.08, 0.04, 2.4), Color3.fromRGB(230, 230, 240), Enum.Material.Metal, m)
+	-- Fuller (groove down center of blade)
+	parts.Fuller = makePart("Fuller", Vector3.new(0.16, 0.08, 1.8), Color3.fromRGB(150, 150, 165), Enum.Material.Metal, m)
+	-- Blood Groove detail (second fuller line, thinner, offset)
+	parts.BloodGroove = makePart("BloodGroove", Vector3.new(0.16, 0.04, 1.4), Color3.fromRGB(140, 140, 155), Enum.Material.Metal, m)
+	-- Engraving line (thin bright neon strip along one blade edge, subtle rune glow)
+	parts.Engraving = makePart("Engraving", Vector3.new(0.06, 0.02, 2.0), Color3.fromRGB(180, 200, 255), Enum.Material.Neon, m)
+	-- Blade Taper (second narrower blade segment before the tip for gradual tapering)
+	parts.BladeTaper = makePart("BladeTaper", Vector3.new(0.12, 0.28, 0.8), Color3.fromRGB(205, 205, 220), Enum.Material.Metal, m)
+	-- Blade tip (narrower end piece)
+	parts.BladeTip = makePart("BladeTip", Vector3.new(0.1, 0.25, 0.6), Color3.fromRGB(210, 210, 225), Enum.Material.Metal, m)
+	m.PrimaryPart = parts.Handle
 	m.Parent = parent
 	return { model = m, parts = parts }
 end
 
--- ======================== STAFF ========================
--- Gnarled darkwood staff: twisted top cradling a fire orb, rune bands
 local function buildStaff(parent)
 	local m = Instance.new("Model"); m.Name = "Weapon_Staff"
 	local parts = {}
-
-	-- Main shaft (slightly tapered, dark wood)
-	parts.Shaft = mp("Shaft", Vector3.new(0.3, 0.3, 4.2), Color3.fromRGB(55, 35, 20), Enum.Material.Wood, m)
-	-- Bark texture rings (periodic knots in the wood)
-	parts.Knot1 = mp("Knot1", Vector3.new(0.38, 0.38, 0.15), Color3.fromRGB(45, 28, 15), Enum.Material.Wood, m)
-	parts.Knot2 = mp("Knot2", Vector3.new(0.36, 0.36, 0.15), Color3.fromRGB(48, 30, 18), Enum.Material.Wood, m)
-	-- Rune band (iron ring with faint glow near top)
-	parts.RuneBand = mp("RuneBand", Vector3.new(0.38, 0.38, 0.12), Color3.fromRGB(80, 75, 68), Enum.Material.Metal, m)
-	parts.RuneGlow = mp("RuneGlow", Vector3.new(0.4, 0.4, 0.06), Color3.fromRGB(255, 100, 20), Enum.Material.Neon, m)
-	-- Prong cradle (two twisted branches holding the orb)
-	parts.ProngL = mp("ProngL", Vector3.new(0.12, 0.12, 0.9), Color3.fromRGB(50, 32, 18), Enum.Material.Wood, m)
-	parts.ProngR = mp("ProngR", Vector3.new(0.12, 0.12, 0.9), Color3.fromRGB(50, 32, 18), Enum.Material.Wood, m)
-	-- Fire orb (glowing magical core)
-	parts.Orb = mp("Orb", Vector3.new(0.65, 0.65, 0.65), Color3.fromRGB(255, 110, 20), Enum.Material.Neon, m)
+	-- Foot Cap (metal endcap at the very bottom)
+	parts.FootCap = makePart("FootCap", Vector3.new(0.38, 0.38, 0.15), Color3.fromRGB(100, 90, 70), Enum.Material.Metal, m)
+	-- Shaft base (darker wood at the bottom)
+	parts.ShaftBase = makePart("ShaftBase", Vector3.new(0.35, 0.35, 1.2), Color3.fromRGB(60, 35, 20), Enum.Material.Wood, m)
+	-- Main shaft
+	parts.Shaft = makePart("Shaft", Vector3.new(0.28, 0.28, 3.0), Color3.fromRGB(80, 50, 30), Enum.Material.Wood, m)
+	-- Bark Ridges (2 thin dark wood strips spiraling the shaft)
+	parts.BarkRidge1 = makePart("BarkRidge1", Vector3.new(0.06, 0.3, 0.12), Color3.fromRGB(45, 28, 15), Enum.Material.Wood, m)
+	parts.BarkRidge2 = makePart("BarkRidge2", Vector3.new(0.06, 0.3, 0.12), Color3.fromRGB(45, 28, 15), Enum.Material.Wood, m)
+	-- Decorative rings along the shaft
+	parts.Ring1 = makePart("Ring1", Vector3.new(0.38, 0.38, 0.1), Color3.fromRGB(140, 100, 30), Enum.Material.Metal, m)
+	parts.Ring2 = makePart("Ring2", Vector3.new(0.38, 0.38, 0.1), Color3.fromRGB(140, 100, 30), Enum.Material.Metal, m)
+	parts.Ring3 = makePart("Ring3", Vector3.new(0.38, 0.38, 0.1), Color3.fromRGB(140, 100, 30), Enum.Material.Metal, m)
+	-- Rune Band (glowing neon ring near the head)
+	parts.RuneBand = makePart("RuneBand", Vector3.new(0.36, 0.36, 0.08), Color3.fromRGB(255, 160, 50), Enum.Material.Neon, m)
+	-- Head cradle (twisted metal prongs holding the orb)
+	parts.ProngL = makePart("ProngL", Vector3.new(0.08, 0.08, 0.7), Color3.fromRGB(120, 80, 25), Enum.Material.Metal, m)
+	parts.ProngR = makePart("ProngR", Vector3.new(0.08, 0.08, 0.7), Color3.fromRGB(120, 80, 25), Enum.Material.Metal, m)
+	parts.ProngF = makePart("ProngF", Vector3.new(0.08, 0.08, 0.7), Color3.fromRGB(120, 80, 25), Enum.Material.Metal, m)
+	-- ProngBack (4th prong cradling orb from behind)
+	parts.ProngBack = makePart("ProngBack", Vector3.new(0.08, 0.08, 0.7), Color3.fromRGB(120, 80, 25), Enum.Material.Metal, m)
+	-- Main orb (fire element)
+	parts.Orb = makePart("Orb", Vector3.new(0.7, 0.7, 0.7), Color3.fromRGB(255, 120, 30), Enum.Material.Neon, m)
 	parts.Orb.Shape = Enum.PartType.Ball
-	local orbLight = Instance.new("PointLight")
-	orbLight.Color = Color3.fromRGB(255, 120, 30); orbLight.Brightness = 0.5; orbLight.Range = 5
-	orbLight.Parent = parts.Orb
-	parts._orbLight = orbLight
-	-- Inner ember (smaller bright core inside orb)
-	parts.Ember = mp("Ember", Vector3.new(0.3, 0.3, 0.3), Color3.fromRGB(255, 200, 80), Enum.Material.Neon, m)
-	parts.Ember.Shape = Enum.PartType.Ball
-	-- Leather grip wrap at holding point
-	parts.GripWrap = mp("GripWrap", Vector3.new(0.34, 0.34, 0.8), LEATHER_DARK, Enum.Material.Leather, m)
-	-- Base cap (iron ferrule)
-	parts.Ferrule = mp("Ferrule", Vector3.new(0.28, 0.28, 0.2), Color3.fromRGB(75, 70, 62), Enum.Material.Metal, m)
-
+	-- Inner orb core (brighter, smaller)
+	parts.OrbCore = makePart("OrbCore", Vector3.new(0.35, 0.35, 0.35), Color3.fromRGB(255, 200, 80), Enum.Material.Neon, m)
+	parts.OrbCore.Shape = Enum.PartType.Ball
+	-- Particle ember ring around orb
+	local light = Instance.new("PointLight")
+	light.Color = Color3.fromRGB(255, 120, 30)
+	light.Brightness = 0.8; light.Range = 6
+	light.Parent = parts.Orb
+	parts._light = light
+	local fire = Instance.new("Fire")
+	fire.Size = 1.5; fire.Heat = 3; fire.Color = Color3.fromRGB(255, 160, 40)
+	fire.SecondaryColor = Color3.fromRGB(255, 80, 10)
+	fire.Parent = parts.Orb
+	parts._fire = fire
+	-- Ember Particles (ParticleEmitter on orb with small orange sparks)
+	local embers = Instance.new("ParticleEmitter")
+	embers.Color = ColorSequence.new(Color3.fromRGB(255, 140, 30), Color3.fromRGB(255, 60, 10))
+	embers.Size = NumberSequence.new(0.08, 0)
+	embers.Lifetime = NumberRange.new(0.4, 0.9)
+	embers.Rate = 15
+	embers.Speed = NumberRange.new(0.5, 1.5)
+	embers.SpreadAngle = Vector2.new(40, 40)
+	embers.LightEmission = 1
+	embers.Parent = parts.Orb
+	parts._embers = embers
 	m.PrimaryPart = parts.Shaft
 	m.Parent = parent
 	return { model = m, parts = parts }
 end
 
--- ======================== WAND ========================
--- Carved bone wand: etched handle, caged crystal tip, sinew wraps
 local function buildWand(parent)
 	local m = Instance.new("Model"); m.Name = "Weapon_Wand"
 	local parts = {}
-
-	-- Main shaft (carved bone)
-	parts.Shaft = mp("Shaft", Vector3.new(0.18, 0.18, 2.0), Color3.fromRGB(220, 215, 200), Enum.Material.Marble, m)
-	-- Bone ridges (carved notches along the shaft)
-	parts.Ridge1 = mp("Ridge1", Vector3.new(0.22, 0.22, 0.08), Color3.fromRGB(200, 195, 180), Enum.Material.Marble, m)
-	parts.Ridge2 = mp("Ridge2", Vector3.new(0.22, 0.22, 0.08), Color3.fromRGB(200, 195, 180), Enum.Material.Marble, m)
-	parts.Ridge3 = mp("Ridge3", Vector3.new(0.22, 0.22, 0.08), Color3.fromRGB(200, 195, 180), Enum.Material.Marble, m)
-	-- Sinew wrap at grip (dried gut wrapping for hold)
-	parts.SinewWrap = mp("SinewWrap", Vector3.new(0.22, 0.22, 0.6), Color3.fromRGB(145, 120, 85), Enum.Material.Fabric, m)
-	-- Cage prongs (bone fingers cradling the crystal)
-	parts.CageA = mp("CageA", Vector3.new(0.06, 0.06, 0.5), Color3.fromRGB(210, 205, 190), Enum.Material.Marble, m)
-	parts.CageB = mp("CageB", Vector3.new(0.06, 0.06, 0.5), Color3.fromRGB(210, 205, 190), Enum.Material.Marble, m)
-	parts.CageC = mp("CageC", Vector3.new(0.06, 0.06, 0.5), Color3.fromRGB(210, 205, 190), Enum.Material.Marble, m)
-	-- Crystal (healing energy core)
-	parts.Crystal = mp("Crystal", Vector3.new(0.3, 0.3, 0.45), Color3.fromRGB(40, 255, 90), Enum.Material.Neon, m)
-	local crystalLight = Instance.new("PointLight")
-	crystalLight.Color = Color3.fromRGB(50, 255, 100); crystalLight.Brightness = 0.4; crystalLight.Range = 4
-	crystalLight.Parent = parts.Crystal
-	parts._crystalLight = crystalLight
-	-- Crystal haze (faint glow shell)
-	parts.CrystalHaze = mp("CrystalHaze", Vector3.new(0.5, 0.5, 0.5), Color3.fromRGB(40, 255, 90), Enum.Material.Neon, m)
-	parts.CrystalHaze.Shape = Enum.PartType.Ball
-	parts.CrystalHaze.Transparency = 0.75
-	-- Base end cap
-	parts.EndCap = mp("EndCap", Vector3.new(0.22, 0.22, 0.1), Color3.fromRGB(180, 175, 160), Enum.Material.Marble, m)
-
-	m.PrimaryPart = parts.Shaft
+	-- Grip Pommel (small bone knob at base)
+	parts.GripPommel = makePart("GripPommel", Vector3.new(0.22, 0.22, 0.12), Color3.fromRGB(210, 205, 195), Enum.Material.SmoothPlastic, m)
+	-- Handle grip (wrapped in cloth)
+	parts.Grip = makePart("Grip", Vector3.new(0.18, 0.18, 0.7), Color3.fromRGB(60, 40, 80), Enum.Material.Fabric, m)
+	-- Bone Joint (thicker ring where grip meets stick, like a knuckle)
+	parts.BoneJoint = makePart("BoneJoint", Vector3.new(0.22, 0.22, 0.1), Color3.fromRGB(220, 215, 205), Enum.Material.SmoothPlastic, m)
+	-- Main stick body (bone-white with slight curve implied by taper)
+	parts.Stick = makePart("Stick", Vector3.new(0.15, 0.15, 1.6), Color3.fromRGB(230, 230, 240), Enum.Material.SmoothPlastic, m)
+	-- Rune Marks (2 tiny neon dots along the stick)
+	parts.RuneMark1 = makePart("RuneMark1", Vector3.new(0.06, 0.06, 0.06), Color3.fromRGB(100, 220, 160), Enum.Material.Neon, m)
+	parts.RuneMark2 = makePart("RuneMark2", Vector3.new(0.06, 0.06, 0.06), Color3.fromRGB(100, 220, 160), Enum.Material.Neon, m)
+	-- Decorative spiral wrap (thin dark vine around shaft)
+	parts.Vine1 = makePart("Vine1", Vector3.new(0.2, 0.2, 0.06), Color3.fromRGB(40, 70, 35), Enum.Material.Grass, m)
+	parts.Vine2 = makePart("Vine2", Vector3.new(0.2, 0.2, 0.06), Color3.fromRGB(40, 70, 35), Enum.Material.Grass, m)
+	parts.Vine3 = makePart("Vine3", Vector3.new(0.2, 0.2, 0.06), Color3.fromRGB(40, 70, 35), Enum.Material.Grass, m)
+	-- Crystal cradle (forked tip)
+	parts.ForkL = makePart("ForkL", Vector3.new(0.06, 0.06, 0.4), Color3.fromRGB(200, 200, 215), Enum.Material.SmoothPlastic, m)
+	parts.ForkR = makePart("ForkR", Vector3.new(0.06, 0.06, 0.4), Color3.fromRGB(200, 200, 215), Enum.Material.SmoothPlastic, m)
+	-- Crystal Base (small darker crystal mount under the main crystal)
+	parts.CrystalBase = makePart("CrystalBase", Vector3.new(0.2, 0.2, 0.15), Color3.fromRGB(30, 140, 60), Enum.Material.Glass, m)
+	-- Main crystal (emerald green, faceted look via wedge)
+	parts.Crystal = makePart("Crystal", Vector3.new(0.3, 0.3, 0.5), Color3.fromRGB(50, 255, 100), Enum.Material.Neon, m)
+	-- Aura Ring (thin translucent neon ring around the crystal)
+	parts.AuraRing = makePart("AuraRing", Vector3.new(0.02, 0.55, 0.55), Color3.fromRGB(80, 255, 130), Enum.Material.Neon, m)
+	parts.AuraRing.Transparency = 0.5
+	-- Crystal cap (smaller crystal shard on top)
+	parts.CrystalShard = makePart("CrystalShard", Vector3.new(0.15, 0.15, 0.3), Color3.fromRGB(80, 255, 140), Enum.Material.Neon, m)
+	-- Healing aura light
+	local light = Instance.new("PointLight")
+	light.Color = Color3.fromRGB(50, 255, 100)
+	light.Brightness = 0.6; light.Range = 5
+	light.Parent = parts.Crystal
+	parts._light = light
+	-- Sparkle particles
+	local sparkle = Instance.new("Sparkles")
+	sparkle.SparkleColor = Color3.fromRGB(100, 255, 150)
+	sparkle.Parent = parts.Crystal
+	parts._sparkle = sparkle
+	m.PrimaryPart = parts.Stick
 	m.Parent = parent
 	return { model = m, parts = parts }
 end
 
--- ======================== SHIELD ========================
--- Battle-worn iron round shield: riveted rim, center boss, leather face
 local function buildShield(parent)
 	local m = Instance.new("Model"); m.Name = "Weapon_Shield"
 	local parts = {}
-
-	-- Grip bar (behind shield)
-	parts.GripBar = mp("GripBar", Vector3.new(0.25, 1.0, 0.25), LEATHER_DARK, Enum.Material.Leather, m)
-	-- Shield body (main disc — layered wood and iron)
-	parts.Body = mp("Body", Vector3.new(0.3, 2.4, 2.4), Color3.fromRGB(65, 55, 45), Enum.Material.Wood, m)
-	-- Iron face plate (front of shield)
-	parts.FacePlate = mp("FacePlate", Vector3.new(0.08, 2.2, 2.2), Color3.fromRGB(100, 95, 85), Enum.Material.Metal, m)
-	-- Rim (iron band around edge)
-	-- Using 4 strips to approximate a circular rim
-	parts.RimTop = mp("RimTop", Vector3.new(0.15, 0.2, 2.5), Color3.fromRGB(80, 75, 68), Enum.Material.Metal, m)
-	parts.RimBot = mp("RimBot", Vector3.new(0.15, 0.2, 2.5), Color3.fromRGB(80, 75, 68), Enum.Material.Metal, m)
-	parts.RimL = mp("RimL", Vector3.new(0.15, 2.5, 0.2), Color3.fromRGB(80, 75, 68), Enum.Material.Metal, m)
-	parts.RimR = mp("RimR", Vector3.new(0.15, 2.5, 0.2), Color3.fromRGB(80, 75, 68), Enum.Material.Metal, m)
-	-- Center boss (raised dome in center)
-	parts.Boss = mp("Boss", Vector3.new(0.35, 0.7, 0.7), Color3.fromRGB(110, 105, 95), Enum.Material.Metal, m)
-	-- Boss spike
-	parts.Spike = mp("Spike", Vector3.new(0.5, 0.2, 0.2), Color3.fromRGB(120, 115, 105), Enum.Material.Metal, m)
-	-- Cross bands (iron straps across shield face in X pattern)
-	parts.BandH = mp("BandH", Vector3.new(0.1, 0.15, 2.0), Color3.fromRGB(75, 70, 62), Enum.Material.Metal, m)
-	parts.BandV = mp("BandV", Vector3.new(0.1, 2.0, 0.15), Color3.fromRGB(75, 70, 62), Enum.Material.Metal, m)
-	-- Rivets (small studs where bands meet rim)
-	for i = 1, 4 do
-		parts["Rivet"..i] = mp("Rivet"..i, Vector3.new(0.12, 0.12, 0.12), Color3.fromRGB(90, 85, 78), Enum.Material.Metal, m)
-		parts["Rivet"..i].Shape = Enum.PartType.Ball
-	end
-	-- Leather arm strap (behind, for holding)
-	parts.ArmStrap = mp("ArmStrap", Vector3.new(0.12, 0.6, 0.2), LEATHER_WORN, Enum.Material.Leather, m)
-	-- Battle damage (dent/scratch mark)
-	parts.Scratch = mp("Scratch", Vector3.new(0.09, 0.08, 0.8), Color3.fromRGB(60, 55, 48), Enum.Material.CorrodedMetal, m)
-
-	m.PrimaryPart = parts.GripBar
+	-- Handle (grip bar behind the shield)
+	parts.Handle = makePart("Handle", Vector3.new(0.25, 0.25, 0.9), Color3.fromRGB(100, 60, 30), Enum.Material.Wood, m)
+	-- Arm strap
+	parts.Strap = makePart("Strap", Vector3.new(0.3, 0.6, 0.15), Color3.fromRGB(80, 45, 20), Enum.Material.Fabric, m)
+	-- Shield body (main face, kite-shaped via stacked parts)
+	parts.Body = makePart("Body", Vector3.new(0.35, 2.4, 2.2), Color3.fromRGB(45, 90, 180), Enum.Material.Metal, m)
+	-- Shield border rim (raised metal edge all around)
+	parts.RimTop = makePart("RimTop", Vector3.new(0.4, 2.5, 0.12), Color3.fromRGB(160, 150, 130), Enum.Material.Metal, m)
+	parts.RimBot = makePart("RimBot", Vector3.new(0.4, 2.5, 0.12), Color3.fromRGB(160, 150, 130), Enum.Material.Metal, m)
+	parts.RimL = makePart("RimL", Vector3.new(0.4, 0.12, 2.2), Color3.fromRGB(160, 150, 130), Enum.Material.Metal, m)
+	parts.RimR = makePart("RimR", Vector3.new(0.4, 0.12, 2.2), Color3.fromRGB(160, 150, 130), Enum.Material.Metal, m)
+	-- Center boss (raised dome in the middle)
+	parts.Boss = makePart("Boss", Vector3.new(0.5, 0.7, 0.7), Color3.fromRGB(200, 190, 160), Enum.Material.Metal, m)
+	-- Emblem (golden crest)
+	parts.Emblem = makePart("Emblem", Vector3.new(0.42, 0.6, 0.6), Color3.fromRGB(255, 215, 0), Enum.Material.Metal, m)
+	-- Diagonal reinforcement straps (cross pattern)
+	parts.CrossA = makePart("CrossA", Vector3.new(0.38, 0.1, 2.8), Color3.fromRGB(140, 130, 110), Enum.Material.Metal, m)
+	parts.CrossB = makePart("CrossB", Vector3.new(0.38, 2.8, 0.1), Color3.fromRGB(140, 130, 110), Enum.Material.Metal, m)
+	-- Corner rivets (4 decorative bolts)
+	parts.Rivet1 = makePart("Rivet1", Vector3.new(0.42, 0.15, 0.15), Color3.fromRGB(180, 170, 140), Enum.Material.Metal, m)
+	parts.Rivet2 = makePart("Rivet2", Vector3.new(0.42, 0.15, 0.15), Color3.fromRGB(180, 170, 140), Enum.Material.Metal, m)
+	parts.Rivet3 = makePart("Rivet3", Vector3.new(0.42, 0.15, 0.15), Color3.fromRGB(180, 170, 140), Enum.Material.Metal, m)
+	parts.Rivet4 = makePart("Rivet4", Vector3.new(0.42, 0.15, 0.15), Color3.fromRGB(180, 170, 140), Enum.Material.Metal, m)
+	-- Battle damage scratch (dark streak across face)
+	parts.Scratch = makePart("Scratch", Vector3.new(0.37, 0.04, 1.6), Color3.fromRGB(30, 28, 25), Enum.Material.Metal, m)
+	-- Leather Backing (slightly larger than body, visible behind)
+	parts.LeatherBacking = makePart("LeatherBacking", Vector3.new(0.2, 2.5, 2.3), Color3.fromRGB(90, 55, 30), Enum.Material.Leather, m)
+	-- Dent (small darker depression on the face)
+	parts.Dent = makePart("Dent", Vector3.new(0.36, 0.3, 0.3), Color3.fromRGB(30, 60, 130), Enum.Material.Metal, m)
+	-- Heraldic Bar (horizontal gold bar across the center, behind the boss)
+	parts.HeraldicBar = makePart("HeraldicBar", Vector3.new(0.39, 1.8, 0.12), Color3.fromRGB(210, 180, 40), Enum.Material.Metal, m)
+	-- Edge Wear (thin dark line along one rim showing battle damage)
+	parts.EdgeWear = makePart("EdgeWear", Vector3.new(0.41, 0.04, 1.4), Color3.fromRGB(40, 35, 30), Enum.Material.Metal, m)
+	-- Chain Link (small hanging chain piece from the bottom)
+	parts.ChainLink = makePart("ChainLink", Vector3.new(0.1, 0.1, 0.25), Color3.fromRGB(140, 130, 110), Enum.Material.Metal, m)
+	m.PrimaryPart = parts.Handle
 	m.Parent = parent
 	return { model = m, parts = parts }
 end
@@ -334,96 +359,134 @@ local function positionWeapon(weaponId, gripCF)
 	local p = data.parts
 
 	if weaponId == "Sword" then
-		local tilt = gripCF * CFrame.Angles(math.rad(-5), 0, 0)
-		-- Pommel at base
-		p.Pommel.CFrame = tilt * CFrame.new(0, 0, 0.1)
-		-- Grip
-		p.Grip.CFrame = tilt * CFrame.new(0, 0, -0.5)
-		-- Grip wrap spirals along the handle
-		p.GripWrap1.CFrame = tilt * CFrame.new(0, 0, -0.15)
-		p.GripWrap2.CFrame = tilt * CFrame.new(0, 0, -0.4)
-		p.GripWrap3.CFrame = tilt * CFrame.new(0, 0, -0.65)
-		p.GripWrap4.CFrame = tilt * CFrame.new(0, 0, -0.9)
-		-- Crossguard
-		p.Guard.CFrame = tilt * CFrame.new(0, 0, -1.1)
-		p.GuardTipL.CFrame = tilt * CFrame.new(0, -0.7, -1.1)
-		p.GuardTipR.CFrame = tilt * CFrame.new(0, 0.7, -1.1)
-		-- Blade
-		p.Blade.CFrame = tilt * CFrame.new(0, 0, -2.7)
-		p.Fuller.CFrame = tilt * CFrame.new(0, 0, -2.5)
-		p.BladeTip.CFrame = tilt * CFrame.new(0, 0, -4.4)
-		-- Rust stain near guard
-		p.RustStain.CFrame = tilt * CFrame.new(0, 0.05, -1.6)
+		-- Pommel at the very end of the handle
+		p.Pommel.CFrame = gripCF * CFrame.new(0, 0, 0.4)
+		-- Handle (grip area)
+		p.Handle.CFrame = gripCF * CFrame.new(0, 0, -0.2)
+		-- Leather wraps spaced along the handle
+		p.Wrap1.CFrame = gripCF * CFrame.new(0, 0, 0.1)
+		p.Wrap2.CFrame = gripCF * CFrame.new(0, 0, -0.2)
+		p.Wrap3.CFrame = gripCF * CFrame.new(0, 0, -0.5)
+		-- Crossguard at handle-blade junction
+		p.Guard.CFrame = gripCF * CFrame.new(0, 0, -0.8)
+		p.GuardTipL.CFrame = gripCF * CFrame.new(0, -0.7, -0.8)
+		p.GuardTipR.CFrame = gripCF * CFrame.new(0, 0.7, -0.8)
+		p.GuardGem.CFrame = gripCF * CFrame.new(0, 0, -0.8)
+		-- Main blade
+		p.Blade.CFrame = gripCF * CFrame.new(0, 0, -2.2)
+		-- Sharp edges on each side of the blade
+		p.EdgeL.CFrame = gripCF * CFrame.new(0, -0.18, -2.1)
+		p.EdgeR.CFrame = gripCF * CFrame.new(0, 0.18, -2.1)
+		-- Fuller groove down center
+		p.Fuller.CFrame = gripCF * CFrame.new(0, 0, -1.9)
+		-- Pommel gem inset
+		p.PommelGem.CFrame = gripCF * CFrame.new(0, 0, 0.5)
+		-- Rain guard below the crossguard
+		p.RainGuard.CFrame = gripCF * CFrame.new(0, 0, -0.65)
+		-- Ricasso (unsharpened section above guard)
+		p.Ricasso.CFrame = gripCF * CFrame.new(0, 0, -1.1)
+		-- Blood groove (second fuller, thinner, offset)
+		p.BloodGroove.CFrame = gripCF * CFrame.new(0, 0.06, -2.0)
+		-- Engraving line (rune glow along one edge)
+		p.Engraving.CFrame = gripCF * CFrame.new(0, -0.15, -2.2)
+		-- Blade taper (narrower segment before tip)
+		p.BladeTaper.CFrame = gripCF * CFrame.new(0, 0, -3.2)
+		-- Tapered tip
+		p.BladeTip.CFrame = gripCF * CFrame.new(0, 0, -3.6)
 
 	elseif weaponId == "Staff" then
-		local tilt = gripCF * CFrame.Angles(math.rad(-5), 0, 0)
-		-- Leather grip at hold point
-		p.GripWrap.CFrame = tilt * CFrame.new(0, 0, -0.2)
-		-- Main shaft
-		p.Shaft.CFrame = tilt * CFrame.new(0, 0, -2.1)
-		-- Bark knots
-		p.Knot1.CFrame = tilt * CFrame.new(0, 0, -1.2)
-		p.Knot2.CFrame = tilt * CFrame.new(0, 0, -2.8)
-		-- Rune band
-		p.RuneBand.CFrame = tilt * CFrame.new(0, 0, -3.4)
-		p.RuneGlow.CFrame = tilt * CFrame.new(0, 0, -3.4)
-		-- Prongs (angled outward to cradle orb)
-		p.ProngL.CFrame = tilt * CFrame.new(0.2, 0, -4.0) * CFrame.Angles(0, 0, math.rad(12))
-		p.ProngR.CFrame = tilt * CFrame.new(-0.2, 0, -4.0) * CFrame.Angles(0, 0, math.rad(-12))
-		-- Orb
-		p.Orb.CFrame = tilt * CFrame.new(0, 0, -4.5)
-		p.Ember.CFrame = tilt * CFrame.new(0, 0, -4.5)
-		-- Ferrule at base
-		p.Ferrule.CFrame = tilt * CFrame.new(0, 0, 0.5)
+		-- Foot cap at very bottom
+		p.FootCap.CFrame = gripCF * CFrame.new(0, 0, 1.0)
+		-- Thicker base at bottom of shaft
+		p.ShaftBase.CFrame = gripCF * CFrame.new(0, 0, 0.4)
+		-- Main shaft body
+		p.Shaft.CFrame = gripCF * CFrame.new(0, 0, -1.5)
+		-- Bark ridges spiraling the shaft
+		p.BarkRidge1.CFrame = gripCF * CFrame.new(0.12, 0.06, -0.8) * CFrame.Angles(0, 0, math.rad(30))
+		p.BarkRidge2.CFrame = gripCF * CFrame.new(-0.1, -0.08, -1.8) * CFrame.Angles(0, 0, math.rad(-25))
+		-- Decorative metal rings spaced along shaft
+		p.Ring1.CFrame = gripCF * CFrame.new(0, 0, -0.2)
+		p.Ring2.CFrame = gripCF * CFrame.new(0, 0, -1.4)
+		p.Ring3.CFrame = gripCF * CFrame.new(0, 0, -2.6)
+		-- Rune band (glowing ring near the head)
+		p.RuneBand.CFrame = gripCF * CFrame.new(0, 0, -2.85)
+		-- Metal prongs cradling the orb (angled outward)
+		p.ProngL.CFrame = gripCF * CFrame.new(0, -0.2, -3.3) * CFrame.Angles(0, 0, math.rad(15))
+		p.ProngR.CFrame = gripCF * CFrame.new(0, 0.2, -3.3) * CFrame.Angles(0, 0, math.rad(-15))
+		p.ProngF.CFrame = gripCF * CFrame.new(0, 0, -3.3) * CFrame.Angles(math.rad(15), 0, 0)
+		-- Prong from behind
+		p.ProngBack.CFrame = gripCF * CFrame.new(0, 0, -3.3) * CFrame.Angles(math.rad(-15), 0, 0)
+		-- Main orb
+		p.Orb.CFrame = gripCF * CFrame.new(0, 0, -3.8)
+		-- Bright inner core
+		p.OrbCore.CFrame = gripCF * CFrame.new(0, 0, -3.8)
 
 	elseif weaponId == "Wand" then
-		local tilt = gripCF * CFrame.Angles(math.rad(-5), 0, 0)
-		-- Main shaft
-		p.Shaft.CFrame = tilt * CFrame.new(0, 0, -1.0)
-		-- Bone ridges along shaft
-		p.Ridge1.CFrame = tilt * CFrame.new(0, 0, -0.5)
-		p.Ridge2.CFrame = tilt * CFrame.new(0, 0, -1.0)
-		p.Ridge3.CFrame = tilt * CFrame.new(0, 0, -1.5)
-		-- Sinew grip wrap
-		p.SinewWrap.CFrame = tilt * CFrame.new(0, 0, -0.2)
-		-- Cage prongs (fanned out around crystal)
-		p.CageA.CFrame = tilt * CFrame.new(0, 0.12, -2.1) * CFrame.Angles(math.rad(-8), 0, 0)
-		p.CageB.CFrame = tilt * CFrame.new(0.1, -0.06, -2.1) * CFrame.Angles(math.rad(4), 0, math.rad(-8))
-		p.CageC.CFrame = tilt * CFrame.new(-0.1, -0.06, -2.1) * CFrame.Angles(math.rad(4), 0, math.rad(8))
-		-- Crystal
-		p.Crystal.CFrame = tilt * CFrame.new(0, 0, -2.35)
-		p.CrystalHaze.CFrame = tilt * CFrame.new(0, 0, -2.35)
-		-- End cap
-		p.EndCap.CFrame = tilt * CFrame.new(0, 0, 0.55)
+		-- Grip pommel at the very base
+		p.GripPommel.CFrame = gripCF * CFrame.new(0, 0, 0.5)
+		-- Cloth grip at the base
+		p.Grip.CFrame = gripCF * CFrame.new(0, 0, 0.1)
+		-- Bone joint where grip meets stick
+		p.BoneJoint.CFrame = gripCF * CFrame.new(0, 0, -0.25)
+		-- Main wand body
+		p.Stick.CFrame = gripCF * CFrame.new(0, 0, -0.8)
+		-- Rune marks along the stick
+		p.RuneMark1.CFrame = gripCF * CFrame.new(0.06, 0, -0.55)
+		p.RuneMark2.CFrame = gripCF * CFrame.new(-0.05, 0, -1.1)
+		-- Vine wraps spiraling up
+		p.Vine1.CFrame = gripCF * CFrame.new(0.05, 0.05, -0.3) * CFrame.Angles(0, 0, math.rad(20))
+		p.Vine2.CFrame = gripCF * CFrame.new(-0.05, 0.05, -0.8) * CFrame.Angles(0, 0, math.rad(-20))
+		p.Vine3.CFrame = gripCF * CFrame.new(0.05, -0.05, -1.3) * CFrame.Angles(0, 0, math.rad(20))
+		-- Forked tips holding the crystal
+		p.ForkL.CFrame = gripCF * CFrame.new(0, -0.1, -1.8) * CFrame.Angles(0, 0, math.rad(12))
+		p.ForkR.CFrame = gripCF * CFrame.new(0, 0.1, -1.8) * CFrame.Angles(0, 0, math.rad(-12))
+		-- Crystal base mount
+		p.CrystalBase.CFrame = gripCF * CFrame.new(0, 0, -1.95)
+		-- Main crystal in the fork
+		p.Crystal.CFrame = gripCF * CFrame.new(0, 0, -2.1)
+		-- Aura ring around the crystal
+		p.AuraRing.CFrame = gripCF * CFrame.new(0, 0, -2.1)
+		-- Small crystal shard pointing forward
+		p.CrystalShard.CFrame = gripCF * CFrame.new(0, 0, -2.5) * CFrame.Angles(0, 0, math.rad(45))
 
 	elseif weaponId == "Shield" then
-		-- Shield held to the left, face outward
 		local shieldCF = gripCF * CFrame.new(-0.3, 0, -0.8)
-		-- Grip bar (behind, in hand)
-		p.GripBar.CFrame = shieldCF
-		-- Body & face
-		p.Body.CFrame = shieldCF * CFrame.new(-0.25, 0, 0)
-		p.FacePlate.CFrame = shieldCF * CFrame.new(-0.42, 0, 0)
-		-- Rim
-		p.RimTop.CFrame = shieldCF * CFrame.new(-0.42, 1.2, 0)
-		p.RimBot.CFrame = shieldCF * CFrame.new(-0.42, -1.2, 0)
-		p.RimL.CFrame = shieldCF * CFrame.new(-0.42, 0, -1.2)
-		p.RimR.CFrame = shieldCF * CFrame.new(-0.42, 0, 1.2)
-		-- Boss and spike (center front)
-		p.Boss.CFrame = shieldCF * CFrame.new(-0.5, 0, 0)
-		p.Spike.CFrame = shieldCF * CFrame.new(-0.7, 0, 0)
-		-- Cross bands
-		p.BandH.CFrame = shieldCF * CFrame.new(-0.44, 0, 0)
-		p.BandV.CFrame = shieldCF * CFrame.new(-0.44, 0, 0)
-		-- Rivets at band-rim intersections
-		p.Rivet1.CFrame = shieldCF * CFrame.new(-0.46, 1.0, 0)
-		p.Rivet2.CFrame = shieldCF * CFrame.new(-0.46, -1.0, 0)
-		p.Rivet3.CFrame = shieldCF * CFrame.new(-0.46, 0, 0.9)
-		p.Rivet4.CFrame = shieldCF * CFrame.new(-0.46, 0, -0.9)
-		-- Arm strap behind
-		p.ArmStrap.CFrame = shieldCF * CFrame.new(0.05, 0.3, 0)
-		-- Battle scratch
-		p.Scratch.CFrame = shieldCF * CFrame.new(-0.44, 0.4, -0.3) * CFrame.Angles(0, 0, math.rad(25))
+		-- Handle behind the shield
+		p.Handle.CFrame = shieldCF
+		-- Arm strap above handle
+		p.Strap.CFrame = shieldCF * CFrame.new(0.05, 0, 0.25)
+		-- Main shield face
+		p.Body.CFrame = shieldCF * CFrame.new(-0.3, 0, 0)
+		-- Metal rim edges
+		local bCF = shieldCF * CFrame.new(-0.3, 0, 0)
+		p.RimTop.CFrame = bCF * CFrame.new(0, 0, 1.1)
+		p.RimBot.CFrame = bCF * CFrame.new(0, 0, -1.1)
+		p.RimL.CFrame = bCF * CFrame.new(0, -1.2, 0)
+		p.RimR.CFrame = bCF * CFrame.new(0, 1.2, 0)
+		-- Center boss dome
+		p.Boss.CFrame = bCF * CFrame.new(-0.1, 0, 0)
+		-- Gold emblem on boss
+		p.Emblem.CFrame = bCF * CFrame.new(-0.15, 0, 0)
+		-- Cross reinforcement
+		p.CrossA.CFrame = bCF * CFrame.Angles(0, 0, math.rad(45))
+		p.CrossB.CFrame = bCF * CFrame.Angles(0, 0, math.rad(45))
+		-- Corner rivets
+		p.Rivet1.CFrame = bCF * CFrame.new(0, -0.85, 0.8)
+		p.Rivet2.CFrame = bCF * CFrame.new(0, 0.85, 0.8)
+		p.Rivet3.CFrame = bCF * CFrame.new(0, -0.85, -0.8)
+		p.Rivet4.CFrame = bCF * CFrame.new(0, 0.85, -0.8)
+		-- Battle scar
+		p.Scratch.CFrame = bCF * CFrame.new(-0.02, 0.3, 0.2) * CFrame.Angles(0, 0, math.rad(-15))
+		-- Leather backing behind the shield body
+		p.LeatherBacking.CFrame = bCF * CFrame.new(0.1, 0, 0)
+		-- Dent on the face
+		p.Dent.CFrame = bCF * CFrame.new(-0.03, -0.5, 0.4)
+		-- Heraldic bar across center (behind boss)
+		p.HeraldicBar.CFrame = bCF * CFrame.new(-0.08, 0, 0)
+		-- Edge wear along one rim
+		p.EdgeWear.CFrame = bCF * CFrame.new(0, 1.22, 0.2) * CFrame.Angles(0, 0, math.rad(5))
+		-- Chain link hanging from the bottom
+		p.ChainLink.CFrame = bCF * CFrame.new(0, 0, -1.25) * CFrame.Angles(math.rad(10), 0, 0)
 	end
 end
 
@@ -435,12 +498,7 @@ local function setWeaponVisible(weaponId, visible)
 	if not data then return end
 	for name, part in pairs(data.parts) do
 		if typeof(part) == "Instance" and part:IsA("BasePart") then
-			-- Preserve special transparency for haze parts
-			if name == "CrystalHaze" then
-				part.Transparency = visible and 0.75 or 1
-			else
-				part.Transparency = visible and 0 or 1
-			end
+			part.Transparency = visible and 0 or 1
 		elseif typeof(part) == "Instance" and part:IsA("PointLight") then
 			part.Enabled = visible
 		end
@@ -513,7 +571,7 @@ end
 
 function ViewmodelController.Update(dt, skillController)
 	if not viewmodel then return end
-	if not armParts.Forearm or not armParts.Forearm.Parent then return end
+	if not armPart or not armPart.Parent then return end
 
 	local cam = workspace.CurrentCamera
 	if not cam then return end
@@ -575,12 +633,71 @@ function ViewmodelController.Update(dt, skillController)
 	local swingRotation = CFrame.Angles(math.rad(swingAngle), 0, 0)
 	local finalCF = camCF * BASE_OFFSET * bobOffset * swingRotation
 
-	-- Position arm and all wrap/bracer parts
-	positionArm(finalCF)
+	-- Position arm
+	armPart.CFrame = finalCF
+	handPart.CFrame = finalCF * CFrame.new(0, 0, -1.85)
 
 	-- Grip at front of hand
 	local gripCF = finalCF * CFrame.new(0, 0, -2.3)
 	gripPart.CFrame = gripCF
+
+	-- Position arm gear overlays
+	local handCF = finalCF * CFrame.new(0, 0, -1.85)
+	local g = armGearParts
+
+	-- Bandage wraps spaced along the forearm (Z offsets from arm center)
+	g.BandageWrap1.CFrame = finalCF * CFrame.new(0, 0, 0.9) * CFrame.Angles(0, 0, math.rad(3))
+	g.BandageWrap2.CFrame = finalCF * CFrame.new(0, 0, 0.5) * CFrame.Angles(0, 0, math.rad(-2))
+	g.BandageWrap3.CFrame = finalCF * CFrame.new(0, 0, 0.1) * CFrame.Angles(0, 0, math.rad(4))
+	g.BandageWrap4.CFrame = finalCF * CFrame.new(0, 0, -0.3) * CFrame.Angles(0, 0, math.rad(-3))
+	g.BandageWrap5.CFrame = finalCF * CFrame.new(0, 0, -0.7) * CFrame.Angles(0, 0, math.rad(2))
+
+	-- Loose bandage tail dangling from wrist
+	g.BandageTail.CFrame = finalCF * CFrame.new(-0.45, -0.3, -1.1) * CFrame.Angles(math.rad(15), 0, math.rad(20))
+
+	-- Leather bracer on mid-forearm
+	g.Bracer.CFrame = finalCF * CFrame.new(0, 0, -0.1)
+	-- Bracer trim at each edge
+	g.BracerTrimA.CFrame = finalCF * CFrame.new(0, 0, 0.4)
+	g.BracerTrimB.CFrame = finalCF * CFrame.new(0, 0, -0.6)
+	-- Strap across outer bracer
+	g.BracerStrap.CFrame = finalCF * CFrame.new(0, 0.52, -0.1) * CFrame.Angles(0, 0, math.rad(5))
+	-- Buckle on strap
+	g.Buckle.CFrame = finalCF * CFrame.new(0, 0.56, -0.1)
+
+	-- Stitch lines on bracer
+	g.Stitch1.CFrame = finalCF * CFrame.new(0, 0, 0.15)
+	g.Stitch2.CFrame = finalCF * CFrame.new(0, 0, -0.35)
+
+	-- Wrist cuff (transition between arm and hand)
+	g.WristCuff.CFrame = finalCF * CFrame.new(0, 0, -1.35)
+
+	-- Knuckle guard across top of hand
+	g.KnuckleGuard.CFrame = handCF * CFrame.new(0, 0.55, -0.1)
+	-- Hand bandage wraps
+	g.HandWrap1.CFrame = handCF * CFrame.new(0, 0, 0.15) * CFrame.Angles(0, 0, math.rad(5))
+	g.HandWrap2.CFrame = handCF * CFrame.new(0, 0, -0.2) * CFrame.Angles(0, 0, math.rad(-3))
+	-- Metal wrist stud
+	g.WristStud.CFrame = finalCF * CFrame.new(0, 0.56, -1.35)
+
+	-- Finger wraps on the hand (spaced across fingers)
+	g.FingerWrap1.CFrame = handCF * CFrame.new(0, 0.2, -0.3)
+	g.FingerWrap2.CFrame = handCF * CFrame.new(0, 0, -0.3)
+	g.FingerWrap3.CFrame = handCF * CFrame.new(0, -0.2, -0.3)
+	-- Scar mark between bandage wraps
+	g.ScarMark.CFrame = finalCF * CFrame.new(0, -0.48, 0.3) * CFrame.Angles(0, 0, math.rad(8))
+	-- Leather pad on back of hand
+	g.LeatherPad.CFrame = handCF * CFrame.new(-0.54, 0, 0)
+	-- Arm ring above the bracer
+	g.ArmRing.CFrame = finalCF * CFrame.new(0, 0, 0.55)
+	-- Torn bandage end (different angle from main tail)
+	g.TornBandage.CFrame = finalCF * CFrame.new(0.4, 0.25, -0.9) * CFrame.Angles(math.rad(-10), 0, math.rad(-15))
+	-- Vein ridge along inner arm
+	g.VeinRidge.CFrame = finalCF * CFrame.new(0, -0.48, -0.2)
+	-- Thumb guard on hand side
+	g.ThumbGuard.CFrame = handCF * CFrame.new(0, -0.58, 0.15)
+	-- Nail detail on top knuckle
+	g.NailDetail.CFrame = handCF * CFrame.new(-0.54, 0.1, -0.25)
 
 	-- Position weapon
 	positionWeapon(currentWeaponId, gripCF)

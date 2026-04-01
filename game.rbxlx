@@ -4040,6 +4040,283 @@ return DelverProgression
     </Item>
     <Item class="ModuleScript" referent="20">
       <Properties>
+        <string name="Name">DungeonBuilder</string>
+        <string name="Source"><![CDATA[local CollectionService = game:GetService("CollectionService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local DescentRegistry = require(ReplicatedStorage:WaitForChild("DescentRegistry"))
+
+local HollowRoomBuilder = {}
+
+--------------------------------------------------------------------------------
+-- CONFIG
+--------------------------------------------------------------------------------
+local TILE_SIZE = 200 -- studs between room centers
+local DOOR_TAG = "HollowDoor" -- CollectionService tag on door parts
+
+--------------------------------------------------------------------------------
+-- INTERNAL: Resolve direction from a door's name or orientation
+--
+-- Convention: doors are named with a directional suffix so the builder
+-- knows which wall they belong to.  Accepted names:
+--   "Door_North" / "Door_South" / "Door_East" / "Door_West"
+-- Alternatively, if the part has a StringValue child named "Direction"
+-- the builder reads that.
+--
+-- Returns one of "North", "South", "East", "West", or nil.
+--------------------------------------------------------------------------------
+local DIRECTION_MAP = {
+	North = "North",
+	South = "South",
+	East  = "East",
+	West  = "West",
+	-- Aliases matching HollowBuilder conventions
+	Front = "North",
+	Back  = "South",
+	Right = "East",
+	Left  = "West",
+}
+
+local function getDoorDirection(doorPart)
+	-- 1. Check for a Direction StringValue child
+	local dirValue = doorPart:FindFirstChild("Direction")
+	if dirValue and dirValue:IsA("StringValue") then
+		local mapped = DIRECTION_MAP[dirValue.Value]
+		if mapped then return mapped end
+	end
+
+	-- 2. Parse from the part name (e.g. "Door_North", "HollowDoor_East")
+	for suffix, dir in pairs(DIRECTION_MAP) do
+		if doorPart.Name:find(suffix) then
+			return dir
+		end
+	end
+
+	return nil
+end
+
+-- Direction → grid offset to the neighboring cell
+local DIR_OFFSETS = {
+	North = { Row = -1, Col =  0 },
+	South = { Row =  1, Col =  0 },
+	East  = { Row =  0, Col =  1 },
+	West  = { Row =  0, Col = -1 },
+}
+
+-- Opposite direction lookup
+local OPPOSITE = {
+	North = "South",
+	South = "North",
+	East  = "West",
+	West  = "East",
+}
+
+--------------------------------------------------------------------------------
+-- BuildFromLayout(layout, parentFolder)
+--
+-- layout      : the result table from HollowLayout.GenerateGrid()
+-- parentFolder: an Instance (Folder/Model) under which all rooms are placed.
+--               If nil a new Folder named "ActiveHollow" is created in workspace.
+--
+-- For each cell in layout.Grid:
+--   1. Resolve the room template's workspace folder via DescentRegistry.
+--   2. Clone it and position it at (col * TILE_SIZE, 0, row * TILE_SIZE)
+--      relative to the parentFolder's origin.
+--   3. Scan the clone for parts tagged "HollowDoor".
+--   4. Open doors that face an occupied neighbor, seal doors on map edges.
+--
+-- Returns {
+--   Folder    = parentFolder,
+--   RoomMap   = { [row][col] = clonedModel },
+--   DoorMap   = { [row][col] = { [direction] = doorPart } },
+-- }
+--------------------------------------------------------------------------------
+function HollowRoomBuilder.BuildFromLayout(layout, parentFolder)
+	if not parentFolder then
+		parentFolder = Instance.new("Folder")
+		parentFolder.Name = "ActiveHollow"
+		parentFolder.Parent = workspace
+	end
+
+	local n = layout.N
+	local grid = layout.Grid
+
+	local roomMap = {} -- [row][col] = cloned Instance
+	local doorMap = {} -- [row][col] = { North = part, South = part, ... }
+
+	------------------------------------------------------------
+	-- 1. Clone and position each room
+	------------------------------------------------------------
+	for row = 1, n do
+		roomMap[row] = {}
+		doorMap[row] = {}
+		for col = 1, n do
+			local cell = grid[row][col]
+			local template = cell.Template
+
+			-- Resolve the pre-built model from workspace.RoomTemplates
+			local sourceFolder = DescentRegistry.ResolveFolder(template)
+			local clone
+			if sourceFolder then
+				clone = sourceFolder:Clone()
+			else
+				-- Fallback: create a placeholder platform so the grid is still navigable
+				warn(string.format(
+					"[HollowRoomBuilder] No model for '%s' at (%d,%d) — placing placeholder",
+					template.Name, row, col
+				))
+				clone = Instance.new("Model")
+				clone.Name = template.Name .. "_Placeholder"
+				local floor = Instance.new("Part")
+				floor.Name = "Floor"
+				floor.Size = Vector3.new(TILE_SIZE * 0.8, 4, TILE_SIZE * 0.8)
+				floor.Anchored = true
+				floor.Material = Enum.Material.Cobblestone
+				floor.BrickColor = BrickColor.new("Medium stone grey")
+				floor.Parent = clone
+				clone.PrimaryPart = floor
+			end
+
+			clone.Name = string.format("Room_%d_%d_%s", row, col, cell.RoomType)
+
+			-- Compute world position: center of this tile
+			local worldX = (col - 1) * TILE_SIZE
+			local worldZ = (row - 1) * TILE_SIZE
+
+			-- Position the clone
+			if clone:IsA("Model") and clone.PrimaryPart then
+				local currentPos = clone.PrimaryPart.Position
+				local offset = Vector3.new(worldX, 0, worldZ) - currentPos
+				clone:TranslateBy(offset)
+			elseif clone:IsA("Model") then
+				-- No PrimaryPart: try to center by bounding box
+				local cf, size = clone:GetBoundingBox()
+				local offset = Vector3.new(worldX, 0, worldZ) - cf.Position
+				clone:TranslateBy(offset)
+			else
+				-- Single Instance (unlikely)
+				clone.Position = Vector3.new(worldX, 0, worldZ)
+			end
+
+			clone.Parent = parentFolder
+			roomMap[row][col] = clone
+
+			-- Collect doors tagged with CollectionService
+			doorMap[row][col] = {}
+			for _, desc in ipairs(clone:GetDescendants()) do
+				if desc:IsA("BasePart") and CollectionService:HasTag(desc, DOOR_TAG) then
+					local dir = getDoorDirection(desc)
+					if dir then
+						doorMap[row][col][dir] = desc
+					else
+						warn(string.format(
+							"[HollowRoomBuilder] Door '%s' in room (%d,%d) has no recognizable direction — skipping",
+							desc:GetFullName(), row, col
+						))
+					end
+				end
+			end
+		end
+	end
+
+	------------------------------------------------------------
+	-- 2. Open / seal doors based on adjacency
+	------------------------------------------------------------
+	for row = 1, n do
+		for col = 1, n do
+			local doors = doorMap[row][col]
+			for dir, doorPart in pairs(doors) do
+				local offset = DIR_OFFSETS[dir]
+				local neighborRow = row + offset.Row
+				local neighborCol = col + offset.Col
+
+				-- Check if the neighbor cell is within bounds and occupied
+				local neighborExists = neighborRow >= 1 and neighborRow <= n
+					and neighborCol >= 1 and neighborCol <= n
+					and grid[neighborRow] and grid[neighborRow][neighborCol]
+
+				if neighborExists then
+					-- Open the door: make it non-collidable, transparent, and disable prompts
+					HollowRoomBuilder.OpenDoor(doorPart)
+				else
+					-- Edge of map: seal the door
+					HollowRoomBuilder.SealDoor(doorPart)
+				end
+			end
+		end
+	end
+
+	return {
+		Folder  = parentFolder,
+		RoomMap = roomMap,
+		DoorMap = doorMap,
+	}
+end
+
+--------------------------------------------------------------------------------
+-- OpenDoor(doorPart)
+--
+-- Makes the door passable. The part becomes non-collidable and fully
+-- transparent. Any ProximityPrompt on it is disabled.
+--------------------------------------------------------------------------------
+function HollowRoomBuilder.OpenDoor(doorPart)
+	if not doorPart or not doorPart.Parent then return end
+
+	doorPart.CanCollide = false
+	doorPart.Transparency = 1
+
+	-- Hide any child visual parts (door panels, bars, etc.)
+	for _, child in ipairs(doorPart:GetDescendants()) do
+		if child:IsA("BasePart") then
+			child.CanCollide = false
+			child.Transparency = 1
+		elseif child:IsA("ProximityPrompt") then
+			child.Enabled = false
+		elseif child:IsA("Decal") or child:IsA("Texture") or child:IsA("SurfaceGui") then
+			child:Destroy()
+		end
+	end
+
+	doorPart:SetAttribute("DoorState", "Open")
+end
+
+--------------------------------------------------------------------------------
+-- SealDoor(doorPart)
+--
+-- Ensures the door is solid and impassable — a visible wall on the map edge.
+-- Switches material to a heavy stone look so it reads as a dead end.
+--------------------------------------------------------------------------------
+function HollowRoomBuilder.SealDoor(doorPart)
+	if not doorPart or not doorPart.Parent then return end
+
+	doorPart.CanCollide = true
+	doorPart.Transparency = 0
+	doorPart.Material = Enum.Material.Slate
+	doorPart.BrickColor = BrickColor.new("Dark stone grey")
+
+	-- Disable interaction
+	for _, child in ipairs(doorPart:GetDescendants()) do
+		if child:IsA("ProximityPrompt") then
+			child.Enabled = false
+		end
+	end
+
+	doorPart:SetAttribute("DoorState", "Sealed")
+end
+
+--------------------------------------------------------------------------------
+-- GetTileSize() — expose so other systems can query the spacing
+--------------------------------------------------------------------------------
+function HollowRoomBuilder.GetTileSize()
+	return TILE_SIZE
+end
+
+return HollowRoomBuilder
+]]></string>
+      </Properties>
+    </Item>
+    <Item class="ModuleScript" referent="21">
+      <Properties>
         <string name="Name">HollowBuilder</string>
         <string name="Source"><![CDATA[local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -4194,22 +4471,39 @@ function HollowBuilder.BuildEntranceRoom(parent, origin)
 	makePart({Name="Floor", Size=Vector3.new(w,t,d), Position=origin-Vector3.new(0,t/2,0), Material=Enum.Material.Cobblestone, BrickColor=BrickColor.new("Medium stone grey"), Parent=f})
 	local ceil = makePart({Name="Ceiling", Size=Vector3.new(w,t,d), Position=origin+Vector3.new(0,h+t/2,0), Material=mat, BrickColor=col, Parent=f})
 
-	-- Walls: solid left, right, back. Front is open (connects to Room 1)
+	-- Walls: left, right, back solid. Front has corridor opening.
 	makePart({Size=Vector3.new(t,h,d+t*2), Position=origin+Vector3.new(-w/2-t/2,h/2,0), Material=mat, BrickColor=col, Parent=f})
 	makePart({Size=Vector3.new(t,h,d+t*2), Position=origin+Vector3.new(w/2+t/2,h/2,0), Material=mat, BrickColor=col, Parent=f})
 	makePart({Size=Vector3.new(w,h,t), Position=origin+Vector3.new(0,h/2,d/2+t/2), Material=mat, BrickColor=col, Parent=f})
+	-- Front wall (-Z) with corridor opening
+	local cw = HollowConfig.CorridorWidth + 4 -- match corridor opening width
+	local sideW = (w - cw) / 2
+	makePart({Size=Vector3.new(sideW,h,t), Position=origin+Vector3.new(-(cw+sideW)/2, h/2, -d/2-t/2), Material=mat, BrickColor=col, Parent=f})
+	makePart({Size=Vector3.new(sideW,h,t), Position=origin+Vector3.new((cw+sideW)/2, h/2, -d/2-t/2), Material=mat, BrickColor=col, Parent=f})
 
 	-- Lighting (dimmer entrance)
 	local light = Instance.new("PointLight"); light.Color=Color3.fromRGB(255,200,120); light.Range=35; light.Brightness=0.8; light.Parent=ceil
 
-	-- Torches
-	for _, xOff in ipairs({-w/4, w/4}) do
-		local torch = makePart({Name="Torch", Size=Vector3.new(1,2,1), Position=origin+Vector3.new(xOff,h*0.6,0), Material=Enum.Material.Wood, BrickColor=BrickColor.new("Brown"), Parent=f})
-		local tl = Instance.new("PointLight"); tl.Color=Color3.fromRGB(255,150,50); tl.Range=12; tl.Brightness=0.7; tl.Parent=torch
+	-- Torches (mounted against walls)
+	local torchY = h * 0.6
+	local entranceTorchPositions = {
+		-- Left wall (-X)
+		Vector3.new(-w/2 + 1, torchY, -d/4),
+		Vector3.new(-w/2 + 1, torchY, d/4),
+		-- Right wall (+X)
+		Vector3.new(w/2 - 1, torchY, -d/4),
+		Vector3.new(w/2 - 1, torchY, d/4),
+		-- Back wall (+Z)
+		Vector3.new(-w/4, torchY, d/2 - 1),
+		Vector3.new(w/4, torchY, d/2 - 1),
+	}
+	for _, off in ipairs(entranceTorchPositions) do
+		local torch = makePart({Name="Torch", Size=Vector3.new(1,2,1), Position=origin+off, Material=Enum.Material.Wood, BrickColor=BrickColor.new("Brown"), Parent=f})
+		local tl = Instance.new("PointLight"); tl.Color=Color3.fromRGB(255,150,50); tl.Range=18; tl.Brightness=0.8; tl.Parent=torch
 		local fi = Instance.new("Fire"); fi.Size=2; fi.Heat=4; fi.Parent=torch
 	end
 
-	-- Info sign
+	-- Info sign (on back wall, facing player = -Z = Front face)
 	local sign = makePart({Name="InfoSign", Size=Vector3.new(12,5,1), Position=origin+Vector3.new(0,10,d/2-1), Material=Enum.Material.SmoothPlastic, BrickColor=BrickColor.new("Really black"), Parent=f})
 	local sg = Instance.new("SurfaceGui"); sg.Face=Enum.NormalId.Front; sg.Parent=sign
 	local tl = Instance.new("TextLabel"); tl.Size=UDim2.new(1,0,0.5,0); tl.BackgroundTransparency=1; tl.Text="HOLLOW ENTRANCE"; tl.TextColor3=Color3.fromRGB(255,200,50); tl.TextScaled=true; tl.Font=Enum.Font.GothamBold; tl.Parent=sg
@@ -4294,13 +4588,20 @@ function HollowBuilder.BuildRoom(parent, config, origin, roomIndex, openings)
 		local wallMat = config.WallMaterial
 		local wallCol = config.WallColor
 
+		-- Lintel height (fills gap above corridor opening to room ceiling)
+		local lintelH = size.Y - ch
+		local lintelY = ch + lintelH / 2
+
 		if wallSide == "Left" then -- -X wall
 			if hasOpening then
 				local sideD = (size.Z - cw) / 2
 				makePart({Size=Vector3.new(t,size.Y,sideD), Position=origin+Vector3.new(-size.X/2-t/2, size.Y/2, (cw+sideD)/2), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
 				makePart({Size=Vector3.new(t,size.Y,sideD), Position=origin+Vector3.new(-size.X/2-t/2, size.Y/2, -(cw+sideD)/2), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
+				-- Lintel above opening
+				if lintelH > 0 then
+					makePart({Size=Vector3.new(t,lintelH,cw), Position=origin+Vector3.new(-size.X/2-t/2, lintelY, 0), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
+				end
 			else
-				-- Left/Right walls extend t beyond room in Z to cover corners
 				makePart({Name="LeftWall", Size=Vector3.new(t,size.Y,size.Z+t*2), Position=origin+Vector3.new(-size.X/2-t/2, size.Y/2, 0), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
 			end
 
@@ -4309,6 +4610,10 @@ function HollowBuilder.BuildRoom(parent, config, origin, roomIndex, openings)
 				local sideD = (size.Z - cw) / 2
 				makePart({Size=Vector3.new(t,size.Y,sideD), Position=origin+Vector3.new(size.X/2+t/2, size.Y/2, (cw+sideD)/2), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
 				makePart({Size=Vector3.new(t,size.Y,sideD), Position=origin+Vector3.new(size.X/2+t/2, size.Y/2, -(cw+sideD)/2), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
+				-- Lintel above opening
+				if lintelH > 0 then
+					makePart({Size=Vector3.new(t,lintelH,cw), Position=origin+Vector3.new(size.X/2+t/2, lintelY, 0), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
+				end
 			else
 				makePart({Name="RightWall", Size=Vector3.new(t,size.Y,size.Z+t*2), Position=origin+Vector3.new(size.X/2+t/2, size.Y/2, 0), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
 			end
@@ -4318,8 +4623,11 @@ function HollowBuilder.BuildRoom(parent, config, origin, roomIndex, openings)
 				local sideW = (size.X - cw) / 2
 				makePart({Size=Vector3.new(sideW,size.Y,t), Position=origin+Vector3.new(-(cw+sideW)/2, size.Y/2, size.Z/2+t/2), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
 				makePart({Size=Vector3.new(sideW,size.Y,t), Position=origin+Vector3.new((cw+sideW)/2, size.Y/2, size.Z/2+t/2), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
+				-- Lintel above opening
+				if lintelH > 0 then
+					makePart({Size=Vector3.new(cw,lintelH,t), Position=origin+Vector3.new(0, lintelY, size.Z/2+t/2), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
+				end
 			else
-				-- Front/Back walls fit between left/right walls (no corner overlap)
 				makePart({Name="FrontWall", Size=Vector3.new(size.X,size.Y,t), Position=origin+Vector3.new(0, size.Y/2, size.Z/2+t/2), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
 			end
 
@@ -4328,6 +4636,10 @@ function HollowBuilder.BuildRoom(parent, config, origin, roomIndex, openings)
 				local sideW = (size.X - cw) / 2
 				makePart({Size=Vector3.new(sideW,size.Y,t), Position=origin+Vector3.new(-(cw+sideW)/2, size.Y/2, -size.Z/2-t/2), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
 				makePart({Size=Vector3.new(sideW,size.Y,t), Position=origin+Vector3.new((cw+sideW)/2, size.Y/2, -size.Z/2-t/2), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
+				-- Lintel above opening
+				if lintelH > 0 then
+					makePart({Size=Vector3.new(cw,lintelH,t), Position=origin+Vector3.new(0, lintelY, -size.Z/2-t/2), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
+				end
 			else
 				makePart({Name="BackWall", Size=Vector3.new(size.X,size.Y,t), Position=origin+Vector3.new(0, size.Y/2, -size.Z/2-t/2), Material=wallMat, BrickColor=wallCol, Parent=roomFolder})
 			end
@@ -4342,22 +4654,21 @@ function HollowBuilder.BuildRoom(parent, config, origin, roomIndex, openings)
 	-- Ceiling ambient light (dim warm fill — torches are the primary light)
 	local light = Instance.new("PointLight"); light.Color=config.LightColor or Color3.fromRGB(200,140,70); light.Range=size.X*0.5; light.Brightness=0.4; light.Parent=ceil
 
-	-- Wall-mounted torches (two per wall, evenly spaced — primary room lighting)
+	-- Wall-mounted torches (two per wall, flush against wall surface)
 	local wallTorchY = size.Y * 0.6
-	local wallInset = 1 -- how far from the wall surface
 	local torchPositions = {
-		-- Left wall (-X)
-		Vector3.new(-size.X/2 + wallInset, wallTorchY, -size.Z/4),
-		Vector3.new(-size.X/2 + wallInset, wallTorchY, size.Z/4),
+		-- Left wall (-X) — torch against inner wall face
+		Vector3.new(-size.X/2 + 0.5, wallTorchY, -size.Z/4),
+		Vector3.new(-size.X/2 + 0.5, wallTorchY, size.Z/4),
 		-- Right wall (+X)
-		Vector3.new(size.X/2 - wallInset, wallTorchY, -size.Z/4),
-		Vector3.new(size.X/2 - wallInset, wallTorchY, size.Z/4),
+		Vector3.new(size.X/2 - 0.5, wallTorchY, -size.Z/4),
+		Vector3.new(size.X/2 - 0.5, wallTorchY, size.Z/4),
 		-- Back wall (-Z)
-		Vector3.new(-size.X/4, wallTorchY, -size.Z/2 + wallInset),
-		Vector3.new(size.X/4, wallTorchY, -size.Z/2 + wallInset),
+		Vector3.new(-size.X/4, wallTorchY, -size.Z/2 + 0.5),
+		Vector3.new(size.X/4, wallTorchY, -size.Z/2 + 0.5),
 		-- Front wall (+Z)
-		Vector3.new(-size.X/4, wallTorchY, size.Z/2 - wallInset),
-		Vector3.new(size.X/4, wallTorchY, size.Z/2 - wallInset),
+		Vector3.new(-size.X/4, wallTorchY, size.Z/2 - 0.5),
+		Vector3.new(size.X/4, wallTorchY, size.Z/2 - 0.5),
 	}
 	for _, offset in ipairs(torchPositions) do
 		local torch = makePart({Name="WallTorch", Size=Vector3.new(1,3,1), Position=origin+offset, Material=Enum.Material.Wood, BrickColor=BrickColor.new("Brown"), Parent=roomFolder})
@@ -4687,15 +4998,19 @@ local function buildCorridorZ(parent, x, fromZ, toZ, originY, mat, col, floorCol
 	local t = 4
 	local length = math.abs(fromZ - toZ)
 	local centerZ = (fromZ + toZ) / 2
+	-- Side walls are shorter to avoid overlapping with room walls at junctions
+	local wallLength = math.max(1, length - t * 2)
 
 	local f = Instance.new("Folder"); f.Name = "CorridorZ"; f.Parent = parent
+	-- Floor/ceiling span full length to cover wall gap
 	makePart({Name="Floor", Size=Vector3.new(ow,t,length), Position=Vector3.new(x, originY-t/2, centerZ), Material=Enum.Material.Cobblestone, BrickColor=floorCol, Parent=f})
 	makePart({Name="Ceiling", Size=Vector3.new(ow,t,length), Position=Vector3.new(x, originY+ch+t/2, centerZ), Material=mat, BrickColor=col, Parent=f})
-	makePart({Size=Vector3.new(t,ch,length), Position=Vector3.new(x-ow/2-t/2, originY+ch/2, centerZ), Material=mat, BrickColor=col, Parent=f})
-	makePart({Size=Vector3.new(t,ch,length), Position=Vector3.new(x+ow/2+t/2, originY+ch/2, centerZ), Material=mat, BrickColor=col, Parent=f})
+	-- Side walls shortened to avoid overlapping room walls
+	makePart({Size=Vector3.new(t,ch,wallLength), Position=Vector3.new(x-ow/2-t/2, originY+ch/2, centerZ), Material=mat, BrickColor=col, Parent=f})
+	makePart({Size=Vector3.new(t,ch,wallLength), Position=Vector3.new(x+ow/2+t/2, originY+ch/2, centerZ), Material=mat, BrickColor=col, Parent=f})
 
-	-- Torch
-	local torch = makePart({Name="Torch", Size=Vector3.new(1,2,1), Position=Vector3.new(x, originY+ch*0.7, centerZ), Material=Enum.Material.Wood, BrickColor=BrickColor.new("Brown"), Parent=f})
+	-- Torch (mounted against left wall of corridor)
+	local torch = makePart({Name="Torch", Size=Vector3.new(1,2,1), Position=Vector3.new(x-ow/2+0.5, originY+ch*0.7, centerZ), Material=Enum.Material.Wood, BrickColor=BrickColor.new("Brown"), Parent=f})
 	local tl = Instance.new("PointLight"); tl.Color=Color3.fromRGB(255,130,40); tl.Range=14; tl.Brightness=0.6; tl.Parent=torch
 	local fi = Instance.new("Fire"); fi.Size=2; fi.Heat=3; fi.Parent=torch
 	return f
@@ -4710,15 +5025,19 @@ local function buildCorridorX(parent, z, fromX, toX, originY, mat, col, floorCol
 	local t = 4
 	local length = math.abs(fromX - toX)
 	local centerX = (fromX + toX) / 2
+	-- Side walls are shorter to avoid overlapping with room walls at junctions
+	local wallLength = math.max(1, length - t * 2)
 
 	local f = Instance.new("Folder"); f.Name = "CorridorX"; f.Parent = parent
+	-- Floor/ceiling span full length to cover wall gap
 	makePart({Name="Floor", Size=Vector3.new(length,t,ow), Position=Vector3.new(centerX, originY-t/2, z), Material=Enum.Material.Cobblestone, BrickColor=floorCol, Parent=f})
 	makePart({Name="Ceiling", Size=Vector3.new(length,t,ow), Position=Vector3.new(centerX, originY+ch+t/2, z), Material=mat, BrickColor=col, Parent=f})
-	makePart({Size=Vector3.new(length,ch,t), Position=Vector3.new(centerX, originY+ch/2, z-ow/2-t/2), Material=mat, BrickColor=col, Parent=f})
-	makePart({Size=Vector3.new(length,ch,t), Position=Vector3.new(centerX, originY+ch/2, z+ow/2+t/2), Material=mat, BrickColor=col, Parent=f})
+	-- Side walls shortened to avoid overlapping room walls
+	makePart({Size=Vector3.new(wallLength,ch,t), Position=Vector3.new(centerX, originY+ch/2, z-ow/2-t/2), Material=mat, BrickColor=col, Parent=f})
+	makePart({Size=Vector3.new(wallLength,ch,t), Position=Vector3.new(centerX, originY+ch/2, z+ow/2+t/2), Material=mat, BrickColor=col, Parent=f})
 
-	-- Torch
-	local torch = makePart({Name="Torch", Size=Vector3.new(1,2,1), Position=Vector3.new(centerX, originY+ch*0.7, z), Material=Enum.Material.Wood, BrickColor=BrickColor.new("Brown"), Parent=f})
+	-- Torch (mounted against back wall of corridor)
+	local torch = makePart({Name="Torch", Size=Vector3.new(1,2,1), Position=Vector3.new(centerX, originY+ch*0.7, z-ow/2+0.5), Material=Enum.Material.Wood, BrickColor=BrickColor.new("Brown"), Parent=f})
 	local tl = Instance.new("PointLight"); tl.Color=Color3.fromRGB(255,130,40); tl.Range=14; tl.Brightness=0.6; tl.Parent=torch
 	local fi = Instance.new("Fire"); fi.Size=2; fi.Heat=3; fi.Parent=torch
 	return f
@@ -4727,7 +5046,8 @@ end
 --------------------------------------------------------------------------------
 -- BUILD GRID CORRIDOR between two adjacent rooms
 -- Dir: "Right" = along +X, "Down" = along -Z
--- Returns the door Part (or nil if no key)
+-- Returns { sealDoor, gateA, gateB } — sealDoor is the key-locked door (or nil),
+-- gateA/gateB are room-clear gates near each room's exit
 --------------------------------------------------------------------------------
 function HollowBuilder.BuildGridCorridor(parent, roomAOrigin, roomASize, roomBOrigin, roomBSize, dir, originY, sealType)
 	local mat = Enum.Material.Brick
@@ -4738,6 +5058,9 @@ function HollowBuilder.BuildGridCorridor(parent, roomAOrigin, roomASize, roomBOr
 	local ch = HollowConfig.CorridorHeight
 	local t = 4
 
+	local sealDoor = nil
+	local gate = nil -- single gate in middle of corridor
+
 	if dir == "Right" then
 		-- Corridor along X axis between horizontally adjacent rooms
 		local fromX = roomAOrigin.X + roomASize.X / 2 - CORRIDOR_OVERLAP
@@ -4745,11 +5068,14 @@ function HollowBuilder.BuildGridCorridor(parent, roomAOrigin, roomASize, roomBOr
 		local z = roomAOrigin.Z -- same Z since they are on the same row
 		buildCorridorX(parent, z, fromX, toX, originY, mat, col, floorCol)
 
-		-- Door in the middle if sealType is specified
+		local centerX = (fromX + toX) / 2
+
 		if sealType then
-			local centerX = (fromX + toX) / 2
 			local doorPos = Vector3.new(centerX, originY + ch / 2, z)
-			return HollowBuilder._BuildCorridorDoor(parent, doorPos, Vector3.new(4, ch, ow), sealType)
+			sealDoor = HollowBuilder._BuildCorridorDoor(parent, doorPos, Vector3.new(4, ch, ow), sealType)
+		else
+			-- Single room-clear gate in the middle of the corridor
+			gate = HollowBuilder._BuildRoomGate(parent, Vector3.new(centerX, originY + ch / 2, z), Vector3.new(4, ch, ow))
 		end
 
 	elseif dir == "Down" then
@@ -4759,15 +5085,54 @@ function HollowBuilder.BuildGridCorridor(parent, roomAOrigin, roomASize, roomBOr
 		local x = roomAOrigin.X -- same X since they are on the same column
 		buildCorridorZ(parent, x, fromZ, toZ, originY, mat, col, floorCol)
 
-		-- Door in the middle if sealType is specified
+		local centerZ = (fromZ + toZ) / 2
+
 		if sealType then
-			local centerZ = (fromZ + toZ) / 2
 			local doorPos = Vector3.new(x, originY + ch / 2, centerZ)
-			return HollowBuilder._BuildCorridorDoor(parent, doorPos, Vector3.new(ow, ch, 4), sealType)
+			sealDoor = HollowBuilder._BuildCorridorDoor(parent, doorPos, Vector3.new(ow, ch, 4), sealType)
+		else
+			-- Single room-clear gate in the middle of the corridor
+			gate = HollowBuilder._BuildRoomGate(parent, Vector3.new(x, originY + ch / 2, centerZ), Vector3.new(ow, ch, 4))
 		end
 	end
 
-	return nil
+	return sealDoor, gate
+end
+
+--------------------------------------------------------------------------------
+-- INTERNAL: Build a room-clear gate (iron bars that slide up when room clears)
+--------------------------------------------------------------------------------
+function HollowBuilder._BuildRoomGate(parent, gatePos, gateSize)
+	local gate = makePart({
+		Name = "RoomGate",
+		Size = gateSize,
+		Position = gatePos,
+		Material = Enum.Material.DiamondPlate,
+		Color = Color3.fromRGB(50, 45, 40),
+		Parent = parent,
+	})
+
+	-- Iron bar texture (horizontal bars across the gate)
+	local ch = HollowConfig.CorridorHeight
+	for barY = -ch/2 + 3, ch/2 - 1, 4 do
+		local barSize
+		if gateSize.X > gateSize.Z then
+			barSize = Vector3.new(gateSize.X - 1, 0.5, gateSize.Z + 0.2)
+		else
+			barSize = Vector3.new(gateSize.X + 0.2, 0.5, gateSize.Z - 1)
+		end
+		local bar = makePart({
+			Name = "GateBar",
+			Size = barSize,
+			Position = gatePos + Vector3.new(0, barY, 0),
+			Material = Enum.Material.Metal,
+			Color = Color3.fromRGB(35, 32, 28),
+			CanCollide = false,
+			Parent = gate,
+		})
+	end
+
+	return gate
 end
 
 --------------------------------------------------------------------------------
@@ -4812,11 +5177,12 @@ function HollowBuilder._BuildCorridorDoor(parent, doorPos, doorSize, sealType)
 	glow.Brightness = 2
 	glow.Parent = door
 
-	-- Label
+	-- Label (only visible when nearby, not through walls)
 	local bb = Instance.new("BillboardGui")
 	bb.Size = UDim2.new(0, 150, 0, 50)
 	bb.StudsOffset = Vector3.new(0, ch / 2 + 2, 0)
-	bb.AlwaysOnTop = true
+	bb.AlwaysOnTop = false
+	bb.MaxDistance = 60
 	bb.Parent = door
 
 	local lbl = Instance.new("TextLabel")
@@ -4834,13 +5200,17 @@ function HollowBuilder._BuildCorridorDoor(parent, doorPos, doorSize, sealType)
 end
 
 --------------------------------------------------------------------------------
--- OPEN SLIDING DOOR
+-- OPEN SLIDING DOOR (seal doors and room gates)
 --------------------------------------------------------------------------------
 function HollowBuilder.OpenSlidingDoor(door)
 	if not door or not door.Parent then return end
 
 	local ch = HollowConfig.CorridorHeight
 	door.CanCollide = false
+	-- Also disable collision on child bars
+	for _, child in ipairs(door:GetChildren()) do
+		if child:IsA("BasePart") then child.CanCollide = false end
+	end
 
 	local slideUp = TweenService:Create(door, TweenInfo.new(1.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
 		Position = door.Position + Vector3.new(0, ch + 4, 0),
@@ -4849,6 +5219,20 @@ function HollowBuilder.OpenSlidingDoor(door)
 	slideUp.Completed:Connect(function()
 		door:Destroy()
 	end)
+end
+
+--------------------------------------------------------------------------------
+-- OPEN ALL ROOM GATES for a cleared room
+-- Opens the gate on the side of the cleared room for each connected corridor
+--------------------------------------------------------------------------------
+function HollowBuilder.OpenRoomGates(dungeonData, clearedRoomId)
+	for ci, gateData in pairs(dungeonData.RoomGates) do
+		-- Open the gate if either connected room is the one that was cleared
+		if (gateData.FromRoom == clearedRoomId or gateData.ToRoom == clearedRoomId) and gateData.Gate then
+			HollowBuilder.OpenSlidingDoor(gateData.Gate)
+			gateData.Gate = nil
+		end
+	end
 end
 
 --------------------------------------------------------------------------------
@@ -4883,6 +5267,7 @@ function HollowBuilder.StartDescent(player)
 		RoomEnemyCounts = {},
 		RoomFolders = {},
 		CorridorDoors = {}, -- [corridorIndex] = { Door = Part, SealType = string }
+		RoomGates = {},    -- [corridorIndex] = { Gate = Part, FromRoom = id, ToRoom = id }
 		PlayerSeals = {}, -- { Iron = true, Gold = true, ... }
 		ShadowSealsCollected = 0,
 		Player = player,
@@ -4950,16 +5335,21 @@ function HollowBuilder.StartDescent(player)
 		if fromConfig and toConfig then
 			local fromOrigin = roomWorldOrigins[corr.FromRoom]
 			local toOrigin = roomWorldOrigins[corr.ToRoom]
-			local door = HollowBuilder.BuildGridCorridor(
+			local sealDoor, gate = HollowBuilder.BuildGridCorridor(
 				dungeonFolder,
 				fromOrigin, fromConfig.Size,
 				toOrigin, toConfig.Size,
-				corr.Dir, originY, corr.SealKey
+				corr.Dir, originY, corr.DoorKey
 			)
 			dungeonData.CorridorDoors[ci] = {
-				Door = door,
-				SealType = corr.SealKey,
+				Door = sealDoor,
+				SealType = corr.DoorKey,
 				RequiresBothShadow = corr.RequiresBothShadow or false,
+				FromRoom = corr.FromRoom,
+				ToRoom = corr.ToRoom,
+			}
+			dungeonData.RoomGates[ci] = {
+				Gate = gate,  -- single gate in corridor middle
 				FromRoom = corr.FromRoom,
 				ToRoom = corr.ToRoom,
 			}
@@ -5002,9 +5392,16 @@ function HollowBuilder.StartDescent(player)
 						end
 					end
 
-					-- Open the door
+					-- Open the seal door
 					HollowBuilder.OpenSlidingDoor(cd.Door)
 					cd.Door = nil
+
+					-- Also open the room gate on this corridor (if any)
+					local gd = dungeonData.RoomGates[capturedCi]
+					if gd and gd.Gate then
+						HollowBuilder.OpenSlidingDoor(gd.Gate)
+						gd.Gate = nil
+					end
 
 					-- Activate destination room
 					local toRoomIndex = getRoomIndex(cd.ToRoom)
@@ -5124,7 +5521,7 @@ function HollowBuilder.StartDescent(player)
 					ToRow = toConfig.Grid[2] + 1,
 					ToCol = toConfig.Grid[1] + 1,
 					Dir = corr.Dir,
-					SealKey = corr.SealKey,
+					SealKey = corr.DoorKey,
 				})
 			end
 		end
@@ -5298,6 +5695,391 @@ function HollowBuilder.SpawnSingleEnemy(enemyId, spawnPos, parentFolder, hpScale
 	nameLabel.Size = UDim2.new(1,0,1,0); nameLabel.BackgroundTransparency = 1
 	nameLabel.Text = config.Name; nameLabel.TextColor3 = Color3.new(1,1,1)
 	nameLabel.TextScaled = true; nameLabel.Font = Enum.Font.GothamBold; nameLabel.Parent = billboard
+
+	-- ================================================================
+	-- CREATURE-SPECIFIC DETAIL DECORATIONS
+	-- Adds visual flair based on creature type after base rig is built
+	-- ================================================================
+	local function addDetail(name, size, color, mat, parent)
+		local d = Instance.new("Part")
+		d.Name = name; d.Size = size; d.Color = color
+		d.Material = mat or Enum.Material.SmoothPlastic
+		d.CanCollide = false; d.Anchored = false
+		d.Parent = model
+		return d
+	end
+
+	local function weldTo(part, parent, offset)
+		local w = Instance.new("Weld")
+		w.Part0 = parent; w.Part1 = part; w.C0 = offset; w.Parent = part
+	end
+
+	if enemyId == "Skeleton" then
+		-- Ribcage lines on torso (front = -Z)
+		for i = -1, 1 do
+			local rib = addDetail("Rib", Vector3.new(scaleX*1.8, 0.08, scaleZ*0.6),
+				Color3.fromRGB(230, 225, 215), Enum.Material.SmoothPlastic)
+			weldTo(rib, torso, CFrame.new(0, i * scaleY * 0.4, -scaleZ * 0.3))
+		end
+		-- Jaw line on head (front = -Z)
+		local jaw = addDetail("Jaw", Vector3.new(headSize.X * 0.7, 0.12, headSize.Z * 0.4),
+			Color3.fromRGB(210, 205, 195), Enum.Material.SmoothPlastic)
+		weldTo(jaw, head, CFrame.new(0, -headSize.Y * 0.35, -headSize.Z * 0.2))
+		-- Eye sockets (dark insets, front = -Z, pushed out to avoid z-fighting)
+		for _, xOff in ipairs({-0.3, 0.3}) do
+			local eye = addDetail("Eye", Vector3.new(0.3, 0.3, 0.2),
+				Color3.fromRGB(20, 5, 5), Enum.Material.SmoothPlastic)
+			weldTo(eye, head, CFrame.new(xOff * headSize.X, headSize.Y * 0.1, -headSize.Z * 0.52))
+		end
+
+	elseif enemyId == "Zombie" then
+		-- Tattered cloth draped over torso (front = -Z)
+		local cloth = addDetail("Cloth", Vector3.new(scaleX*2.1, scaleY*1.4, scaleZ*0.15),
+			Color3.fromRGB(60, 50, 35), Enum.Material.Fabric)
+		weldTo(cloth, torso, CFrame.new(0, -scaleY*0.3, -scaleZ*0.5))
+		-- Exposed wound on torso (front = -Z)
+		local wound = addDetail("Wound", Vector3.new(scaleX*0.5, scaleY*0.4, 0.1),
+			Color3.fromRGB(120, 30, 30), Enum.Material.SmoothPlastic)
+		weldTo(wound, torso, CFrame.new(scaleX*0.4, 0, -scaleZ*0.52))
+		-- Dirt patches on legs
+		for _, leg in ipairs({leftLeg, rightLeg}) do
+			local dirt = addDetail("Dirt", Vector3.new(scaleX*0.6, scaleY*0.3, scaleZ*0.6),
+				Color3.fromRGB(55, 40, 25), Enum.Material.Slate)
+			weldTo(dirt, leg, CFrame.new(0, -scaleY*0.5, 0))
+		end
+		-- Droopy eye (front = -Z)
+		local eye = addDetail("ZombieEye", Vector3.new(0.3, 0.2, 0.15),
+			Color3.fromRGB(180, 180, 30), Enum.Material.Neon)
+		weldTo(eye, head, CFrame.new(-0.25 * headSize.X, headSize.Y * 0.1, -headSize.Z * 0.45))
+
+	elseif enemyId == "Archer" then
+		-- Hood / cloak over head and shoulders
+		local hood = addDetail("Hood", Vector3.new(headSize.X * 1.3, headSize.Y * 0.8, headSize.Z * 1.3),
+			Color3.fromRGB(50, 45, 38), Enum.Material.Fabric)
+		weldTo(hood, head, CFrame.new(0, headSize.Y * 0.15, 0))
+		-- Shoulder cape (back = +Z)
+		local cape = addDetail("Cape", Vector3.new(scaleX*2.3, scaleY*1.8, 0.15),
+			Color3.fromRGB(55, 48, 40), Enum.Material.Fabric)
+		weldTo(cape, torso, CFrame.new(0, 0, scaleZ * 0.55))
+		-- Quiver on back (+Z)
+		local quiver = addDetail("Quiver", Vector3.new(0.3, scaleY*1.2, 0.3),
+			Color3.fromRGB(80, 55, 30), Enum.Material.Wood)
+		weldTo(quiver, torso, CFrame.new(scaleX*0.5, scaleY*0.2, scaleZ*0.5))
+		-- Arrow tips sticking out of quiver (back = +Z)
+		for i = -1, 1 do
+			local arrow = addDetail("Arrow", Vector3.new(0.08, 0.3, 0.08),
+				Color3.fromRGB(160, 155, 145), Enum.Material.Metal)
+			weldTo(arrow, torso, CFrame.new(scaleX*0.5 + i*0.1, scaleY*0.9, scaleZ*0.5))
+		end
+		-- Belt
+		local belt = addDetail("Belt", Vector3.new(scaleX*2.05, 0.15, scaleZ*1.05),
+			Color3.fromRGB(65, 45, 25), Enum.Material.Leather)
+		weldTo(belt, torso, CFrame.new(0, -scaleY*0.6, 0))
+
+	elseif enemyId == "Spider" then
+		-- Extra leg pairs (4 pairs of spindly legs)
+		for i = -1, 1, 2 do
+			for j = -1, 1 do
+				local leg = addDetail("SpiderLeg", Vector3.new(0.12, 0.12, scaleZ*1.5),
+					Color3.fromRGB(15, 12, 10), Enum.Material.SmoothPlastic)
+				weldTo(leg, torso, CFrame.new(i * scaleX * 0.8, -scaleY*0.3, j * scaleZ * 0.3)
+					* CFrame.Angles(math.rad(40 * i), 0, math.rad(30 * i)))
+			end
+		end
+		-- Mandibles on head (front = -Z)
+		for _, xOff in ipairs({-0.3, 0.3}) do
+			local fang = addDetail("Fang", Vector3.new(0.08, 0.08, 0.3),
+				Color3.fromRGB(25, 20, 15), Enum.Material.SmoothPlastic)
+			weldTo(fang, head, CFrame.new(xOff * headSize.X, -headSize.Y*0.3, -headSize.Z*0.4))
+		end
+		-- Red eyes (cluster, front = -Z)
+		for _, off in ipairs({{-0.2, 0.15}, {0.2, 0.15}, {-0.1, 0.0}, {0.1, 0.0}}) do
+			local eye = addDetail("SpiderEye", Vector3.new(0.12, 0.12, 0.1),
+				Color3.fromRGB(200, 20, 20), Enum.Material.Neon)
+			weldTo(eye, head, CFrame.new(off[1]*headSize.X, off[2]*headSize.Y, -headSize.Z*0.45))
+		end
+		-- Abdomen (large bulb behind torso, back = +Z)
+		local abdomen = addDetail("Abdomen", Vector3.new(scaleX*1.6, scaleY*1.4, scaleZ*1.2),
+			Color3.fromRGB(20, 15, 12), Enum.Material.SmoothPlastic)
+		weldTo(abdomen, torso, CFrame.new(0, 0, scaleZ*0.9))
+
+	elseif enemyId == "Wraith" then
+		-- Translucent flowing robe
+		torso.Transparency = 0.3
+		head.Transparency = 0.3
+		leftArm.Transparency = 0.4
+		rightArm.Transparency = 0.4
+		leftLeg.Transparency = 0.6
+		rightLeg.Transparency = 0.6
+		-- Tattered cloak edges
+		local cloak = addDetail("Cloak", Vector3.new(scaleX*2.4, scaleY*2.5, scaleZ*1.2),
+			Color3.fromRGB(120, 100, 140), Enum.Material.Fabric)
+		cloak.Transparency = 0.4
+		weldTo(cloak, torso, CFrame.new(0, -scaleY*0.3, 0))
+		-- Glowing eyes (front = -Z)
+		for _, xOff in ipairs({-0.25, 0.25}) do
+			local eye = addDetail("WraithEye", Vector3.new(0.2, 0.15, 0.12),
+				Color3.fromRGB(150, 80, 255), Enum.Material.Neon)
+			weldTo(eye, head, CFrame.new(xOff*headSize.X, headSize.Y*0.1, -headSize.Z*0.45))
+		end
+		-- Wispy trail particles
+		local particles = Instance.new("ParticleEmitter")
+		particles.Color = ColorSequence.new(Color3.fromRGB(140, 100, 180), Color3.fromRGB(80, 50, 120))
+		particles.Size = NumberSequence.new(0.8, 0)
+		particles.Lifetime = NumberRange.new(0.5, 1); particles.Rate = 15
+		particles.Speed = NumberRange.new(1, 3); particles.Parent = torso
+
+	elseif enemyId == "Mage" then
+		-- Wizard hat
+		local hatBrim = addDetail("HatBrim", Vector3.new(headSize.X*1.8, 0.15, headSize.Z*1.8),
+			Color3.fromRGB(50, 20, 80), Enum.Material.Fabric)
+		weldTo(hatBrim, head, CFrame.new(0, headSize.Y*0.4, 0))
+		local hatCone = addDetail("HatCone", Vector3.new(headSize.X*0.8, headSize.Y*1.2, headSize.Z*0.8),
+			Color3.fromRGB(55, 22, 85), Enum.Material.Fabric)
+		weldTo(hatCone, head, CFrame.new(0, headSize.Y*1.0, 0))
+		-- Robe over torso
+		local robe = addDetail("Robe", Vector3.new(scaleX*2.15, scaleY*2.6, scaleZ*1.15),
+			Color3.fromRGB(45, 18, 70), Enum.Material.Fabric)
+		weldTo(robe, torso, CFrame.new(0, -scaleY*0.2, 0))
+		-- Glowing staff orb in hand
+		local orb = addDetail("MageOrb", Vector3.new(0.5, 0.5, 0.5),
+			Color3.fromRGB(180, 50, 255), Enum.Material.Neon)
+		orb.Shape = Enum.PartType.Ball
+		weldTo(orb, rightArm, CFrame.new(0, -scaleY*1.0, 0))
+		local orbLight = Instance.new("PointLight")
+		orbLight.Color = Color3.fromRGB(150, 50, 255); orbLight.Range = 8; orbLight.Brightness = 0.5
+		orbLight.Parent = orb
+		-- Belt with potion vials
+		local belt = addDetail("MageBelt", Vector3.new(scaleX*2.1, 0.18, scaleZ*1.1),
+			Color3.fromRGB(70, 50, 25), Enum.Material.Leather)
+		weldTo(belt, torso, CFrame.new(0, -scaleY*0.65, 0))
+
+	elseif enemyId == "SkeletonKnight" then
+		-- Plate armor on torso
+		local chestplate = addDetail("Chestplate", Vector3.new(scaleX*2.1, scaleY*1.8, scaleZ*1.1),
+			Color3.fromRGB(120, 115, 105), Enum.Material.Metal)
+		weldTo(chestplate, torso, CFrame.new(0, scaleY*0.1, 0))
+		-- Shoulder pauldrons
+		for _, side in ipairs({{leftArm, -1}, {rightArm, 1}}) do
+			local pauldron = addDetail("Pauldron", Vector3.new(scaleX*1.1, scaleY*0.5, scaleZ*1.1),
+				Color3.fromRGB(110, 105, 95), Enum.Material.Metal)
+			weldTo(pauldron, side[1], CFrame.new(0, scaleY*0.8, 0))
+		end
+		-- Helmet with visor
+		local helmet = addDetail("Helmet", Vector3.new(headSize.X*1.2, headSize.Y*1.1, headSize.Z*1.2),
+			Color3.fromRGB(115, 110, 100), Enum.Material.Metal)
+		weldTo(helmet, head, CFrame.new(0, headSize.Y*0.05, 0))
+		local visor = addDetail("Visor", Vector3.new(headSize.X*0.9, 0.12, 0.1),
+			Color3.fromRGB(30, 28, 25), Enum.Material.Metal)
+		weldTo(visor, head, CFrame.new(0, headSize.Y*0.1, -headSize.Z*0.55))
+		-- Glowing red eyes through visor (front = -Z)
+		for _, xOff in ipairs({-0.2, 0.2}) do
+			local eye = addDetail("KnightEye", Vector3.new(0.15, 0.1, 0.1),
+				Color3.fromRGB(255, 40, 40), Enum.Material.Neon)
+			weldTo(eye, head, CFrame.new(xOff*headSize.X, headSize.Y*0.1, -headSize.Z*0.5))
+		end
+		-- Tattered tabard (front = -Z)
+		local tabard = addDetail("Tabard", Vector3.new(scaleX*1.2, scaleY*1.6, 0.1),
+			Color3.fromRGB(80, 20, 20), Enum.Material.Fabric)
+		weldTo(tabard, torso, CFrame.new(0, -scaleY*0.5, -scaleZ*0.52))
+		-- Sword in hand
+		local blade = addDetail("KnightBlade", Vector3.new(0.15, 0.2, scaleY*2),
+			Color3.fromRGB(170, 170, 180), Enum.Material.Metal)
+		weldTo(blade, rightArm, CFrame.new(0, -scaleY*1.3, 0))
+
+	elseif enemyId == "Bat" then
+		-- Wing membranes (large flat pieces on arms)
+		for _, arm in ipairs({leftArm, rightArm}) do
+			local wing = addDetail("Wing", Vector3.new(0.05, scaleY*1.8, scaleZ*2.5),
+				Color3.fromRGB(30, 25, 40), Enum.Material.SmoothPlastic)
+			wing.Transparency = 0.2
+			weldTo(wing, arm, CFrame.new(0, 0, 0))
+		end
+		-- Wing bone ribs
+		for _, arm in ipairs({leftArm, rightArm}) do
+			for i = -1, 1 do
+				local bone = addDetail("WingBone", Vector3.new(0.06, 0.06, scaleZ*1.2),
+					Color3.fromRGB(40, 35, 50), Enum.Material.SmoothPlastic)
+				weldTo(bone, arm, CFrame.new(0, i*scaleY*0.5, scaleZ*0.3))
+			end
+		end
+		-- Glowing eyes (front = -Z)
+		for _, xOff in ipairs({-0.25, 0.25}) do
+			local eye = addDetail("BatEye", Vector3.new(0.15, 0.12, 0.1),
+				Color3.fromRGB(255, 50, 50), Enum.Material.Neon)
+			weldTo(eye, head, CFrame.new(xOff*headSize.X, headSize.Y*0.1, -headSize.Z*0.45))
+		end
+		-- Ears (pointed triangular flaps)
+		for _, xOff in ipairs({-0.35, 0.35}) do
+			local ear = addDetail("Ear", Vector3.new(0.08, headSize.Y*0.6, 0.3),
+				Color3.fromRGB(35, 30, 45), Enum.Material.SmoothPlastic)
+			weldTo(ear, head, CFrame.new(xOff*headSize.X, headSize.Y*0.4, 0))
+		end
+
+	-- === WARDEN CREATURES ===
+	elseif enemyId == "IronKeeper" then
+		-- Heavy iron plate armor
+		local armor = addDetail("IronArmor", Vector3.new(scaleX*2.2, scaleY*2.1, scaleZ*1.2),
+			Color3.fromRGB(130, 125, 115), Enum.Material.Metal)
+		weldTo(armor, torso, CFrame.new(0, 0, 0))
+		-- Massive pauldrons
+		for _, arm in ipairs({leftArm, rightArm}) do
+			local p = addDetail("IronPauldron", Vector3.new(scaleX*1.3, scaleY*0.6, scaleZ*1.3),
+				Color3.fromRGB(120, 115, 105), Enum.Material.Metal)
+			weldTo(p, arm, CFrame.new(0, scaleY*0.85, 0))
+		end
+		-- Great helm
+		local helm = addDetail("IronHelm", Vector3.new(headSize.X*1.3, headSize.Y*1.3, headSize.Z*1.3),
+			Color3.fromRGB(125, 120, 110), Enum.Material.Metal)
+		weldTo(helm, head, CFrame.new(0, headSize.Y*0.1, 0))
+		-- Visor slit (front = -Z)
+		local slit = addDetail("VisorSlit", Vector3.new(headSize.X*0.8, 0.1, 0.1),
+			Color3.fromRGB(10, 10, 10), Enum.Material.SmoothPlastic)
+		weldTo(slit, head, CFrame.new(0, headSize.Y*0.1, -headSize.Z*0.65))
+		-- Iron shield in left hand
+		local shield = addDetail("IronShield", Vector3.new(0.3, scaleY*1.5, scaleZ*1.2),
+			Color3.fromRGB(110, 105, 95), Enum.Material.Metal)
+		weldTo(shield, leftArm, CFrame.new(-scaleX*0.4, -scaleY*0.3, 0))
+
+	elseif enemyId == "GoldGuardian" then
+		-- Ornate gold armor
+		local armor = addDetail("GoldArmor", Vector3.new(scaleX*2.2, scaleY*2.1, scaleZ*1.2),
+			Color3.fromRGB(220, 185, 50), Enum.Material.Metal)
+		weldTo(armor, torso, CFrame.new(0, 0, 0))
+		-- Crown
+		local crown = addDetail("Crown", Vector3.new(headSize.X*1.2, headSize.Y*0.4, headSize.Z*1.2),
+			Color3.fromRGB(255, 215, 0), Enum.Material.Metal)
+		weldTo(crown, head, CFrame.new(0, headSize.Y*0.5, 0))
+		-- Jewel in crown (front = -Z)
+		local jewel = addDetail("Jewel", Vector3.new(0.25, 0.25, 0.25),
+			Color3.fromRGB(255, 50, 50), Enum.Material.Neon)
+		jewel.Shape = Enum.PartType.Ball
+		weldTo(jewel, head, CFrame.new(0, headSize.Y*0.7, -headSize.Z*0.3))
+		-- Gold cape (back = +Z)
+		local cape = addDetail("GoldCape", Vector3.new(scaleX*2, scaleY*2.5, 0.15),
+			Color3.fromRGB(180, 150, 40), Enum.Material.Fabric)
+		weldTo(cape, torso, CFrame.new(0, -scaleY*0.2, scaleZ*0.55))
+
+	elseif enemyId == "CrimsonSentinel" then
+		-- Blood-red plate armor
+		local armor = addDetail("CrimsonArmor", Vector3.new(scaleX*2.2, scaleY*2.1, scaleZ*1.2),
+			Color3.fromRGB(150, 25, 25), Enum.Material.Metal)
+		weldTo(armor, torso, CFrame.new(0, 0, 0))
+		-- Horned helmet
+		local helm = addDetail("CrimsonHelm", Vector3.new(headSize.X*1.25, headSize.Y*1.2, headSize.Z*1.25),
+			Color3.fromRGB(140, 20, 20), Enum.Material.Metal)
+		weldTo(helm, head, CFrame.new(0, headSize.Y*0.05, 0))
+		for _, xOff in ipairs({-0.4, 0.4}) do
+			local horn = addDetail("Horn", Vector3.new(0.15, headSize.Y*0.8, 0.15),
+				Color3.fromRGB(60, 15, 15), Enum.Material.SmoothPlastic)
+			weldTo(horn, head, CFrame.new(xOff*headSize.X, headSize.Y*0.6, 0)
+				* CFrame.Angles(0, 0, math.rad(xOff * 40)))
+		end
+		-- Burning eye glow (front = -Z)
+		for _, xOff in ipairs({-0.2, 0.2}) do
+			local eye = addDetail("CrimsonEye", Vector3.new(0.2, 0.15, 0.1),
+				Color3.fromRGB(255, 80, 20), Enum.Material.Neon)
+			weldTo(eye, head, CFrame.new(xOff*headSize.X, headSize.Y*0.1, -headSize.Z*0.58))
+		end
+
+	elseif enemyId == "EmeraldWarden" then
+		-- Vine-wrapped robes
+		local robe = addDetail("EmeraldRobe", Vector3.new(scaleX*2.2, scaleY*2.6, scaleZ*1.15),
+			Color3.fromRGB(20, 60, 25), Enum.Material.Fabric)
+		weldTo(robe, torso, CFrame.new(0, -scaleY*0.2, 0))
+		-- Leaf crown
+		local leafCrown = addDetail("LeafCrown", Vector3.new(headSize.X*1.4, headSize.Y*0.3, headSize.Z*1.4),
+			Color3.fromRGB(30, 80, 20), Enum.Material.Grass)
+		weldTo(leafCrown, head, CFrame.new(0, headSize.Y*0.45, 0))
+		-- Glowing green eyes (front = -Z)
+		for _, xOff in ipairs({-0.25, 0.25}) do
+			local eye = addDetail("EmeraldEye", Vector3.new(0.2, 0.15, 0.1),
+				Color3.fromRGB(50, 255, 80), Enum.Material.Neon)
+			weldTo(eye, head, CFrame.new(xOff*headSize.X, headSize.Y*0.1, -headSize.Z*0.45))
+		end
+		-- Staff with emerald orb
+		local staff = addDetail("EmeraldStaff", Vector3.new(0.2, 0.2, scaleY*2.5),
+			Color3.fromRGB(50, 35, 20), Enum.Material.Wood)
+		weldTo(staff, rightArm, CFrame.new(0, -scaleY*1.5, 0))
+		local orb = addDetail("EmeraldOrb", Vector3.new(0.5, 0.5, 0.5),
+			Color3.fromRGB(30, 200, 60), Enum.Material.Neon)
+		orb.Shape = Enum.PartType.Ball
+		weldTo(orb, rightArm, CFrame.new(0, -scaleY*2.8, 0))
+
+	elseif enemyId == "ShadowChampion" then
+		-- Dark void armor (semi-transparent)
+		local armor = addDetail("ShadowArmor", Vector3.new(scaleX*2.2, scaleY*2.1, scaleZ*1.2),
+			Color3.fromRGB(15, 10, 20), Enum.Material.Metal)
+		armor.Transparency = 0.15
+		weldTo(armor, torso, CFrame.new(0, 0, 0))
+		-- Shadow cloak (back = +Z)
+		local cloak = addDetail("ShadowCloak", Vector3.new(scaleX*2.5, scaleY*2.8, 0.15),
+			Color3.fromRGB(10, 8, 15), Enum.Material.Fabric)
+		cloak.Transparency = 0.3
+		weldTo(cloak, torso, CFrame.new(0, -scaleY*0.3, scaleZ*0.55))
+		-- Void eyes (bright purple, front = -Z)
+		for _, xOff in ipairs({-0.2, 0.2}) do
+			local eye = addDetail("ShadowEye", Vector3.new(0.2, 0.15, 0.12),
+				Color3.fromRGB(180, 50, 255), Enum.Material.Neon)
+			weldTo(eye, head, CFrame.new(xOff*headSize.X, headSize.Y*0.1, -headSize.Z*0.45))
+		end
+		-- Shadow particles
+		local particles = Instance.new("ParticleEmitter")
+		particles.Color = ColorSequence.new(Color3.fromRGB(30, 10, 50), Color3.fromRGB(10, 5, 20))
+		particles.Size = NumberSequence.new(1, 0)
+		particles.Lifetime = NumberRange.new(0.5, 1.2); particles.Rate = 20
+		particles.Speed = NumberRange.new(1, 4); particles.Transparency = NumberSequence.new(0.5, 1)
+		particles.Parent = torso
+		-- Dual swords
+		for _, arm in ipairs({leftArm, rightArm}) do
+			local blade = addDetail("ShadowBlade", Vector3.new(0.12, 0.2, scaleY*2.2),
+				Color3.fromRGB(60, 40, 80), Enum.Material.Metal)
+			weldTo(blade, arm, CFrame.new(0, -scaleY*1.4, 0))
+		end
+
+	-- === BOSS ===
+	elseif enemyId == "BossGolem" then
+		-- Massive stone plates on torso (layered)
+		local chestPlate = addDetail("GolemChest", Vector3.new(scaleX*2.2, scaleY*1.8, scaleZ*1.15),
+			Color3.fromRGB(80, 75, 68), Enum.Material.Slate)
+		weldTo(chestPlate, torso, CFrame.new(0, scaleY*0.1, 0))
+		-- Cracks/rune lines across chest (neon, front = -Z)
+		for i = -1, 1 do
+			local rune = addDetail("GolemRune", Vector3.new(scaleX*1.5, 0.08, 0.08),
+				Color3.fromRGB(255, 120, 30), Enum.Material.Neon)
+			weldTo(rune, torso, CFrame.new(0, i*scaleY*0.4, -scaleZ*0.55))
+		end
+		-- Boulder shoulders
+		for _, arm in ipairs({leftArm, rightArm}) do
+			local boulder = addDetail("Shoulder", Vector3.new(scaleX*1.6, scaleY*0.8, scaleZ*1.4),
+				Color3.fromRGB(75, 70, 62), Enum.Material.Slate)
+			weldTo(boulder, arm, CFrame.new(0, scaleY*0.8, 0))
+		end
+		-- Stone crown / crest on head
+		local crest = addDetail("GolemCrest", Vector3.new(headSize.X*1.3, headSize.Y*0.5, headSize.Z*0.4),
+			Color3.fromRGB(70, 65, 58), Enum.Material.Slate)
+		weldTo(crest, head, CFrame.new(0, headSize.Y*0.5, 0))
+		-- Glowing core eyes (front = -Z)
+		for _, xOff in ipairs({-0.25, 0.25}) do
+			local eye = addDetail("GolemEye", Vector3.new(0.4, 0.3, 0.2),
+				Color3.fromRGB(255, 100, 20), Enum.Material.Neon)
+			weldTo(eye, head, CFrame.new(xOff*headSize.X, headSize.Y*0.05, -headSize.Z*0.45))
+		end
+		-- Molten core visible in belly (front = -Z)
+		local core = addDetail("GolemCore", Vector3.new(scaleX*0.8, scaleY*0.8, scaleZ*0.6),
+			Color3.fromRGB(255, 80, 15), Enum.Material.Neon)
+		weldTo(core, torso, CFrame.new(0, -scaleY*0.3, -scaleZ*0.35))
+		local coreLight = Instance.new("PointLight")
+		coreLight.Color = Color3.fromRGB(255, 100, 20); coreLight.Range = 15; coreLight.Brightness = 1
+		coreLight.Parent = core
+		-- Moss/vine growth on legs
+		for _, leg in ipairs({leftLeg, rightLeg}) do
+			local moss = addDetail("GolemMoss", Vector3.new(scaleX*0.8, scaleY*0.5, scaleZ*0.8),
+				Color3.fromRGB(35, 60, 25), Enum.Material.Grass)
+			weldTo(moss, leg, CFrame.new(0, -scaleY*0.5, 0))
+		end
+	end
+	-- ================================================================
 
 	model.Parent = parentFolder
 
@@ -5497,11 +6279,16 @@ function HollowBuilder.RoomCleared(player, data, roomIndex)
 	end
 	HollowBuilder.SpawnCache(data, chestOrigin, roomIndex, player)
 
-	-- Activate adjacent rooms connected without doors
+	-- Open room gates for this cleared room (iron bar gates slide up)
+	if roomConfig then
+		HollowBuilder.OpenRoomGates(data, roomConfig.RoomId)
+	end
+
+	-- Activate adjacent rooms connected without key-sealed doors
 	if roomConfig then
 		local roomId = roomConfig.RoomId
 		for _, corr in ipairs(HollowConfig.Corridors) do
-			if not corr.SealKey then
+			if not corr.DoorKey then
 				local neighborId = nil
 				if corr.FromRoom == roomId then neighborId = corr.ToRoom end
 				if corr.ToRoom == roomId then neighborId = corr.FromRoom end
@@ -5842,7 +6629,7 @@ return HollowBuilder
 ]]></string>
       </Properties>
     </Item>
-    <Item class="ModuleScript" referent="21">
+    <Item class="ModuleScript" referent="22">
       <Properties>
         <string name="Name">LootSystem</string>
         <string name="Source"><![CDATA[local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -5987,7 +6774,7 @@ return LootSystem
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="22">
+    <Item class="Script" referent="23">
       <Properties>
         <string name="Name">Main</string>
         <token name="RunContext">0</token>
@@ -6091,23 +6878,23 @@ local function BuildLobby()
 			Material=Enum.Material.Slate, BrickColor=BrickColor.new("Dark stone grey")})
 	end
 
-	-- ===== GROUND LAYERS (raised above Y=0 to avoid z-fighting) =====
-	-- Large dirt ground
+	-- ===== GROUND LAYERS (stacked with clear Y gaps to prevent z-fighting) =====
+	-- Large dirt ground (base layer)
 	mp({Name="DirtGround", Size=Vector3.new(400, 6, 400), Position=Vector3.new(0, -2.5, 0),
 		Material=Enum.Material.Ground, Color=Color3.fromRGB(80, 55, 35)})
-	-- Worn cobblestone path leading to cave
-	mp({Name="StonePath", Size=Vector3.new(24, 0.5, 90), Position=Vector3.new(0, 0.8, -15),
-		Material=Enum.Material.Cobblestone, BrickColor=BrickColor.new("Dark stone grey")})
-	-- Wider clearing around spawn (campsite feel)
-	mp({Name="SpawnClearing", Size=Vector3.new(60, 0.5, 50), Position=Vector3.new(0, 0.6, 20),
+	-- Wider clearing around spawn (campsite feel) — sits on top of dirt
+	mp({Name="SpawnClearing", Size=Vector3.new(60, 0.3, 50), Position=Vector3.new(0, 0.65, 20),
 		Material=Enum.Material.Ground, Color=Color3.fromRGB(65, 50, 30)})
-	-- Stone circle around campfire/spawn
-	mp({Name="StoneCircle", Size=Vector3.new(20, 0.3, 20), Position=Vector3.new(0, 0.85, 20),
+	-- Worn cobblestone path leading to cave — above clearing
+	mp({Name="StonePath", Size=Vector3.new(24, 0.3, 90), Position=Vector3.new(0, 0.95, -15),
+		Material=Enum.Material.Cobblestone, BrickColor=BrickColor.new("Dark stone grey")})
+	-- Stone circle around campfire/spawn — topmost layer
+	mp({Name="StoneCircle", Size=Vector3.new(20, 0.2, 20), Position=Vector3.new(0, 1.15, 20),
 		Material=Enum.Material.Cobblestone, BrickColor=BrickColor.new("Medium stone grey")})
 
 	-- Spawn location (hidden inside campsite)
 	local spawn = Instance.new("SpawnLocation")
-	spawn.Size = Vector3.new(8, 0.2, 8); spawn.Position = Vector3.new(0, 1.1, 20)
+	spawn.Size = Vector3.new(8, 0.2, 8); spawn.Position = Vector3.new(0, 1.35, 20)
 	spawn.Anchored = true; spawn.Material = Enum.Material.Cobblestone
 	spawn.BrickColor = BrickColor.new("Medium stone grey"); spawn.Transparency = 1
 	spawn.Duration = 0; spawn.Parent = lobby
@@ -6125,7 +6912,7 @@ local function BuildLobby()
 	local campfire = mp({Name="Campfire", Size=Vector3.new(2, 1, 2), Position=Vector3.new(0, 1.2, 20),
 		Material=Enum.Material.Wood, BrickColor=BrickColor.new("Reddish brown")})
 	local cfLight = Instance.new("PointLight"); cfLight.Color=Color3.fromRGB(255,140,45)
-	cfLight.Range=45; cfLight.Brightness=2.5; cfLight.Parent=campfire
+	cfLight.Range=35; cfLight.Brightness=1.5; cfLight.Parent=campfire
 	local cfFire = Instance.new("Fire"); cfFire.Size=8; cfFire.Heat=10; cfFire.Parent=campfire
 
 	-- Sitting logs around campfire
@@ -6167,24 +6954,31 @@ local function BuildLobby()
 	-- Top arch
 	mp({Name="CaveArchTop", Size=Vector3.new(caveW + 12, 6, 10), Position=Vector3.new(0, caveH + 3.5, entranceZ),
 		Material=Enum.Material.Slate, Color=Color3.fromRGB(45, 40, 35)})
-	-- Mossy drip on arch sides
-	for _, xOff in ipairs({-caveW/2 - 1, caveW/2 + 1}) do
-		mp({Size=Vector3.new(4, 5, 6), Position=Vector3.new(xOff, 2.5, entranceZ + 2),
+	-- Mossy drip on arch sides (pushed outward to avoid clipping into cave opening)
+	for _, xOff in ipairs({-caveW/2 - 4, caveW/2 + 4}) do
+		mp({Size=Vector3.new(3, 4, 4), Position=Vector3.new(xOff, 2, entranceZ + 4),
 			Material=Enum.Material.Grass, Color=Color3.fromRGB(35, 60, 25)})
 	end
 
 	-- ===== IRON DOOR =====
+	local doorZ = entranceZ + 2
 	local door = mp({Name="HollowGate", Size=Vector3.new(caveW, caveH, 1.5),
-		Position=Vector3.new(0, caveH/2 + 0.5, entranceZ + 2),
+		Position=Vector3.new(0, caveH/2 + 0.5, doorZ),
 		Material=Enum.Material.DiamondPlate, Color=Color3.fromRGB(60, 55, 50)})
-	-- Door rivets/bars (horizontal iron bars across door)
+	-- Door horizontal iron bars (inset into door face, not sticking out)
 	for _, barY in ipairs({4, 8, 12}) do
-		mp({Name="DoorBar", Size=Vector3.new(caveW - 2, 0.8, 2),
-			Position=Vector3.new(0, barY + 0.5, entranceZ + 3),
+		mp({Name="DoorBar", Size=Vector3.new(caveW - 2, 0.6, 0.3),
+			Position=Vector3.new(0, barY + 0.5, doorZ + 0.9),
 			Material=Enum.Material.Metal, Color=Color3.fromRGB(40, 38, 35)})
 	end
-	-- Door ring/handle
-	mp({Name="DoorHandle", Size=Vector3.new(2, 2, 1), Position=Vector3.new(4, 8, entranceZ + 3.5),
+	-- Vertical door frame bars (left and right edges)
+	for _, xOff in ipairs({-caveW/2 + 1, caveW/2 - 1}) do
+		mp({Name="DoorFrame", Size=Vector3.new(0.6, caveH - 1, 0.3),
+			Position=Vector3.new(xOff, caveH/2 + 0.5, doorZ + 0.9),
+			Material=Enum.Material.Metal, Color=Color3.fromRGB(45, 42, 38)})
+	end
+	-- Door ring/handle (flush on the door face)
+	mp({Name="DoorHandle", Size=Vector3.new(1.5, 1.5, 0.4), Position=Vector3.new(4, 8, doorZ + 1),
 		Material=Enum.Material.Metal, Color=Color3.fromRGB(80, 70, 55)})
 
 	-- Proximity prompt on door handle (visible, not blocked by bars)
@@ -6206,11 +7000,21 @@ local function BuildLobby()
 	smoke.Size = 4; smoke.Opacity = 0.08; smoke.RiseVelocity = 1.5
 	smoke.Color = Color3.fromRGB(80, 60, 100); smoke.Parent = door
 
-	-- Warning sign above cave
+	-- Grand entrance sign above cave
+	-- Stone backing slab
+	mp({Name="SignBacking", Size=Vector3.new(30, 10, 2), Position=Vector3.new(0, caveH + 10, entranceZ + 6),
+		Material=Enum.Material.Slate, Color=Color3.fromRGB(40, 35, 30)})
+	-- Decorative stone trim on top
+	mp({Name="SignTrim", Size=Vector3.new(32, 1.5, 2.5), Position=Vector3.new(0, caveH + 15.5, entranceZ + 6),
+		Material=Enum.Material.Granite, Color=Color3.fromRGB(55, 50, 42)})
+	-- Decorative stone trim on bottom
+	mp({Name="SignTrimBot", Size=Vector3.new(32, 1, 2.5), Position=Vector3.new(0, caveH + 4.5, entranceZ + 6),
+		Material=Enum.Material.Granite, Color=Color3.fromRGB(55, 50, 42)})
+	-- The sign face
 	makeSign(
-		Vector3.new(0, caveH + 8, entranceZ + 5), Vector3.new(18, 4, 0.5), Enum.NormalId.Front,
+		Vector3.new(0, caveH + 10, entranceZ + 7.2), Vector3.new(28, 8, 0.5), Enum.NormalId.Back,
 		"THE HOLLOW", Color3.fromRGB(255, 200, 50),
-		"Enter if you dare...", Color3.fromRGB(200, 80, 80)
+		"Descend into darkness... if you dare", Color3.fromRGB(200, 80, 80)
 	)
 
 	-- ===== CAVE WALLS flanking entrance (rock formations) =====
@@ -6271,7 +7075,7 @@ local function BuildLobby()
 		local post = mp({Name="TorchPost", Size=Vector3.new(2, 8, 2), Position=pos + Vector3.new(0, 4, 0),
 			Material=Enum.Material.Wood, BrickColor=BrickColor.new("Dark orange")})
 		local tl = Instance.new("PointLight"); tl.Color=Color3.fromRGB(255,150,45)
-		tl.Range=range; tl.Brightness=3; tl.Parent=post
+		tl.Range=range; tl.Brightness=1.8; tl.Parent=post
 		local fi = Instance.new("Fire"); fi.Size=size; fi.Heat=8; fi.Parent=post
 		return post
 	end
@@ -6306,21 +7110,21 @@ local function BuildLobby()
 	makeTorch(Vector3.new(-35, 0.5, -40), 25)
 	makeTorch(Vector3.new(35, 0.5, -40), 25)
 
-	-- ===== INFO SIGNS (wooden, near campsite) =====
-	-- Controls sign post (left of camp)
-	mp({Size=Vector3.new(2, 6, 2), Position=Vector3.new(-18, 3.5, 8),
+	-- ===== INFO SIGNS (wooden, flanking campfire, facing inward) =====
+	-- Controls sign post (left of campfire, text faces +X toward center)
+	mp({Size=Vector3.new(2, 7, 2), Position=Vector3.new(-26, 4, 20),
 		Material=Enum.Material.Wood, BrickColor=BrickColor.new("Dark orange")})
 	makeSign(
-		Vector3.new(-18, 7.5, 8), Vector3.new(12, 6, 1), Enum.NormalId.Front,
+		Vector3.new(-26, 9, 20), Vector3.new(1, 7, 14), Enum.NormalId.Right,
 		"CONTROLS", Color3.fromRGB(100, 200, 255),
 		"Click = Attack\n[1-4] = Switch Items\n[Tab] = Stats\n[E] = Interact", Color3.fromRGB(220, 220, 200)
 	)
 
-	-- How to Play sign post (right of camp)
-	mp({Size=Vector3.new(2, 6, 2), Position=Vector3.new(18, 3.5, 8),
+	-- How to Play sign post (right of campfire, text faces -X toward center)
+	mp({Size=Vector3.new(2, 7, 2), Position=Vector3.new(26, 4, 20),
 		Material=Enum.Material.Wood, BrickColor=BrickColor.new("Dark orange")})
 	makeSign(
-		Vector3.new(18, 7.5, 8), Vector3.new(12, 6, 1), Enum.NormalId.Front,
+		Vector3.new(26, 9, 20), Vector3.new(1, 7, 14), Enum.NormalId.Left,
 		"HOW TO PLAY", Color3.fromRGB(255, 150, 50),
 		"Clear chambers of creatures\nCollect colored seals\nUnlock matching passages\nDefeat the SANCTUM BOSS!", Color3.fromRGB(220, 220, 200)
 	)
@@ -6346,9 +7150,9 @@ local function BuildLobby()
 	local slateMat = Enum.Material.Slate
 	local cobbMat = Enum.Material.Cobblestone
 
-	-- Outer arena floor ring (cobblestone apron around the dirt ground)
+	-- Outer arena floor ring (cobblestone apron around the dirt ground, below dirt layer)
 	mp({Name="ArenaFloor", Size=Vector3.new(ARENA_RADIUS*2+20, 3, ARENA_RADIUS*2+20),
-		Position=Vector3.new(0, GROUND_Y-1.5, 0),
+		Position=Vector3.new(0, GROUND_Y-3, 0),
 		Material=cobbMat, Color=Color3.fromRGB(55, 50, 45)})
 
 	-- ---- CURVED OUTER WALL (segmented) ----
@@ -6585,7 +7389,7 @@ local function BuildLobby()
 			Position=Vector3.new(tx, torchY, tz),
 			Material=Enum.Material.Wood, BrickColor=BrickColor.new("Dark orange")})
 		local tl = Instance.new("PointLight"); tl.Color=Color3.fromRGB(255,145,40)
-		tl.Range=50; tl.Brightness=2.5; tl.Parent=tp
+		tl.Range=40; tl.Brightness=1.5; tl.Parent=tp
 		local fi = Instance.new("Fire"); fi.Size=5; fi.Heat=8; fi.Parent=tp
 	end
 
@@ -6601,7 +7405,7 @@ local function BuildLobby()
 			Position=Vector3.new(tx, torchY, tz),
 			Material=Enum.Material.Wood, BrickColor=BrickColor.new("Dark orange")})
 		local tl = Instance.new("PointLight"); tl.Color=Color3.fromRGB(255,135,35)
-		tl.Range=55; tl.Brightness=2; tl.Parent=tp
+		tl.Range=45; tl.Brightness=1.2; tl.Parent=tp
 		local fi = Instance.new("Fire"); fi.Size=6; fi.Heat=10; fi.Parent=tp
 	end
 
@@ -6631,53 +7435,53 @@ local function BuildLobby()
 	mp({Size=Vector3.new(ARENA_RADIUS*2+40, 1, ARENA_RADIUS*2+40), Position=Vector3.new(0, GROUND_Y + WALL_HEIGHT + 10, 0),
 		Transparency=1, CanCollide=true, Name="Boundary"})
 
-	-- ===== GLOBAL LIGHTING — warm torchlit dungeon (Sundaria-style) =====
+	-- ===== GLOBAL LIGHTING — dark dungeon with subtle warm accents =====
 	local lighting = game:GetService("Lighting")
-	lighting.Ambient = Color3.fromRGB(18, 14, 10)       -- deep warm shadow fill
-	lighting.OutdoorAmbient = Color3.fromRGB(22, 17, 12) -- barely-there outdoor fill
-	lighting.Brightness = 0.15                            -- very low sky contribution
-	lighting.FogEnd = 450                                 -- fog closes in for depth
-	lighting.FogStart = 40                                -- starts near camera
-	lighting.FogColor = Color3.fromRGB(8, 5, 3)          -- warm black fog
+	lighting.Ambient = Color3.fromRGB(20, 18, 16)       -- neutral dark shadow fill
+	lighting.OutdoorAmbient = Color3.fromRGB(22, 20, 18) -- neutral outdoor fill
+	lighting.Brightness = 0.1                             -- very low sky contribution
+	lighting.FogEnd = 500                                 -- fog further out
+	lighting.FogStart = 60                                -- starts a bit further
+	lighting.FogColor = Color3.fromRGB(6, 5, 5)          -- near-black fog
 	lighting.ClockTime = 0                                -- midnight, no sky light
 	lighting.GeographicLatitude = 0
 	lighting.GlobalShadows = true
 	lighting.ShadowSoftness = 0.15                        -- crisp shadows from torches
 	lighting.EnvironmentDiffuseScale = 0                  -- no environment diffuse
 	lighting.EnvironmentSpecularScale = 0                 -- no environment specular
-	lighting.ExposureCompensation = 0.3                   -- slight exposure boost
+	lighting.ExposureCompensation = -0.2                  -- pull exposure down to reduce blowout
 
-	-- Bloom — warm glow around fire sources
+	-- Bloom — very subtle, only the brightest sources glow
 	local bloom = Instance.new("BloomEffect")
-	bloom.Intensity = 0.6
-	bloom.Size = 28
-	bloom.Threshold = 1.1
+	bloom.Intensity = 0.2
+	bloom.Size = 14
+	bloom.Threshold = 2.2
 	bloom.Parent = lighting
 
-	-- Color correction — warm tint, rich contrast, slight desaturation
+	-- Color correction — neutral with very slight warmth, no heavy amber tint
 	local serverCC = Instance.new("ColorCorrectionEffect")
 	serverCC.Name = "HollowTone"
-	serverCC.Brightness = -0.02
-	serverCC.Contrast = 0.15
-	serverCC.Saturation = -0.1
-	serverCC.TintColor = Color3.fromRGB(255, 235, 210)   -- warm amber tint
+	serverCC.Brightness = -0.05
+	serverCC.Contrast = 0.12
+	serverCC.Saturation = -0.05
+	serverCC.TintColor = Color3.fromRGB(255, 248, 240)   -- barely warm, nearly neutral
 	serverCC.Parent = lighting
 
-	-- Atmosphere — thick, warm, dungeon-depth fog
+	-- Atmosphere — lighter density, less overwhelming
 	local atmosphere = Instance.new("Atmosphere")
-	atmosphere.Density = 0.35
-	atmosphere.Offset = 0.2
-	atmosphere.Color = Color3.fromRGB(30, 20, 10)         -- warm fog color
-	atmosphere.Decay = Color3.fromRGB(12, 8, 4)           -- dark warm decay
+	atmosphere.Density = 0.2
+	atmosphere.Offset = 0.3
+	atmosphere.Color = Color3.fromRGB(25, 20, 15)         -- subtle warm fog
+	atmosphere.Decay = Color3.fromRGB(10, 8, 6)           -- dark neutral decay
 	atmosphere.Glare = 0
-	atmosphere.Haze = 6
+	atmosphere.Haze = 3
 	atmosphere.Parent = lighting
 
-	-- Sunrays disabled (no sun) — use DepthOfField for cinematic feel
+	-- DepthOfField for cinematic feel
 	local dof = Instance.new("DepthOfFieldEffect")
-	dof.FarIntensity = 0.15
-	dof.FocusDistance = 60
-	dof.InFocusRadius = 40
+	dof.FarIntensity = 0.1
+	dof.FocusDistance = 80
+	dof.InFocusRadius = 50
 	dof.NearIntensity = 0
 	dof.Parent = lighting
 end
@@ -6702,7 +7506,7 @@ print("[The Hollow] Server initialized!")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="ModuleScript" referent="23">
+    <Item class="ModuleScript" referent="24">
       <Properties>
         <string name="Name">PuzzleEncounters</string>
         <string name="Source"><![CDATA[local Players = game:GetService("Players")
@@ -7550,7 +8354,7 @@ return PuzzleEncounters
 ]]></string>
       </Properties>
     </Item>
-    <Item class="ModuleScript" referent="24">
+    <Item class="ModuleScript" referent="25">
       <Properties>
         <string name="Name">SkillService</string>
         <string name="Source"><![CDATA[local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -7592,15 +8396,15 @@ return SkillService
       </Properties>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="25">
+  <Item class="StarterPlayer" referent="26">
     <Properties>
       <string name="Name">StarterPlayer</string>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="26">
+    <Item class="StarterPlayerScripts" referent="27">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="ModuleScript" referent="27">
+      <Item class="ModuleScript" referent="28">
         <Properties>
           <string name="Name">CombatController</string>
           <string name="Source"><![CDATA[local TweenService = game:GetService("TweenService")
@@ -7665,7 +8469,7 @@ return CombatController
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="28">
+      <Item class="ModuleScript" referent="29">
         <Properties>
           <string name="Name">DamageNumbers</string>
           <string name="Source"><![CDATA[local TweenService = game:GetService("TweenService")
@@ -7789,7 +8593,7 @@ return DamageNumbers
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="29">
+      <Item class="ModuleScript" referent="30">
         <Properties>
           <string name="Name">DescentMap</string>
           <string name="Source"><![CDATA[local Players = game:GetService("Players")
@@ -8616,7 +9420,7 @@ return DescentMap
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="30">
+      <Item class="ModuleScript" referent="31">
         <Properties>
           <string name="Name">FootstepController</string>
           <string name="Source"><![CDATA[local RunService = game:GetService("RunService")
@@ -8686,7 +9490,7 @@ return FootstepController
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="31">
+      <Item class="ModuleScript" referent="32">
         <Properties>
           <string name="Name">InputController</string>
           <string name="Source"><![CDATA[local UserInputService = game:GetService("UserInputService")
@@ -8788,7 +9592,7 @@ return InputController
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="32">
+      <Item class="LocalScript" referent="33">
         <Properties>
           <string name="Name">Main</string>
           <string name="Source"><![CDATA[local Players = game:GetService("Players")
@@ -8969,7 +9773,7 @@ print("[The Hollow] Client initialized!")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="33">
+      <Item class="ModuleScript" referent="34">
         <Properties>
           <string name="Name">SkillController</string>
           <string name="Source"><![CDATA[local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -9059,7 +9863,7 @@ return SkillController
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="34">
+      <Item class="ModuleScript" referent="35">
         <Properties>
           <string name="Name">StatsWindow</string>
           <string name="Source"><![CDATA[local Players = game:GetService("Players")
@@ -9480,7 +10284,7 @@ return StatsWindow
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="35">
+      <Item class="ModuleScript" referent="36">
         <Properties>
           <string name="Name">UIController</string>
           <string name="Source"><![CDATA[local Players = game:GetService("Players")
@@ -10417,7 +11221,7 @@ return UIController
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="36">
+      <Item class="ModuleScript" referent="37">
         <Properties>
           <string name="Name">ViewmodelController</string>
           <string name="Source"><![CDATA[local RunService = game:GetService("RunService")
@@ -10438,9 +11242,9 @@ local initialized = false
 local armPart = nil
 local handPart = nil
 local gripPart = nil
-local wrap1Part = nil
-local wrap2Part = nil
-local knucklesPart = nil
+
+-- Arm gear overlay parts
+local armGearParts = {}
 
 -- Viewmodel offset from camera (right side, slightly down and forward)
 local BASE_OFFSET = CFrame.new(1.5, -1.4, -2.2)
@@ -10488,15 +11292,74 @@ local function createArmModel(parent)
 	model.Name = "Viewmodel"
 
 	local skin = Color3.fromRGB(245, 205, 160)
+	local bandageColor = Color3.fromRGB(195, 180, 155)
+	local bandageDirty = Color3.fromRGB(170, 155, 130)
+	local leatherColor = Color3.fromRGB(75, 50, 30)
+	local leatherDark = Color3.fromRGB(55, 35, 20)
+	local metalColor = Color3.fromRGB(120, 110, 95)
+	local stitchColor = Color3.fromRGB(100, 85, 65)
 
+	-- Base arm and hand (same square shape)
 	armPart = makePart("Arm", Vector3.new(1, 1, 2.8), skin, Enum.Material.SmoothPlastic, model)
-	handPart = makePart("Hand", Vector3.new(1.0, 0.95, 0.9), skin, Enum.Material.SmoothPlastic, model)
+	handPart = makePart("Hand", Vector3.new(1.1, 1.1, 0.9), skin, Enum.Material.SmoothPlastic, model)
 
-	-- Bandage wraps around the fist (don't protrude above the arm)
-	local wrap = Color3.fromRGB(220, 210, 185)
-	wrap1Part = makePart("Wrap1", Vector3.new(1.05, 0.15, 0.95), wrap, Enum.Material.Fabric, model)
-	wrap2Part = makePart("Wrap2", Vector3.new(1.05, 0.15, 0.95), wrap, Enum.Material.Fabric, model)
-	knucklesPart = makePart("Knuckles", Vector3.new(1.02, 0.2, 0.15), Color3.fromRGB(235, 195, 150), Enum.Material.SmoothPlastic, model)
+	-- ===== ARM GEAR: Bandages, bracer, and wrappings =====
+	armGearParts = {}
+
+	-- Forearm bandage wraps (overlapping strips at slight angles)
+	armGearParts.BandageWrap1 = makePart("BandageWrap1", Vector3.new(1.08, 1.08, 0.2), bandageColor, Enum.Material.Fabric, model)
+	armGearParts.BandageWrap2 = makePart("BandageWrap2", Vector3.new(1.08, 1.08, 0.2), bandageDirty, Enum.Material.Fabric, model)
+	armGearParts.BandageWrap3 = makePart("BandageWrap3", Vector3.new(1.08, 1.08, 0.2), bandageColor, Enum.Material.Fabric, model)
+	armGearParts.BandageWrap4 = makePart("BandageWrap4", Vector3.new(1.08, 1.08, 0.2), bandageDirty, Enum.Material.Fabric, model)
+	armGearParts.BandageWrap5 = makePart("BandageWrap5", Vector3.new(1.08, 1.08, 0.2), bandageColor, Enum.Material.Fabric, model)
+
+	-- Loose bandage tail (hangs off the wrist area)
+	armGearParts.BandageTail = makePart("BandageTail", Vector3.new(0.12, 0.08, 0.6), bandageColor, Enum.Material.Fabric, model)
+
+	-- Leather bracer (worn arm guard over the bandages)
+	armGearParts.Bracer = makePart("Bracer", Vector3.new(1.12, 1.12, 1.0), leatherColor, Enum.Material.Leather, model)
+	-- Bracer edge trim (darker leather lip at each end)
+	armGearParts.BracerTrimA = makePart("BracerTrimA", Vector3.new(1.15, 1.15, 0.08), leatherDark, Enum.Material.Leather, model)
+	armGearParts.BracerTrimB = makePart("BracerTrimB", Vector3.new(1.15, 1.15, 0.08), leatherDark, Enum.Material.Leather, model)
+	-- Bracer buckle strap
+	armGearParts.BracerStrap = makePart("BracerStrap", Vector3.new(1.18, 0.08, 0.2), leatherDark, Enum.Material.Leather, model)
+	-- Small metal buckle on the strap
+	armGearParts.Buckle = makePart("Buckle", Vector3.new(1.2, 0.15, 0.15), metalColor, Enum.Material.Metal, model)
+
+	-- Stitch detail lines on bracer (thin dark strips)
+	armGearParts.Stitch1 = makePart("Stitch1", Vector3.new(1.13, 0.04, 0.04), stitchColor, Enum.Material.Fabric, model)
+	armGearParts.Stitch2 = makePart("Stitch2", Vector3.new(1.13, 0.04, 0.04), stitchColor, Enum.Material.Fabric, model)
+
+	-- ===== HAND GEAR: Fingerless glove wraps =====
+	-- Knuckle guard (thin leather strip across top of hand)
+	armGearParts.KnuckleGuard = makePart("KnuckleGuard", Vector3.new(0.06, 1.15, 0.35), leatherColor, Enum.Material.Leather, model)
+	-- Hand bandage wraps (two crossing the palm area)
+	armGearParts.HandWrap1 = makePart("HandWrap1", Vector3.new(1.15, 1.15, 0.12), bandageColor, Enum.Material.Fabric, model)
+	armGearParts.HandWrap2 = makePart("HandWrap2", Vector3.new(1.15, 1.15, 0.12), bandageDirty, Enum.Material.Fabric, model)
+	-- Wrist cuff (transition from arm to hand)
+	armGearParts.WristCuff = makePart("WristCuff", Vector3.new(1.16, 1.16, 0.15), leatherDark, Enum.Material.Leather, model)
+	-- Metal wrist stud (small decorative rivet)
+	armGearParts.WristStud = makePart("WristStud", Vector3.new(1.18, 0.12, 0.12), metalColor, Enum.Material.Metal, model)
+
+	-- ===== ADDITIONAL ARM GEAR DETAILS =====
+	-- Finger wraps (3 thin fabric rings on the hand)
+	armGearParts.FingerWrap1 = makePart("FingerWrap1", Vector3.new(1.14, 0.25, 0.06), bandageColor, Enum.Material.Fabric, model)
+	armGearParts.FingerWrap2 = makePart("FingerWrap2", Vector3.new(1.14, 0.25, 0.06), bandageDirty, Enum.Material.Fabric, model)
+	armGearParts.FingerWrap3 = makePart("FingerWrap3", Vector3.new(1.14, 0.25, 0.06), bandageColor, Enum.Material.Fabric, model)
+	-- Scar mark (thin dark line on skin between bandages)
+	armGearParts.ScarMark = makePart("ScarMark", Vector3.new(1.02, 0.03, 0.18), Color3.fromRGB(180, 140, 110), Enum.Material.SmoothPlastic, model)
+	-- Leather pad (small square pad on the back of the hand)
+	armGearParts.LeatherPad = makePart("LeatherPad", Vector3.new(0.06, 0.4, 0.35), leatherColor, Enum.Material.Leather, model)
+	-- Arm ring (thin metal band above the bracer)
+	armGearParts.ArmRing = makePart("ArmRing", Vector3.new(1.14, 1.14, 0.06), metalColor, Enum.Material.Metal, model)
+	-- Torn bandage (second loose bandage end, different angle)
+	armGearParts.TornBandage = makePart("TornBandage", Vector3.new(0.1, 0.06, 0.5), bandageDirty, Enum.Material.Fabric, model)
+	-- Vein ridge (very thin raised line along inner arm, subtle)
+	armGearParts.VeinRidge = makePart("VeinRidge", Vector3.new(1.01, 0.02, 1.2), Color3.fromRGB(220, 175, 140), Enum.Material.SmoothPlastic, model)
+	-- Thumb guard (small leather nub on hand side)
+	armGearParts.ThumbGuard = makePart("ThumbGuard", Vector3.new(0.15, 0.18, 0.2), leatherColor, Enum.Material.Leather, model)
+	-- Nail detail (tiny dark square on top knuckle area)
+	armGearParts.NailDetail = makePart("NailDetail", Vector3.new(0.06, 0.14, 0.1), Color3.fromRGB(200, 170, 135), Enum.Material.SmoothPlastic, model)
 
 	gripPart = Instance.new("Part")
 	gripPart.Name = "Grip"
@@ -10519,9 +11382,42 @@ end
 local function buildSword(parent)
 	local m = Instance.new("Model"); m.Name = "Weapon_Sword"
 	local parts = {}
-	parts.Handle = makePart("Handle", Vector3.new(0.25, 0.25, 1.0), Color3.fromRGB(100, 60, 30), Enum.Material.Wood, m)
-	parts.Guard = makePart("Guard", Vector3.new(0.3, 1.2, 0.2), Color3.fromRGB(180, 160, 50), Enum.Material.Metal, m)
-	parts.Blade = makePart("Blade", Vector3.new(0.2, 0.3, 3.2), Color3.fromRGB(200, 200, 210), Enum.Material.Metal, m)
+	-- Pommel (rounded end-cap)
+	parts.Pommel = makePart("Pommel", Vector3.new(0.35, 0.35, 0.25), Color3.fromRGB(160, 140, 40), Enum.Material.Metal, m)
+	-- Pommel Gem (tiny red neon ball inset in pommel)
+	parts.PommelGem = makePart("PommelGem", Vector3.new(0.14, 0.14, 0.14), Color3.fromRGB(220, 30, 30), Enum.Material.Neon, m)
+	parts.PommelGem.Shape = Enum.PartType.Ball
+	-- Leather-wrapped grip
+	parts.Handle = makePart("Handle", Vector3.new(0.22, 0.22, 1.0), Color3.fromRGB(70, 40, 20), Enum.Material.Fabric, m)
+	-- Leather wrapping strips (3 rings around the handle)
+	parts.Wrap1 = makePart("Wrap1", Vector3.new(0.28, 0.28, 0.08), Color3.fromRGB(50, 30, 15), Enum.Material.Fabric, m)
+	parts.Wrap2 = makePart("Wrap2", Vector3.new(0.28, 0.28, 0.08), Color3.fromRGB(50, 30, 15), Enum.Material.Fabric, m)
+	parts.Wrap3 = makePart("Wrap3", Vector3.new(0.28, 0.28, 0.08), Color3.fromRGB(50, 30, 15), Enum.Material.Fabric, m)
+	-- Crossguard (ornate, wider with swept ends)
+	parts.Guard = makePart("Guard", Vector3.new(0.25, 1.4, 0.3), Color3.fromRGB(180, 160, 50), Enum.Material.Metal, m)
+	parts.GuardTipL = makePart("GuardTipL", Vector3.new(0.2, 0.25, 0.2), Color3.fromRGB(200, 180, 60), Enum.Material.Metal, m)
+	parts.GuardTipR = makePart("GuardTipR", Vector3.new(0.2, 0.25, 0.2), Color3.fromRGB(200, 180, 60), Enum.Material.Metal, m)
+	-- Guard gem (small inset jewel)
+	parts.GuardGem = makePart("GuardGem", Vector3.new(0.12, 0.12, 0.12), Color3.fromRGB(200, 40, 40), Enum.Material.Neon, m)
+	-- Rain Guard (small leather disc below the guard)
+	parts.RainGuard = makePart("RainGuard", Vector3.new(0.2, 0.6, 0.1), Color3.fromRGB(80, 50, 25), Enum.Material.Leather, m)
+	-- Ricasso (unsharpened section between guard and blade, slightly wider than blade)
+	parts.Ricasso = makePart("Ricasso", Vector3.new(0.16, 0.4, 0.5), Color3.fromRGB(190, 190, 205), Enum.Material.Metal, m)
+	-- Blade (main body, tapered feel via two overlapping parts)
+	parts.Blade = makePart("Blade", Vector3.new(0.15, 0.35, 2.6), Color3.fromRGB(200, 200, 215), Enum.Material.Metal, m)
+	-- Blade edge strips (thin bright edges on each side)
+	parts.EdgeL = makePart("EdgeL", Vector3.new(0.08, 0.04, 2.4), Color3.fromRGB(230, 230, 240), Enum.Material.Metal, m)
+	parts.EdgeR = makePart("EdgeR", Vector3.new(0.08, 0.04, 2.4), Color3.fromRGB(230, 230, 240), Enum.Material.Metal, m)
+	-- Fuller (groove down center of blade)
+	parts.Fuller = makePart("Fuller", Vector3.new(0.16, 0.08, 1.8), Color3.fromRGB(150, 150, 165), Enum.Material.Metal, m)
+	-- Blood Groove detail (second fuller line, thinner, offset)
+	parts.BloodGroove = makePart("BloodGroove", Vector3.new(0.16, 0.04, 1.4), Color3.fromRGB(140, 140, 155), Enum.Material.Metal, m)
+	-- Engraving line (thin bright neon strip along one blade edge, subtle rune glow)
+	parts.Engraving = makePart("Engraving", Vector3.new(0.06, 0.02, 2.0), Color3.fromRGB(180, 200, 255), Enum.Material.Neon, m)
+	-- Blade Taper (second narrower blade segment before the tip for gradual tapering)
+	parts.BladeTaper = makePart("BladeTaper", Vector3.new(0.12, 0.28, 0.8), Color3.fromRGB(205, 205, 220), Enum.Material.Metal, m)
+	-- Blade tip (narrower end piece)
+	parts.BladeTip = makePart("BladeTip", Vector3.new(0.1, 0.25, 0.6), Color3.fromRGB(210, 210, 225), Enum.Material.Metal, m)
 	m.PrimaryPart = parts.Handle
 	m.Parent = parent
 	return { model = m, parts = parts }
@@ -10530,14 +11426,55 @@ end
 local function buildStaff(parent)
 	local m = Instance.new("Model"); m.Name = "Weapon_Staff"
 	local parts = {}
-	parts.Shaft = makePart("Shaft", Vector3.new(0.3, 0.3, 4.0), Color3.fromRGB(80, 50, 30), Enum.Material.Wood, m)
+	-- Foot Cap (metal endcap at the very bottom)
+	parts.FootCap = makePart("FootCap", Vector3.new(0.38, 0.38, 0.15), Color3.fromRGB(100, 90, 70), Enum.Material.Metal, m)
+	-- Shaft base (darker wood at the bottom)
+	parts.ShaftBase = makePart("ShaftBase", Vector3.new(0.35, 0.35, 1.2), Color3.fromRGB(60, 35, 20), Enum.Material.Wood, m)
+	-- Main shaft
+	parts.Shaft = makePart("Shaft", Vector3.new(0.28, 0.28, 3.0), Color3.fromRGB(80, 50, 30), Enum.Material.Wood, m)
+	-- Bark Ridges (2 thin dark wood strips spiraling the shaft)
+	parts.BarkRidge1 = makePart("BarkRidge1", Vector3.new(0.06, 0.3, 0.12), Color3.fromRGB(45, 28, 15), Enum.Material.Wood, m)
+	parts.BarkRidge2 = makePart("BarkRidge2", Vector3.new(0.06, 0.3, 0.12), Color3.fromRGB(45, 28, 15), Enum.Material.Wood, m)
+	-- Decorative rings along the shaft
+	parts.Ring1 = makePart("Ring1", Vector3.new(0.38, 0.38, 0.1), Color3.fromRGB(140, 100, 30), Enum.Material.Metal, m)
+	parts.Ring2 = makePart("Ring2", Vector3.new(0.38, 0.38, 0.1), Color3.fromRGB(140, 100, 30), Enum.Material.Metal, m)
+	parts.Ring3 = makePart("Ring3", Vector3.new(0.38, 0.38, 0.1), Color3.fromRGB(140, 100, 30), Enum.Material.Metal, m)
+	-- Rune Band (glowing neon ring near the head)
+	parts.RuneBand = makePart("RuneBand", Vector3.new(0.36, 0.36, 0.08), Color3.fromRGB(255, 160, 50), Enum.Material.Neon, m)
+	-- Head cradle (twisted metal prongs holding the orb)
+	parts.ProngL = makePart("ProngL", Vector3.new(0.08, 0.08, 0.7), Color3.fromRGB(120, 80, 25), Enum.Material.Metal, m)
+	parts.ProngR = makePart("ProngR", Vector3.new(0.08, 0.08, 0.7), Color3.fromRGB(120, 80, 25), Enum.Material.Metal, m)
+	parts.ProngF = makePart("ProngF", Vector3.new(0.08, 0.08, 0.7), Color3.fromRGB(120, 80, 25), Enum.Material.Metal, m)
+	-- ProngBack (4th prong cradling orb from behind)
+	parts.ProngBack = makePart("ProngBack", Vector3.new(0.08, 0.08, 0.7), Color3.fromRGB(120, 80, 25), Enum.Material.Metal, m)
+	-- Main orb (fire element)
 	parts.Orb = makePart("Orb", Vector3.new(0.7, 0.7, 0.7), Color3.fromRGB(255, 120, 30), Enum.Material.Neon, m)
 	parts.Orb.Shape = Enum.PartType.Ball
+	-- Inner orb core (brighter, smaller)
+	parts.OrbCore = makePart("OrbCore", Vector3.new(0.35, 0.35, 0.35), Color3.fromRGB(255, 200, 80), Enum.Material.Neon, m)
+	parts.OrbCore.Shape = Enum.PartType.Ball
+	-- Particle ember ring around orb
 	local light = Instance.new("PointLight")
 	light.Color = Color3.fromRGB(255, 120, 30)
-	light.Brightness = 0.5; light.Range = 4
+	light.Brightness = 0.8; light.Range = 6
 	light.Parent = parts.Orb
 	parts._light = light
+	local fire = Instance.new("Fire")
+	fire.Size = 1.5; fire.Heat = 3; fire.Color = Color3.fromRGB(255, 160, 40)
+	fire.SecondaryColor = Color3.fromRGB(255, 80, 10)
+	fire.Parent = parts.Orb
+	parts._fire = fire
+	-- Ember Particles (ParticleEmitter on orb with small orange sparks)
+	local embers = Instance.new("ParticleEmitter")
+	embers.Color = ColorSequence.new(Color3.fromRGB(255, 140, 30), Color3.fromRGB(255, 60, 10))
+	embers.Size = NumberSequence.new(0.08, 0)
+	embers.Lifetime = NumberRange.new(0.4, 0.9)
+	embers.Rate = 15
+	embers.Speed = NumberRange.new(0.5, 1.5)
+	embers.SpreadAngle = Vector2.new(40, 40)
+	embers.LightEmission = 1
+	embers.Parent = parts.Orb
+	parts._embers = embers
 	m.PrimaryPart = parts.Shaft
 	m.Parent = parent
 	return { model = m, parts = parts }
@@ -10546,13 +11483,44 @@ end
 local function buildWand(parent)
 	local m = Instance.new("Model"); m.Name = "Weapon_Wand"
 	local parts = {}
-	parts.Stick = makePart("Stick", Vector3.new(0.2, 0.2, 2.2), Color3.fromRGB(230, 230, 240), Enum.Material.SmoothPlastic, m)
-	parts.Crystal = makePart("Crystal", Vector3.new(0.35, 0.35, 0.5), Color3.fromRGB(50, 255, 100), Enum.Material.Neon, m)
+	-- Grip Pommel (small bone knob at base)
+	parts.GripPommel = makePart("GripPommel", Vector3.new(0.22, 0.22, 0.12), Color3.fromRGB(210, 205, 195), Enum.Material.SmoothPlastic, m)
+	-- Handle grip (wrapped in cloth)
+	parts.Grip = makePart("Grip", Vector3.new(0.18, 0.18, 0.7), Color3.fromRGB(60, 40, 80), Enum.Material.Fabric, m)
+	-- Bone Joint (thicker ring where grip meets stick, like a knuckle)
+	parts.BoneJoint = makePart("BoneJoint", Vector3.new(0.22, 0.22, 0.1), Color3.fromRGB(220, 215, 205), Enum.Material.SmoothPlastic, m)
+	-- Main stick body (bone-white with slight curve implied by taper)
+	parts.Stick = makePart("Stick", Vector3.new(0.15, 0.15, 1.6), Color3.fromRGB(230, 230, 240), Enum.Material.SmoothPlastic, m)
+	-- Rune Marks (2 tiny neon dots along the stick)
+	parts.RuneMark1 = makePart("RuneMark1", Vector3.new(0.06, 0.06, 0.06), Color3.fromRGB(100, 220, 160), Enum.Material.Neon, m)
+	parts.RuneMark2 = makePart("RuneMark2", Vector3.new(0.06, 0.06, 0.06), Color3.fromRGB(100, 220, 160), Enum.Material.Neon, m)
+	-- Decorative spiral wrap (thin dark vine around shaft)
+	parts.Vine1 = makePart("Vine1", Vector3.new(0.2, 0.2, 0.06), Color3.fromRGB(40, 70, 35), Enum.Material.Grass, m)
+	parts.Vine2 = makePart("Vine2", Vector3.new(0.2, 0.2, 0.06), Color3.fromRGB(40, 70, 35), Enum.Material.Grass, m)
+	parts.Vine3 = makePart("Vine3", Vector3.new(0.2, 0.2, 0.06), Color3.fromRGB(40, 70, 35), Enum.Material.Grass, m)
+	-- Crystal cradle (forked tip)
+	parts.ForkL = makePart("ForkL", Vector3.new(0.06, 0.06, 0.4), Color3.fromRGB(200, 200, 215), Enum.Material.SmoothPlastic, m)
+	parts.ForkR = makePart("ForkR", Vector3.new(0.06, 0.06, 0.4), Color3.fromRGB(200, 200, 215), Enum.Material.SmoothPlastic, m)
+	-- Crystal Base (small darker crystal mount under the main crystal)
+	parts.CrystalBase = makePart("CrystalBase", Vector3.new(0.2, 0.2, 0.15), Color3.fromRGB(30, 140, 60), Enum.Material.Glass, m)
+	-- Main crystal (emerald green, faceted look via wedge)
+	parts.Crystal = makePart("Crystal", Vector3.new(0.3, 0.3, 0.5), Color3.fromRGB(50, 255, 100), Enum.Material.Neon, m)
+	-- Aura Ring (thin translucent neon ring around the crystal)
+	parts.AuraRing = makePart("AuraRing", Vector3.new(0.02, 0.55, 0.55), Color3.fromRGB(80, 255, 130), Enum.Material.Neon, m)
+	parts.AuraRing.Transparency = 0.5
+	-- Crystal cap (smaller crystal shard on top)
+	parts.CrystalShard = makePart("CrystalShard", Vector3.new(0.15, 0.15, 0.3), Color3.fromRGB(80, 255, 140), Enum.Material.Neon, m)
+	-- Healing aura light
 	local light = Instance.new("PointLight")
 	light.Color = Color3.fromRGB(50, 255, 100)
-	light.Brightness = 0.4; light.Range = 3
+	light.Brightness = 0.6; light.Range = 5
 	light.Parent = parts.Crystal
 	parts._light = light
+	-- Sparkle particles
+	local sparkle = Instance.new("Sparkles")
+	sparkle.SparkleColor = Color3.fromRGB(100, 255, 150)
+	sparkle.Parent = parts.Crystal
+	parts._sparkle = sparkle
 	m.PrimaryPart = parts.Stick
 	m.Parent = parent
 	return { model = m, parts = parts }
@@ -10561,9 +11529,41 @@ end
 local function buildShield(parent)
 	local m = Instance.new("Model"); m.Name = "Weapon_Shield"
 	local parts = {}
-	parts.Handle = makePart("Handle", Vector3.new(0.3, 0.3, 0.8), Color3.fromRGB(100, 60, 30), Enum.Material.Wood, m)
-	parts.Body = makePart("Body", Vector3.new(0.4, 2.2, 2.0), Color3.fromRGB(50, 100, 200), Enum.Material.Metal, m)
-	parts.Emblem = makePart("Emblem", Vector3.new(0.45, 0.8, 0.8), Color3.fromRGB(255, 215, 0), Enum.Material.Metal, m)
+	-- Handle (grip bar behind the shield)
+	parts.Handle = makePart("Handle", Vector3.new(0.25, 0.25, 0.9), Color3.fromRGB(100, 60, 30), Enum.Material.Wood, m)
+	-- Arm strap
+	parts.Strap = makePart("Strap", Vector3.new(0.3, 0.6, 0.15), Color3.fromRGB(80, 45, 20), Enum.Material.Fabric, m)
+	-- Shield body (main face, kite-shaped via stacked parts)
+	parts.Body = makePart("Body", Vector3.new(0.35, 2.4, 2.2), Color3.fromRGB(45, 90, 180), Enum.Material.Metal, m)
+	-- Shield border rim (raised metal edge all around)
+	parts.RimTop = makePart("RimTop", Vector3.new(0.4, 2.5, 0.12), Color3.fromRGB(160, 150, 130), Enum.Material.Metal, m)
+	parts.RimBot = makePart("RimBot", Vector3.new(0.4, 2.5, 0.12), Color3.fromRGB(160, 150, 130), Enum.Material.Metal, m)
+	parts.RimL = makePart("RimL", Vector3.new(0.4, 0.12, 2.2), Color3.fromRGB(160, 150, 130), Enum.Material.Metal, m)
+	parts.RimR = makePart("RimR", Vector3.new(0.4, 0.12, 2.2), Color3.fromRGB(160, 150, 130), Enum.Material.Metal, m)
+	-- Center boss (raised dome in the middle)
+	parts.Boss = makePart("Boss", Vector3.new(0.5, 0.7, 0.7), Color3.fromRGB(200, 190, 160), Enum.Material.Metal, m)
+	-- Emblem (golden crest)
+	parts.Emblem = makePart("Emblem", Vector3.new(0.42, 0.6, 0.6), Color3.fromRGB(255, 215, 0), Enum.Material.Metal, m)
+	-- Diagonal reinforcement straps (cross pattern)
+	parts.CrossA = makePart("CrossA", Vector3.new(0.38, 0.1, 2.8), Color3.fromRGB(140, 130, 110), Enum.Material.Metal, m)
+	parts.CrossB = makePart("CrossB", Vector3.new(0.38, 2.8, 0.1), Color3.fromRGB(140, 130, 110), Enum.Material.Metal, m)
+	-- Corner rivets (4 decorative bolts)
+	parts.Rivet1 = makePart("Rivet1", Vector3.new(0.42, 0.15, 0.15), Color3.fromRGB(180, 170, 140), Enum.Material.Metal, m)
+	parts.Rivet2 = makePart("Rivet2", Vector3.new(0.42, 0.15, 0.15), Color3.fromRGB(180, 170, 140), Enum.Material.Metal, m)
+	parts.Rivet3 = makePart("Rivet3", Vector3.new(0.42, 0.15, 0.15), Color3.fromRGB(180, 170, 140), Enum.Material.Metal, m)
+	parts.Rivet4 = makePart("Rivet4", Vector3.new(0.42, 0.15, 0.15), Color3.fromRGB(180, 170, 140), Enum.Material.Metal, m)
+	-- Battle damage scratch (dark streak across face)
+	parts.Scratch = makePart("Scratch", Vector3.new(0.37, 0.04, 1.6), Color3.fromRGB(30, 28, 25), Enum.Material.Metal, m)
+	-- Leather Backing (slightly larger than body, visible behind)
+	parts.LeatherBacking = makePart("LeatherBacking", Vector3.new(0.2, 2.5, 2.3), Color3.fromRGB(90, 55, 30), Enum.Material.Leather, m)
+	-- Dent (small darker depression on the face)
+	parts.Dent = makePart("Dent", Vector3.new(0.36, 0.3, 0.3), Color3.fromRGB(30, 60, 130), Enum.Material.Metal, m)
+	-- Heraldic Bar (horizontal gold bar across the center, behind the boss)
+	parts.HeraldicBar = makePart("HeraldicBar", Vector3.new(0.39, 1.8, 0.12), Color3.fromRGB(210, 180, 40), Enum.Material.Metal, m)
+	-- Edge Wear (thin dark line along one rim showing battle damage)
+	parts.EdgeWear = makePart("EdgeWear", Vector3.new(0.41, 0.04, 1.4), Color3.fromRGB(40, 35, 30), Enum.Material.Metal, m)
+	-- Chain Link (small hanging chain piece from the bottom)
+	parts.ChainLink = makePart("ChainLink", Vector3.new(0.1, 0.1, 0.25), Color3.fromRGB(140, 130, 110), Enum.Material.Metal, m)
 	m.PrimaryPart = parts.Handle
 	m.Parent = parent
 	return { model = m, parts = parts }
@@ -10585,24 +11585,134 @@ local function positionWeapon(weaponId, gripCF)
 	local p = data.parts
 
 	if weaponId == "Sword" then
-		-- Tilt upward ~30 degrees for a natural angled hold
-		local tilt = gripCF * CFrame.Angles(math.rad(-30), 0, 0)
-		p.Handle.CFrame = tilt * CFrame.new(0, 0, -0.5)
-		p.Guard.CFrame = tilt * CFrame.new(0, 0, -1.0)
-		p.Blade.CFrame = tilt * CFrame.new(0, 0, -2.6)
+		-- Pommel at the very end of the handle
+		p.Pommel.CFrame = gripCF * CFrame.new(0, 0, 0.4)
+		-- Handle (grip area)
+		p.Handle.CFrame = gripCF * CFrame.new(0, 0, -0.2)
+		-- Leather wraps spaced along the handle
+		p.Wrap1.CFrame = gripCF * CFrame.new(0, 0, 0.1)
+		p.Wrap2.CFrame = gripCF * CFrame.new(0, 0, -0.2)
+		p.Wrap3.CFrame = gripCF * CFrame.new(0, 0, -0.5)
+		-- Crossguard at handle-blade junction
+		p.Guard.CFrame = gripCF * CFrame.new(0, 0, -0.8)
+		p.GuardTipL.CFrame = gripCF * CFrame.new(0, -0.7, -0.8)
+		p.GuardTipR.CFrame = gripCF * CFrame.new(0, 0.7, -0.8)
+		p.GuardGem.CFrame = gripCF * CFrame.new(0, 0, -0.8)
+		-- Main blade
+		p.Blade.CFrame = gripCF * CFrame.new(0, 0, -2.2)
+		-- Sharp edges on each side of the blade
+		p.EdgeL.CFrame = gripCF * CFrame.new(0, -0.18, -2.1)
+		p.EdgeR.CFrame = gripCF * CFrame.new(0, 0.18, -2.1)
+		-- Fuller groove down center
+		p.Fuller.CFrame = gripCF * CFrame.new(0, 0, -1.9)
+		-- Pommel gem inset
+		p.PommelGem.CFrame = gripCF * CFrame.new(0, 0, 0.5)
+		-- Rain guard below the crossguard
+		p.RainGuard.CFrame = gripCF * CFrame.new(0, 0, -0.65)
+		-- Ricasso (unsharpened section above guard)
+		p.Ricasso.CFrame = gripCF * CFrame.new(0, 0, -1.1)
+		-- Blood groove (second fuller, thinner, offset)
+		p.BloodGroove.CFrame = gripCF * CFrame.new(0, 0.06, -2.0)
+		-- Engraving line (rune glow along one edge)
+		p.Engraving.CFrame = gripCF * CFrame.new(0, -0.15, -2.2)
+		-- Blade taper (narrower segment before tip)
+		p.BladeTaper.CFrame = gripCF * CFrame.new(0, 0, -3.2)
+		-- Tapered tip
+		p.BladeTip.CFrame = gripCF * CFrame.new(0, 0, -3.6)
+
 	elseif weaponId == "Staff" then
-		local tilt = gripCF * CFrame.Angles(math.rad(-25), 0, 0)
-		p.Shaft.CFrame = tilt * CFrame.new(0, 0, -2.0)
-		p.Orb.CFrame = tilt * CFrame.new(0, 0, -4.2)
+		-- Foot cap at very bottom
+		p.FootCap.CFrame = gripCF * CFrame.new(0, 0, 1.0)
+		-- Thicker base at bottom of shaft
+		p.ShaftBase.CFrame = gripCF * CFrame.new(0, 0, 0.4)
+		-- Main shaft body
+		p.Shaft.CFrame = gripCF * CFrame.new(0, 0, -1.5)
+		-- Bark ridges spiraling the shaft
+		p.BarkRidge1.CFrame = gripCF * CFrame.new(0.12, 0.06, -0.8) * CFrame.Angles(0, 0, math.rad(30))
+		p.BarkRidge2.CFrame = gripCF * CFrame.new(-0.1, -0.08, -1.8) * CFrame.Angles(0, 0, math.rad(-25))
+		-- Decorative metal rings spaced along shaft
+		p.Ring1.CFrame = gripCF * CFrame.new(0, 0, -0.2)
+		p.Ring2.CFrame = gripCF * CFrame.new(0, 0, -1.4)
+		p.Ring3.CFrame = gripCF * CFrame.new(0, 0, -2.6)
+		-- Rune band (glowing ring near the head)
+		p.RuneBand.CFrame = gripCF * CFrame.new(0, 0, -2.85)
+		-- Metal prongs cradling the orb (angled outward)
+		p.ProngL.CFrame = gripCF * CFrame.new(0, -0.2, -3.3) * CFrame.Angles(0, 0, math.rad(15))
+		p.ProngR.CFrame = gripCF * CFrame.new(0, 0.2, -3.3) * CFrame.Angles(0, 0, math.rad(-15))
+		p.ProngF.CFrame = gripCF * CFrame.new(0, 0, -3.3) * CFrame.Angles(math.rad(15), 0, 0)
+		-- Prong from behind
+		p.ProngBack.CFrame = gripCF * CFrame.new(0, 0, -3.3) * CFrame.Angles(math.rad(-15), 0, 0)
+		-- Main orb
+		p.Orb.CFrame = gripCF * CFrame.new(0, 0, -3.8)
+		-- Bright inner core
+		p.OrbCore.CFrame = gripCF * CFrame.new(0, 0, -3.8)
+
 	elseif weaponId == "Wand" then
-		local tilt = gripCF * CFrame.Angles(math.rad(-25), 0, 0)
-		p.Stick.CFrame = tilt * CFrame.new(0, 0, -1.1)
-		p.Crystal.CFrame = tilt * CFrame.new(0, 0, -2.4)
+		-- Grip pommel at the very base
+		p.GripPommel.CFrame = gripCF * CFrame.new(0, 0, 0.5)
+		-- Cloth grip at the base
+		p.Grip.CFrame = gripCF * CFrame.new(0, 0, 0.1)
+		-- Bone joint where grip meets stick
+		p.BoneJoint.CFrame = gripCF * CFrame.new(0, 0, -0.25)
+		-- Main wand body
+		p.Stick.CFrame = gripCF * CFrame.new(0, 0, -0.8)
+		-- Rune marks along the stick
+		p.RuneMark1.CFrame = gripCF * CFrame.new(0.06, 0, -0.55)
+		p.RuneMark2.CFrame = gripCF * CFrame.new(-0.05, 0, -1.1)
+		-- Vine wraps spiraling up
+		p.Vine1.CFrame = gripCF * CFrame.new(0.05, 0.05, -0.3) * CFrame.Angles(0, 0, math.rad(20))
+		p.Vine2.CFrame = gripCF * CFrame.new(-0.05, 0.05, -0.8) * CFrame.Angles(0, 0, math.rad(-20))
+		p.Vine3.CFrame = gripCF * CFrame.new(0.05, -0.05, -1.3) * CFrame.Angles(0, 0, math.rad(20))
+		-- Forked tips holding the crystal
+		p.ForkL.CFrame = gripCF * CFrame.new(0, -0.1, -1.8) * CFrame.Angles(0, 0, math.rad(12))
+		p.ForkR.CFrame = gripCF * CFrame.new(0, 0.1, -1.8) * CFrame.Angles(0, 0, math.rad(-12))
+		-- Crystal base mount
+		p.CrystalBase.CFrame = gripCF * CFrame.new(0, 0, -1.95)
+		-- Main crystal in the fork
+		p.Crystal.CFrame = gripCF * CFrame.new(0, 0, -2.1)
+		-- Aura ring around the crystal
+		p.AuraRing.CFrame = gripCF * CFrame.new(0, 0, -2.1)
+		-- Small crystal shard pointing forward
+		p.CrystalShard.CFrame = gripCF * CFrame.new(0, 0, -2.5) * CFrame.Angles(0, 0, math.rad(45))
+
 	elseif weaponId == "Shield" then
 		local shieldCF = gripCF * CFrame.new(-0.3, 0, -0.8)
+		-- Handle behind the shield
 		p.Handle.CFrame = shieldCF
+		-- Arm strap above handle
+		p.Strap.CFrame = shieldCF * CFrame.new(0.05, 0, 0.25)
+		-- Main shield face
 		p.Body.CFrame = shieldCF * CFrame.new(-0.3, 0, 0)
-		p.Emblem.CFrame = shieldCF * CFrame.new(-0.35, 0, 0)
+		-- Metal rim edges
+		local bCF = shieldCF * CFrame.new(-0.3, 0, 0)
+		p.RimTop.CFrame = bCF * CFrame.new(0, 0, 1.1)
+		p.RimBot.CFrame = bCF * CFrame.new(0, 0, -1.1)
+		p.RimL.CFrame = bCF * CFrame.new(0, -1.2, 0)
+		p.RimR.CFrame = bCF * CFrame.new(0, 1.2, 0)
+		-- Center boss dome
+		p.Boss.CFrame = bCF * CFrame.new(-0.1, 0, 0)
+		-- Gold emblem on boss
+		p.Emblem.CFrame = bCF * CFrame.new(-0.15, 0, 0)
+		-- Cross reinforcement
+		p.CrossA.CFrame = bCF * CFrame.Angles(0, 0, math.rad(45))
+		p.CrossB.CFrame = bCF * CFrame.Angles(0, 0, math.rad(45))
+		-- Corner rivets
+		p.Rivet1.CFrame = bCF * CFrame.new(0, -0.85, 0.8)
+		p.Rivet2.CFrame = bCF * CFrame.new(0, 0.85, 0.8)
+		p.Rivet3.CFrame = bCF * CFrame.new(0, -0.85, -0.8)
+		p.Rivet4.CFrame = bCF * CFrame.new(0, 0.85, -0.8)
+		-- Battle scar
+		p.Scratch.CFrame = bCF * CFrame.new(-0.02, 0.3, 0.2) * CFrame.Angles(0, 0, math.rad(-15))
+		-- Leather backing behind the shield body
+		p.LeatherBacking.CFrame = bCF * CFrame.new(0.1, 0, 0)
+		-- Dent on the face
+		p.Dent.CFrame = bCF * CFrame.new(-0.03, -0.5, 0.4)
+		-- Heraldic bar across center (behind boss)
+		p.HeraldicBar.CFrame = bCF * CFrame.new(-0.08, 0, 0)
+		-- Edge wear along one rim
+		p.EdgeWear.CFrame = bCF * CFrame.new(0, 1.22, 0.2) * CFrame.Angles(0, 0, math.rad(5))
+		-- Chain link hanging from the bottom
+		p.ChainLink.CFrame = bCF * CFrame.new(0, 0, -1.25) * CFrame.Angles(math.rad(10), 0, 0)
 	end
 end
 
@@ -10751,17 +11861,69 @@ function ViewmodelController.Update(dt, skillController)
 
 	-- Position arm
 	armPart.CFrame = finalCF
-	local handCF = finalCF * CFrame.new(0, 0, -1.85)
-	handPart.CFrame = handCF
-
-	-- Position bandage wraps on the fist
-	if wrap1Part then wrap1Part.CFrame = handCF * CFrame.new(0, 0.1, 0.1) end
-	if wrap2Part then wrap2Part.CFrame = handCF * CFrame.new(0, -0.15, -0.05) end
-	if knucklesPart then knucklesPart.CFrame = handCF * CFrame.new(0, 0.2, -0.35) end
+	handPart.CFrame = finalCF * CFrame.new(0, 0, -1.85)
 
 	-- Grip at front of hand
 	local gripCF = finalCF * CFrame.new(0, 0, -2.3)
 	gripPart.CFrame = gripCF
+
+	-- Position arm gear overlays
+	local handCF = finalCF * CFrame.new(0, 0, -1.85)
+	local g = armGearParts
+
+	-- Bandage wraps spaced along the forearm (Z offsets from arm center)
+	g.BandageWrap1.CFrame = finalCF * CFrame.new(0, 0, 0.9) * CFrame.Angles(0, 0, math.rad(3))
+	g.BandageWrap2.CFrame = finalCF * CFrame.new(0, 0, 0.5) * CFrame.Angles(0, 0, math.rad(-2))
+	g.BandageWrap3.CFrame = finalCF * CFrame.new(0, 0, 0.1) * CFrame.Angles(0, 0, math.rad(4))
+	g.BandageWrap4.CFrame = finalCF * CFrame.new(0, 0, -0.3) * CFrame.Angles(0, 0, math.rad(-3))
+	g.BandageWrap5.CFrame = finalCF * CFrame.new(0, 0, -0.7) * CFrame.Angles(0, 0, math.rad(2))
+
+	-- Loose bandage tail dangling from wrist
+	g.BandageTail.CFrame = finalCF * CFrame.new(-0.45, -0.3, -1.1) * CFrame.Angles(math.rad(15), 0, math.rad(20))
+
+	-- Leather bracer on mid-forearm
+	g.Bracer.CFrame = finalCF * CFrame.new(0, 0, -0.1)
+	-- Bracer trim at each edge
+	g.BracerTrimA.CFrame = finalCF * CFrame.new(0, 0, 0.4)
+	g.BracerTrimB.CFrame = finalCF * CFrame.new(0, 0, -0.6)
+	-- Strap across outer bracer
+	g.BracerStrap.CFrame = finalCF * CFrame.new(0, 0.52, -0.1) * CFrame.Angles(0, 0, math.rad(5))
+	-- Buckle on strap
+	g.Buckle.CFrame = finalCF * CFrame.new(0, 0.56, -0.1)
+
+	-- Stitch lines on bracer
+	g.Stitch1.CFrame = finalCF * CFrame.new(0, 0, 0.15)
+	g.Stitch2.CFrame = finalCF * CFrame.new(0, 0, -0.35)
+
+	-- Wrist cuff (transition between arm and hand)
+	g.WristCuff.CFrame = finalCF * CFrame.new(0, 0, -1.35)
+
+	-- Knuckle guard across top of hand
+	g.KnuckleGuard.CFrame = handCF * CFrame.new(0, 0.55, -0.1)
+	-- Hand bandage wraps
+	g.HandWrap1.CFrame = handCF * CFrame.new(0, 0, 0.15) * CFrame.Angles(0, 0, math.rad(5))
+	g.HandWrap2.CFrame = handCF * CFrame.new(0, 0, -0.2) * CFrame.Angles(0, 0, math.rad(-3))
+	-- Metal wrist stud
+	g.WristStud.CFrame = finalCF * CFrame.new(0, 0.56, -1.35)
+
+	-- Finger wraps on the hand (spaced across fingers)
+	g.FingerWrap1.CFrame = handCF * CFrame.new(0, 0.2, -0.3)
+	g.FingerWrap2.CFrame = handCF * CFrame.new(0, 0, -0.3)
+	g.FingerWrap3.CFrame = handCF * CFrame.new(0, -0.2, -0.3)
+	-- Scar mark between bandage wraps
+	g.ScarMark.CFrame = finalCF * CFrame.new(0, -0.48, 0.3) * CFrame.Angles(0, 0, math.rad(8))
+	-- Leather pad on back of hand
+	g.LeatherPad.CFrame = handCF * CFrame.new(-0.54, 0, 0)
+	-- Arm ring above the bracer
+	g.ArmRing.CFrame = finalCF * CFrame.new(0, 0, 0.55)
+	-- Torn bandage end (different angle from main tail)
+	g.TornBandage.CFrame = finalCF * CFrame.new(0.4, 0.25, -0.9) * CFrame.Angles(math.rad(-10), 0, math.rad(-15))
+	-- Vein ridge along inner arm
+	g.VeinRidge.CFrame = finalCF * CFrame.new(0, -0.48, -0.2)
+	-- Thumb guard on hand side
+	g.ThumbGuard.CFrame = handCF * CFrame.new(0, -0.58, 0.15)
+	-- Nail detail on top knuckle
+	g.NailDetail.CFrame = handCF * CFrame.new(-0.54, 0.1, -0.25)
 
 	-- Position weapon
 	positionWeapon(currentWeaponId, gripCF)
