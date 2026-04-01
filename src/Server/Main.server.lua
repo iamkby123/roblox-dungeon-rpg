@@ -43,40 +43,40 @@ local function BuildLobby()
 
 	-- ===== GLOBAL LIGHTING (set FIRST so atmosphere is visible immediately) =====
 	local lighting = game:GetService("Lighting")
-	lighting.Ambient = Color3.fromRGB(40, 42, 50)           -- cool neutral shadow fill
-	lighting.OutdoorAmbient = Color3.fromRGB(70, 75, 90)    -- soft outdoor fill
-	lighting.Brightness = 1.5                                 -- natural sky contribution
-	lighting.FogEnd = 600                                     -- gentle distant fog
-	lighting.FogStart = 100                                   -- starts further out
-	lighting.FogColor = Color3.fromRGB(45, 50, 60)           -- cool grey fog
-	lighting.ClockTime = 6.5                                  -- early dawn, moody natural light
-	lighting.GeographicLatitude = 30
+	lighting.Ambient = Color3.fromRGB(30, 32, 40)            -- dark cool shadow fill
+	lighting.OutdoorAmbient = Color3.fromRGB(40, 45, 55)     -- dim outdoor fill
+	lighting.Brightness = 0.4                                  -- low sky contribution
+	lighting.FogEnd = 500                                      -- moderate fog distance
+	lighting.FogStart = 60                                     -- fog starts fairly close
+	lighting.FogColor = Color3.fromRGB(20, 22, 30)            -- dark blue-grey fog
+	lighting.ClockTime = 21.5                                  -- late evening, no harsh sun
+	lighting.GeographicLatitude = 40
 	lighting.GlobalShadows = true
-	lighting.ShadowSoftness = 0.3                             -- softer natural shadows
-	lighting.EnvironmentDiffuseScale = 0.5                    -- some environment bounce light
-	lighting.EnvironmentSpecularScale = 0.2                   -- subtle specular
-	lighting.ExposureCompensation = 0                         -- neutral exposure
+	lighting.ShadowSoftness = 0.25
+	lighting.EnvironmentDiffuseScale = 0.3                     -- subtle environment bounce
+	lighting.EnvironmentSpecularScale = 0.1
+	lighting.ExposureCompensation = 0.1                        -- slight lift
 
 	local bloom = Instance.new("BloomEffect")
-	bloom.Intensity = 0.25; bloom.Size = 20; bloom.Threshold = 1.8
+	bloom.Intensity = 0.3; bloom.Size = 18; bloom.Threshold = 1.5
 	bloom.Parent = lighting
 
 	local serverCC = Instance.new("ColorCorrectionEffect")
 	serverCC.Name = "HollowTone"
-	serverCC.Brightness = 0; serverCC.Contrast = 0.08
-	serverCC.Saturation = -0.05; serverCC.TintColor = Color3.fromRGB(245, 240, 235)
+	serverCC.Brightness = -0.01; serverCC.Contrast = 0.1
+	serverCC.Saturation = -0.08; serverCC.TintColor = Color3.fromRGB(230, 225, 240)
 	serverCC.Parent = lighting
 
 	local atmosphere = Instance.new("Atmosphere")
-	atmosphere.Density = 0.2; atmosphere.Offset = 0.1
-	atmosphere.Color = Color3.fromRGB(160, 170, 190)         -- cool blue-grey haze
-	atmosphere.Decay = Color3.fromRGB(80, 90, 100)           -- natural decay
-	atmosphere.Glare = 0; atmosphere.Haze = 3
+	atmosphere.Density = 0.25; atmosphere.Offset = 0.15
+	atmosphere.Color = Color3.fromRGB(80, 90, 120)            -- cool twilight haze
+	atmosphere.Decay = Color3.fromRGB(40, 45, 60)             -- dark cool decay
+	atmosphere.Glare = 0; atmosphere.Haze = 4
 	atmosphere.Parent = lighting
 
 	local dof = Instance.new("DepthOfFieldEffect")
-	dof.FarIntensity = 0.1; dof.FocusDistance = 80
-	dof.InFocusRadius = 60; dof.NearIntensity = 0
+	dof.FarIntensity = 0.12; dof.FocusDistance = 70
+	dof.InFocusRadius = 50; dof.NearIntensity = 0
 	dof.Parent = lighting
 
 	local function mp(props)

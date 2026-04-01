@@ -1166,10 +1166,17 @@ end
 -- ===== SHOP MOUSE UNLOCK =====
 
 function UIController.SetShopMouseFree(free)
+	local player = Players.LocalPlayer
 	if free then
+		-- Switch out of LockFirstPerson so camera stops overriding mouse
+		player.CameraMode = Enum.CameraMode.Classic
+		player.CameraMaxZoomDistance = 0.5
 		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
 		UserInputService.MouseIconEnabled = true
 	else
+		-- Restore first-person lock
+		player.CameraMode = Enum.CameraMode.LockFirstPerson
+		player.CameraMaxZoomDistance = 0.5
 		UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
 		UserInputService.MouseIconEnabled = false
 	end
