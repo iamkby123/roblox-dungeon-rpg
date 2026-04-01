@@ -1,0 +1,49 @@
+name: One-Click Playtest Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    name: Build Place File
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Aftman (toolchain manager)
+        uses: ok-nick/setup-aftman@v0.4.2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Install Rojo manually (fallback)
+        if: failure()
+        shell: bash
+        run: |
+          curl -L -o rojo.zip https://github.com/rojo-rbx/rojo/releases/download/v7.4.4/rojo-7.4.4-win64.zip
+          unzip rojo.zip -d rojo-bin
+          echo "$PWD/rojo-bin" >> $GITHUB_PATH
+
+      - name: Install Rojo via direct download
+        shell: bash
+        run: |
+          if ! command -v rojo &> /dev/null; then
+            curl -L -o rojo.zip https://github.com/rojo-rbx/rojo/releases/download/v7.4.4/rojo-7.4.4-win64.zip
+            unzip rojo.zip -d rojo-bin
+            echo "$PWD/rojo-bin" >> $GITHUB_PATH
+          fi
+
+      - name: Build place file with Rojo
+        shell: bash
+        run: rojo build default.project.json -o TheHollow.rbxlx
+
+      - name: Upload place file as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TheHollow-Playtest
+          path: TheHollow.rbxlx
+          retention-days: 30
