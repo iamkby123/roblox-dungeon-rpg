@@ -14,6 +14,7 @@ local hud -- the ScreenGui
 local SkillController -- for cooldown display
 local currentStats = nil
 local descentStartTime = nil
+local shopOpen = false
 
 function UIController.Init(mainHUD, skillCtrl)
 	hud = mainHUD
@@ -177,6 +178,11 @@ function UIController.Init(mainHUD, skillCtrl)
 		UIController.UpdateSkillCooldowns()
 		UIController.UpdateTimer()
 		UIController.UpdateBossBar()
+
+		-- Force mouse free every frame while shop is open (camera script fights back)
+		if shopOpen then
+			UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+		end
 	end)
 end
 
@@ -355,62 +361,149 @@ function UIController.UpdateInventoryPanel(inventory)
 		Legendary = Color3.fromRGB(255, 170, 0),
 	}
 
+	local usePotionRemote = Remotes:GetFunction("UsePotion")
+
 	for i, item in ipairs(inventory) do
-		local itemFrame = Instance.new("Frame")
+		local isPotion = item.Type == "Potion"
+
+		local itemFrame = Instance.new("TextButton")
 		itemFrame.Name = "Item_" .. i
-		itemFrame.Size = UDim2.new(1, -8, 0, 45)
-		itemFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+		itemFrame.Size = UDim2.new(1, -8, 0, isPotion and 58 or 45)
+		itemFrame.BackgroundColor3 = isPotion and Color3.fromRGB(30, 25, 40) or Color3.fromRGB(35, 35, 45)
 		itemFrame.BorderSizePixel = 0
 		itemFrame.LayoutOrder = i
+		itemFrame.Text = ""
+		itemFrame.AutoButtonColor = false
 		itemFrame.Parent = itemList
 
 		local itemCorner = Instance.new("UICorner")
 		itemCorner.CornerRadius = UDim.new(0, 4)
 		itemCorner.Parent = itemFrame
 
-		local color = rarityColors[item.Rarity] or Color3.new(1, 1, 1)
+		if isPotion then
+			-- Potion item
+			local potionColor = Color3.fromRGB(item.Color[1] or 255, item.Color[2] or 255, item.Color[3] or 255)
 
-		local itemBorder = Instance.new("UIStroke")
-		itemBorder.Color = color
-		itemBorder.Thickness = 1
-		itemBorder.Transparency = 0.5
-		itemBorder.Parent = itemFrame
+			local itemBorder = Instance.new("UIStroke")
+			itemBorder.Color = potionColor
+			itemBorder.Thickness = 1
+			itemBorder.Transparency = 0.3
+			itemBorder.Parent = itemFrame
 
-		local nameLabel = Instance.new("TextLabel")
-		nameLabel.Size = UDim2.new(1, -10, 0, 20)
-		nameLabel.Position = UDim2.new(0, 5, 0, 2)
-		nameLabel.BackgroundTransparency = 1
-		nameLabel.Text = item.Name
-		nameLabel.TextColor3 = color
-		nameLabel.TextScaled = true
-		nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-		nameLabel.Font = Enum.Font.GothamBold
-		nameLabel.Parent = itemFrame
+			-- Color icon
+			local icon = Instance.new("Frame")
+			icon.Size = UDim2.new(0, 18, 0, 24)
+			icon.Position = UDim2.new(0, 6, 0, 6)
+			icon.BackgroundColor3 = potionColor
+			icon.BorderSizePixel = 0
+			icon.Parent = itemFrame
 
-		-- Stat boosts text
-		local boostParts = {}
-		for stat, value in pairs(item.StatBoosts) do
-			if stat == "CritChance" or stat == "CritDamage" then
-				table.insert(boostParts, "+" .. math.floor(value * 100) .. "% " .. stat)
-			else
-				table.insert(boostParts, "+" .. value .. " " .. stat)
+			local iconCorner = Instance.new("UICorner")
+			iconCorner.CornerRadius = UDim.new(0, 3)
+			iconCorner.Parent = icon
+
+			local nameLabel = Instance.new("TextLabel")
+			nameLabel.Size = UDim2.new(1, -35, 0, 18)
+			nameLabel.Position = UDim2.new(0, 30, 0, 2)
+			nameLabel.BackgroundTransparency = 1
+			nameLabel.Text = item.Name
+			nameLabel.TextColor3 = potionColor
+			nameLabel.TextScaled = true
+			nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+			nameLabel.Font = Enum.Font.GothamBold
+			nameLabel.Parent = itemFrame
+
+			local descLabel = Instance.new("TextLabel")
+			descLabel.Size = UDim2.new(1, -35, 0, 14)
+			descLabel.Position = UDim2.new(0, 30, 0, 20)
+			descLabel.BackgroundTransparency = 1
+			descLabel.Text = item.Description or ""
+			descLabel.TextColor3 = Color3.fromRGB(170, 170, 170)
+			descLabel.TextScaled = true
+			descLabel.TextXAlignment = Enum.TextXAlignment.Left
+			descLabel.Font = Enum.Font.Gotham
+			descLabel.Parent = itemFrame
+
+			local hintLabel = Instance.new("TextLabel")
+			hintLabel.Size = UDim2.new(1, -10, 0, 14)
+			hintLabel.Position = UDim2.new(0, 5, 0, 38)
+			hintLabel.BackgroundTransparency = 1
+			hintLabel.Text = "(Right-click to use)"
+			hintLabel.TextColor3 = Color3.fromRGB(255, 255, 100)
+			hintLabel.TextScaled = true
+			hintLabel.TextXAlignment = Enum.TextXAlignment.Left
+			hintLabel.Font = Enum.Font.Gotham
+			hintLabel.Parent = itemFrame
+
+			-- Right-click to use potion
+			local inventoryIndex = i
+			itemFrame.MouseButton2Click:Connect(function()
+				if usePotionRemote then
+					local result = usePotionRemote:InvokeServer(inventoryIndex)
+					if result and result.success then
+						-- Brief flash feedback
+						itemFrame.BackgroundColor3 = Color3.fromRGB(50, 200, 80)
+						task.delay(0.3, function()
+							if itemFrame.Parent then
+								itemFrame.BackgroundColor3 = Color3.fromRGB(30, 25, 40)
+							end
+						end)
+					end
+				end
+			end)
+		else
+			-- Regular equipment item
+			local color = rarityColors[item.Rarity] or Color3.new(1, 1, 1)
+
+			local itemBorder = Instance.new("UIStroke")
+			itemBorder.Color = color
+			itemBorder.Thickness = 1
+			itemBorder.Transparency = 0.5
+			itemBorder.Parent = itemFrame
+
+			local nameLabel = Instance.new("TextLabel")
+			nameLabel.Size = UDim2.new(1, -10, 0, 20)
+			nameLabel.Position = UDim2.new(0, 5, 0, 2)
+			nameLabel.BackgroundTransparency = 1
+			nameLabel.Text = item.Name
+			nameLabel.TextColor3 = color
+			nameLabel.TextScaled = true
+			nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+			nameLabel.Font = Enum.Font.GothamBold
+			nameLabel.Parent = itemFrame
+
+			-- Stat boosts text
+			local boostParts = {}
+			if item.StatBoosts then
+				for stat, value in pairs(item.StatBoosts) do
+					if stat == "CritChance" or stat == "CritDamage" then
+						table.insert(boostParts, "+" .. math.floor(value * 100) .. "% " .. stat)
+					else
+						table.insert(boostParts, "+" .. value .. " " .. stat)
+					end
+				end
 			end
-		end
 
-		local boostLabel = Instance.new("TextLabel")
-		boostLabel.Size = UDim2.new(1, -10, 0, 16)
-		boostLabel.Position = UDim2.new(0, 5, 0, 24)
-		boostLabel.BackgroundTransparency = 1
-		boostLabel.Text = table.concat(boostParts, ", ")
-		boostLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
-		boostLabel.TextScaled = true
-		boostLabel.TextXAlignment = Enum.TextXAlignment.Left
-		boostLabel.Font = Enum.Font.Gotham
-		boostLabel.Parent = itemFrame
+			local boostLabel = Instance.new("TextLabel")
+			boostLabel.Size = UDim2.new(1, -10, 0, 16)
+			boostLabel.Position = UDim2.new(0, 5, 0, 24)
+			boostLabel.BackgroundTransparency = 1
+			boostLabel.Text = table.concat(boostParts, ", ")
+			boostLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+			boostLabel.TextScaled = true
+			boostLabel.TextXAlignment = Enum.TextXAlignment.Left
+			boostLabel.Font = Enum.Font.Gotham
+			boostLabel.Parent = itemFrame
+		end
 	end
 
-	-- Update canvas size
-	itemList.CanvasSize = UDim2.new(0, 0, 0, #inventory * 49)
+	-- Calculate canvas size (potions are taller)
+	local totalHeight = 0
+	for _, item in ipairs(inventory) do
+		totalHeight = totalHeight + (item.Type == "Potion" and 62 or 49)
+	end
+
+	itemList.CanvasSize = UDim2.new(0, 0, 0, totalHeight)
 end
 
 function UIController.ShowItemNotification(itemData)
@@ -1167,15 +1260,18 @@ end
 
 function UIController.SetShopMouseFree(free)
 	local player = Players.LocalPlayer
+	shopOpen = free
 	if free then
-		-- Switch out of LockFirstPerson so camera stops overriding mouse
+		-- Must leave LockFirstPerson AND allow zoom so camera releases the mouse
 		player.CameraMode = Enum.CameraMode.Classic
-		player.CameraMaxZoomDistance = 0.5
+		player.CameraMinZoomDistance = 0.5
+		player.CameraMaxZoomDistance = 10
 		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
 		UserInputService.MouseIconEnabled = true
 	else
 		-- Restore first-person lock
 		player.CameraMode = Enum.CameraMode.LockFirstPerson
+		player.CameraMinZoomDistance = 0.5
 		player.CameraMaxZoomDistance = 0.5
 		UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
 		UserInputService.MouseIconEnabled = false

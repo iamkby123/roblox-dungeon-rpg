@@ -44,12 +44,12 @@ pcall(function()
 	StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Health, false)
 end)
 
--- Client-side gamma lift so geometry stays readable in dark areas
+-- Client-side color correction (neutral for daytime)
 local cc = Instance.new("ColorCorrectionEffect")
 cc.Name = "HollowGamma"
-cc.Brightness = 0.05
-cc.Contrast = 0.08
-cc.Saturation = -0.05   -- slightly muted to match torch-lit stone look
+cc.Brightness = 0
+cc.Contrast = 0
+cc.Saturation = 0
 cc.Parent = Lighting
 
 -- Listen for descent minimap initialization from server

@@ -374,6 +374,72 @@ function DelverDataService.GetPotionBuffBonus(player, stat)
 	return total
 end
 
+-- ===== POTION INVENTORY =====
+
+function DelverDataService.AddPotionToInventory(player, potionId)
+	local PotionConfig = require(ReplicatedStorage:WaitForChild("Config"):WaitForChild("PotionConfig"))
+	local potionData = PotionConfig.Potions[potionId]
+	if not potionData then return end
+
+	if not delverInventory[player] then
+		delverInventory[player] = {}
+	end
+
+	table.insert(delverInventory[player], {
+		ItemId = potionId,
+		Name = potionData.Name,
+		Type = "Potion",
+		Color = {potionData.Color.R * 255, potionData.Color.G * 255, potionData.Color.B * 255},
+		Effect = potionData.Effect,
+		Value = potionData.Value,
+		Duration = potionData.Duration,
+		Description = potionData.Description,
+	})
+
+	local invRemote = Remotes:GetEvent("InventoryUpdated")
+	if invRemote then
+		invRemote:FireClient(player, delverInventory[player])
+	end
+end
+
+function DelverDataService.UsePotion(player, inventoryIndex)
+	local inventory = delverInventory[player]
+	if not inventory then return { success = false, reason = "No inventory" } end
+
+	local item = inventory[inventoryIndex]
+	if not item then return { success = false, reason = "Invalid slot" } end
+	if item.Type ~= "Potion" then return { success = false, reason = "Not a potion" } end
+
+	-- Apply the effect
+	local effect = item.Effect
+
+	if effect == "Heal" then
+		local char = player.Character
+		if char then
+			local humanoid = char:FindFirstChild("Humanoid")
+			if humanoid then
+				humanoid.Health = math.min(humanoid.Health + item.Value, humanoid.MaxHealth)
+			end
+		end
+	elseif effect == "RestoreMana" then
+		DelverDataService.RestoreMana(player, item.Value)
+	elseif effect == "BuffSpeed" then
+		DelverDataService.ApplyPotionBuff(player, "Speed", item.Value, item.Duration or 15)
+	elseif effect == "BuffStrength" then
+		DelverDataService.ApplyPotionBuff(player, "Strength", item.Value, item.Duration or 15)
+	end
+
+	-- Remove potion from inventory
+	table.remove(inventory, inventoryIndex)
+
+	local invRemote = Remotes:GetEvent("InventoryUpdated")
+	if invRemote then
+		invRemote:FireClient(player, inventory)
+	end
+
+	return { success = true, potionName = item.Name }
+end
+
 function DelverDataService.RestoreMana(player, amount)
 	local stats = delverStats[player]
 	if not stats then return end

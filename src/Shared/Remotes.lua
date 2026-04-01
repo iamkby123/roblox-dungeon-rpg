@@ -45,6 +45,7 @@ local remoteFunctions = {
 	"GetStats",
 	"GetDelverProgression",
 	"BuyPotion",
+	"UsePotion",
 }
 
 local isServer = RunService:IsServer()

@@ -28,6 +28,14 @@ HollowBuilder.Init(CreatureAI, LootSystem, DelverDataService, DelverProgression,
 CreatureSpawner.Init(HollowBuilder, CreatureAI)
 PotionShopService.Init(DelverDataService)
 
+-- Wire UsePotion remote
+local usePotionRemote = Remotes:GetFunction("UsePotion")
+if usePotionRemote then
+	usePotionRemote.OnServerInvoke = function(player, inventoryIndex)
+		return DelverDataService.UsePotion(player, inventoryIndex)
+	end
+end
+
 -- Start enemy AI loop
 CreatureAI.StartLoop()
 
@@ -43,35 +51,35 @@ local function BuildLobby()
 
 	-- ===== GLOBAL LIGHTING (set FIRST so atmosphere is visible immediately) =====
 	local lighting = game:GetService("Lighting")
-	lighting.Ambient = Color3.fromRGB(30, 32, 40)            -- dark cool shadow fill
-	lighting.OutdoorAmbient = Color3.fromRGB(40, 45, 55)     -- dim outdoor fill
-	lighting.Brightness = 0.4                                  -- low sky contribution
-	lighting.FogEnd = 500                                      -- moderate fog distance
-	lighting.FogStart = 60                                     -- fog starts fairly close
-	lighting.FogColor = Color3.fromRGB(20, 22, 30)            -- dark blue-grey fog
-	lighting.ClockTime = 21.5                                  -- late evening, no harsh sun
-	lighting.GeographicLatitude = 40
+	lighting.Ambient = Color3.fromRGB(80, 85, 90)             -- bright shadow fill
+	lighting.OutdoorAmbient = Color3.fromRGB(130, 140, 150)   -- bright outdoor fill
+	lighting.Brightness = 2                                    -- full daylight
+	lighting.FogEnd = 1000                                     -- far fog for clear skies
+	lighting.FogStart = 200                                    -- distant fog start
+	lighting.FogColor = Color3.fromRGB(170, 190, 220)         -- light blue sky fog
+	lighting.ClockTime = 14                                    -- 2pm, bright midday sun
+	lighting.GeographicLatitude = 30
 	lighting.GlobalShadows = true
-	lighting.ShadowSoftness = 0.25
-	lighting.EnvironmentDiffuseScale = 0.3                     -- subtle environment bounce
-	lighting.EnvironmentSpecularScale = 0.1
-	lighting.ExposureCompensation = 0.1                        -- slight lift
+	lighting.ShadowSoftness = 0.2
+	lighting.EnvironmentDiffuseScale = 1                       -- full environment bounce
+	lighting.EnvironmentSpecularScale = 0.5                    -- natural specular
+	lighting.ExposureCompensation = 0                          -- neutral exposure
 
 	local bloom = Instance.new("BloomEffect")
-	bloom.Intensity = 0.3; bloom.Size = 18; bloom.Threshold = 1.5
+	bloom.Intensity = 0.15; bloom.Size = 14; bloom.Threshold = 2
 	bloom.Parent = lighting
 
 	local serverCC = Instance.new("ColorCorrectionEffect")
 	serverCC.Name = "HollowTone"
-	serverCC.Brightness = -0.01; serverCC.Contrast = 0.1
-	serverCC.Saturation = -0.08; serverCC.TintColor = Color3.fromRGB(230, 225, 240)
+	serverCC.Brightness = 0; serverCC.Contrast = 0.05
+	serverCC.Saturation = 0; serverCC.TintColor = Color3.fromRGB(255, 255, 255)
 	serverCC.Parent = lighting
 
 	local atmosphere = Instance.new("Atmosphere")
-	atmosphere.Density = 0.25; atmosphere.Offset = 0.15
-	atmosphere.Color = Color3.fromRGB(80, 90, 120)            -- cool twilight haze
-	atmosphere.Decay = Color3.fromRGB(40, 45, 60)             -- dark cool decay
-	atmosphere.Glare = 0; atmosphere.Haze = 4
+	atmosphere.Density = 0.15; atmosphere.Offset = 0
+	atmosphere.Color = Color3.fromRGB(180, 200, 230)          -- light blue sky haze
+	atmosphere.Decay = Color3.fromRGB(150, 170, 200)          -- bright decay
+	atmosphere.Glare = 0; atmosphere.Haze = 1.5
 	atmosphere.Parent = lighting
 
 	local dof = Instance.new("DepthOfFieldEffect")

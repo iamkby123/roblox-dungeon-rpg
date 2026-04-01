@@ -31,27 +31,8 @@ function PotionShopService.HandlePurchase(player, potionId)
 		return { success = false, reason = "Not enough coins" }
 	end
 
-	-- Apply the potion effect
-	local effect = potionData.Effect
-
-	if effect == "Heal" then
-		local char = player.Character
-		if char then
-			local humanoid = char:FindFirstChild("Humanoid")
-			if humanoid then
-				humanoid.Health = math.min(humanoid.Health + potionData.Value, humanoid.MaxHealth)
-			end
-		end
-
-	elseif effect == "RestoreMana" then
-		DataService.RestoreMana(player, potionData.Value)
-
-	elseif effect == "BuffSpeed" then
-		DataService.ApplyPotionBuff(player, "Speed", potionData.Value, potionData.Duration)
-
-	elseif effect == "BuffStrength" then
-		DataService.ApplyPotionBuff(player, "Strength", potionData.Value, potionData.Duration)
-	end
+	-- Add potion to inventory (player uses it later via right-click)
+	DataService.AddPotionToInventory(player, potionId)
 
 	return { success = true, potionId = potionId, potionName = potionData.Name }
 end

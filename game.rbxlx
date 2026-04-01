@@ -2233,6 +2233,7 @@ local remoteFunctions = {
 	"GetStats",
 	"GetDelverProgression",
 	"BuyPotion",
+	"UsePotion",
 }
 
 local isServer = RunService:IsServer()
@@ -3981,6 +3982,72 @@ function DelverDataService.GetPotionBuffBonus(player, stat)
 		end
 	end
 	return total
+end
+
+-- ===== POTION INVENTORY =====
+
+function DelverDataService.AddPotionToInventory(player, potionId)
+	local PotionConfig = require(ReplicatedStorage:WaitForChild("Config"):WaitForChild("PotionConfig"))
+	local potionData = PotionConfig.Potions[potionId]
+	if not potionData then return end
+
+	if not delverInventory[player] then
+		delverInventory[player] = {}
+	end
+
+	table.insert(delverInventory[player], {
+		ItemId = potionId,
+		Name = potionData.Name,
+		Type = "Potion",
+		Color = {potionData.Color.R * 255, potionData.Color.G * 255, potionData.Color.B * 255},
+		Effect = potionData.Effect,
+		Value = potionData.Value,
+		Duration = potionData.Duration,
+		Description = potionData.Description,
+	})
+
+	local invRemote = Remotes:GetEvent("InventoryUpdated")
+	if invRemote then
+		invRemote:FireClient(player, delverInventory[player])
+	end
+end
+
+function DelverDataService.UsePotion(player, inventoryIndex)
+	local inventory = delverInventory[player]
+	if not inventory then return { success = false, reason = "No inventory" } end
+
+	local item = inventory[inventoryIndex]
+	if not item then return { success = false, reason = "Invalid slot" } end
+	if item.Type ~= "Potion" then return { success = false, reason = "Not a potion" } end
+
+	-- Apply the effect
+	local effect = item.Effect
+
+	if effect == "Heal" then
+		local char = player.Character
+		if char then
+			local humanoid = char:FindFirstChild("Humanoid")
+			if humanoid then
+				humanoid.Health = math.min(humanoid.Health + item.Value, humanoid.MaxHealth)
+			end
+		end
+	elseif effect == "RestoreMana" then
+		DelverDataService.RestoreMana(player, item.Value)
+	elseif effect == "BuffSpeed" then
+		DelverDataService.ApplyPotionBuff(player, "Speed", item.Value, item.Duration or 15)
+	elseif effect == "BuffStrength" then
+		DelverDataService.ApplyPotionBuff(player, "Strength", item.Value, item.Duration or 15)
+	end
+
+	-- Remove potion from inventory
+	table.remove(inventory, inventoryIndex)
+
+	local invRemote = Remotes:GetEvent("InventoryUpdated")
+	if invRemote then
+		invRemote:FireClient(player, inventory)
+	end
+
+	return { success = true, potionName = item.Name }
 end
 
 function DelverDataService.RestoreMana(player, amount)
@@ -6229,6 +6296,14 @@ HollowBuilder.Init(CreatureAI, LootSystem, DelverDataService, DelverProgression,
 CreatureSpawner.Init(HollowBuilder, CreatureAI)
 PotionShopService.Init(DelverDataService)
 
+-- Wire UsePotion remote
+local usePotionRemote = Remotes:GetFunction("UsePotion")
+if usePotionRemote then
+	usePotionRemote.OnServerInvoke = function(player, inventoryIndex)
+		return DelverDataService.UsePotion(player, inventoryIndex)
+	end
+end
+
 -- Start enemy AI loop
 CreatureAI.StartLoop()
 
@@ -6244,35 +6319,35 @@ local function BuildLobby()
 
 	-- ===== GLOBAL LIGHTING (set FIRST so atmosphere is visible immediately) =====
 	local lighting = game:GetService("Lighting")
-	lighting.Ambient = Color3.fromRGB(30, 32, 40)            -- dark cool shadow fill
-	lighting.OutdoorAmbient = Color3.fromRGB(40, 45, 55)     -- dim outdoor fill
-	lighting.Brightness = 0.4                                  -- low sky contribution
-	lighting.FogEnd = 500                                      -- moderate fog distance
-	lighting.FogStart = 60                                     -- fog starts fairly close
-	lighting.FogColor = Color3.fromRGB(20, 22, 30)            -- dark blue-grey fog
-	lighting.ClockTime = 21.5                                  -- late evening, no harsh sun
-	lighting.GeographicLatitude = 40
+	lighting.Ambient = Color3.fromRGB(80, 85, 90)             -- bright shadow fill
+	lighting.OutdoorAmbient = Color3.fromRGB(130, 140, 150)   -- bright outdoor fill
+	lighting.Brightness = 2                                    -- full daylight
+	lighting.FogEnd = 1000                                     -- far fog for clear skies
+	lighting.FogStart = 200                                    -- distant fog start
+	lighting.FogColor = Color3.fromRGB(170, 190, 220)         -- light blue sky fog
+	lighting.ClockTime = 14                                    -- 2pm, bright midday sun
+	lighting.GeographicLatitude = 30
 	lighting.GlobalShadows = true
-	lighting.ShadowSoftness = 0.25
-	lighting.EnvironmentDiffuseScale = 0.3                     -- subtle environment bounce
-	lighting.EnvironmentSpecularScale = 0.1
-	lighting.ExposureCompensation = 0.1                        -- slight lift
+	lighting.ShadowSoftness = 0.2
+	lighting.EnvironmentDiffuseScale = 1                       -- full environment bounce
+	lighting.EnvironmentSpecularScale = 0.5                    -- natural specular
+	lighting.ExposureCompensation = 0                          -- neutral exposure
 
 	local bloom = Instance.new("BloomEffect")
-	bloom.Intensity = 0.3; bloom.Size = 18; bloom.Threshold = 1.5
+	bloom.Intensity = 0.15; bloom.Size = 14; bloom.Threshold = 2
 	bloom.Parent = lighting
 
 	local serverCC = Instance.new("ColorCorrectionEffect")
 	serverCC.Name = "HollowTone"
-	serverCC.Brightness = -0.01; serverCC.Contrast = 0.1
-	serverCC.Saturation = -0.08; serverCC.TintColor = Color3.fromRGB(230, 225, 240)
+	serverCC.Brightness = 0; serverCC.Contrast = 0.05
+	serverCC.Saturation = 0; serverCC.TintColor = Color3.fromRGB(255, 255, 255)
 	serverCC.Parent = lighting
 
 	local atmosphere = Instance.new("Atmosphere")
-	atmosphere.Density = 0.25; atmosphere.Offset = 0.15
-	atmosphere.Color = Color3.fromRGB(80, 90, 120)            -- cool twilight haze
-	atmosphere.Decay = Color3.fromRGB(40, 45, 60)             -- dark cool decay
-	atmosphere.Glare = 0; atmosphere.Haze = 4
+	atmosphere.Density = 0.15; atmosphere.Offset = 0
+	atmosphere.Color = Color3.fromRGB(180, 200, 230)          -- light blue sky haze
+	atmosphere.Decay = Color3.fromRGB(150, 170, 200)          -- bright decay
+	atmosphere.Glare = 0; atmosphere.Haze = 1.5
 	atmosphere.Parent = lighting
 
 	local dof = Instance.new("DepthOfFieldEffect")
@@ -6979,27 +7054,8 @@ function PotionShopService.HandlePurchase(player, potionId)
 		return { success = false, reason = "Not enough coins" }
 	end
 
-	-- Apply the potion effect
-	local effect = potionData.Effect
-
-	if effect == "Heal" then
-		local char = player.Character
-		if char then
-			local humanoid = char:FindFirstChild("Humanoid")
-			if humanoid then
-				humanoid.Health = math.min(humanoid.Health + potionData.Value, humanoid.MaxHealth)
-			end
-		end
-
-	elseif effect == "RestoreMana" then
-		DataService.RestoreMana(player, potionData.Value)
-
-	elseif effect == "BuffSpeed" then
-		DataService.ApplyPotionBuff(player, "Speed", potionData.Value, potionData.Duration)
-
-	elseif effect == "BuffStrength" then
-		DataService.ApplyPotionBuff(player, "Strength", potionData.Value, potionData.Duration)
-	end
+	-- Add potion to inventory (player uses it later via right-click)
+	DataService.AddPotionToInventory(player, potionId)
 
 	return { success = true, potionId = potionId, potionName = potionData.Name }
 end
@@ -9143,12 +9199,12 @@ pcall(function()
 	StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Health, false)
 end)
 
--- Client-side gamma lift so geometry stays readable in dark areas
+-- Client-side color correction (neutral for daytime)
 local cc = Instance.new("ColorCorrectionEffect")
 cc.Name = "HollowGamma"
-cc.Brightness = 0.05
-cc.Contrast = 0.08
-cc.Saturation = -0.05   -- slightly muted to match torch-lit stone look
+cc.Brightness = 0
+cc.Contrast = 0
+cc.Saturation = 0
 cc.Parent = Lighting
 
 -- Listen for descent minimap initialization from server
@@ -9805,6 +9861,7 @@ local hud -- the ScreenGui
 local SkillController -- for cooldown display
 local currentStats = nil
 local descentStartTime = nil
+local shopOpen = false
 
 function UIController.Init(mainHUD, skillCtrl)
 	hud = mainHUD
@@ -9968,6 +10025,11 @@ function UIController.Init(mainHUD, skillCtrl)
 		UIController.UpdateSkillCooldowns()
 		UIController.UpdateTimer()
 		UIController.UpdateBossBar()
+
+		-- Force mouse free every frame while shop is open (camera script fights back)
+		if shopOpen then
+			UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+		end
 	end)
 end
 
@@ -10146,62 +10208,149 @@ function UIController.UpdateInventoryPanel(inventory)
 		Legendary = Color3.fromRGB(255, 170, 0),
 	}
 
+	local usePotionRemote = Remotes:GetFunction("UsePotion")
+
 	for i, item in ipairs(inventory) do
-		local itemFrame = Instance.new("Frame")
+		local isPotion = item.Type == "Potion"
+
+		local itemFrame = Instance.new("TextButton")
 		itemFrame.Name = "Item_" .. i
-		itemFrame.Size = UDim2.new(1, -8, 0, 45)
-		itemFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+		itemFrame.Size = UDim2.new(1, -8, 0, isPotion and 58 or 45)
+		itemFrame.BackgroundColor3 = isPotion and Color3.fromRGB(30, 25, 40) or Color3.fromRGB(35, 35, 45)
 		itemFrame.BorderSizePixel = 0
 		itemFrame.LayoutOrder = i
+		itemFrame.Text = ""
+		itemFrame.AutoButtonColor = false
 		itemFrame.Parent = itemList
 
 		local itemCorner = Instance.new("UICorner")
 		itemCorner.CornerRadius = UDim.new(0, 4)
 		itemCorner.Parent = itemFrame
 
-		local color = rarityColors[item.Rarity] or Color3.new(1, 1, 1)
+		if isPotion then
+			-- Potion item
+			local potionColor = Color3.fromRGB(item.Color[1] or 255, item.Color[2] or 255, item.Color[3] or 255)
 
-		local itemBorder = Instance.new("UIStroke")
-		itemBorder.Color = color
-		itemBorder.Thickness = 1
-		itemBorder.Transparency = 0.5
-		itemBorder.Parent = itemFrame
+			local itemBorder = Instance.new("UIStroke")
+			itemBorder.Color = potionColor
+			itemBorder.Thickness = 1
+			itemBorder.Transparency = 0.3
+			itemBorder.Parent = itemFrame
 
-		local nameLabel = Instance.new("TextLabel")
-		nameLabel.Size = UDim2.new(1, -10, 0, 20)
-		nameLabel.Position = UDim2.new(0, 5, 0, 2)
-		nameLabel.BackgroundTransparency = 1
-		nameLabel.Text = item.Name
-		nameLabel.TextColor3 = color
-		nameLabel.TextScaled = true
-		nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-		nameLabel.Font = Enum.Font.GothamBold
-		nameLabel.Parent = itemFrame
+			-- Color icon
+			local icon = Instance.new("Frame")
+			icon.Size = UDim2.new(0, 18, 0, 24)
+			icon.Position = UDim2.new(0, 6, 0, 6)
+			icon.BackgroundColor3 = potionColor
+			icon.BorderSizePixel = 0
+			icon.Parent = itemFrame
 
-		-- Stat boosts text
-		local boostParts = {}
-		for stat, value in pairs(item.StatBoosts) do
-			if stat == "CritChance" or stat == "CritDamage" then
-				table.insert(boostParts, "+" .. math.floor(value * 100) .. "% " .. stat)
-			else
-				table.insert(boostParts, "+" .. value .. " " .. stat)
+			local iconCorner = Instance.new("UICorner")
+			iconCorner.CornerRadius = UDim.new(0, 3)
+			iconCorner.Parent = icon
+
+			local nameLabel = Instance.new("TextLabel")
+			nameLabel.Size = UDim2.new(1, -35, 0, 18)
+			nameLabel.Position = UDim2.new(0, 30, 0, 2)
+			nameLabel.BackgroundTransparency = 1
+			nameLabel.Text = item.Name
+			nameLabel.TextColor3 = potionColor
+			nameLabel.TextScaled = true
+			nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+			nameLabel.Font = Enum.Font.GothamBold
+			nameLabel.Parent = itemFrame
+
+			local descLabel = Instance.new("TextLabel")
+			descLabel.Size = UDim2.new(1, -35, 0, 14)
+			descLabel.Position = UDim2.new(0, 30, 0, 20)
+			descLabel.BackgroundTransparency = 1
+			descLabel.Text = item.Description or ""
+			descLabel.TextColor3 = Color3.fromRGB(170, 170, 170)
+			descLabel.TextScaled = true
+			descLabel.TextXAlignment = Enum.TextXAlignment.Left
+			descLabel.Font = Enum.Font.Gotham
+			descLabel.Parent = itemFrame
+
+			local hintLabel = Instance.new("TextLabel")
+			hintLabel.Size = UDim2.new(1, -10, 0, 14)
+			hintLabel.Position = UDim2.new(0, 5, 0, 38)
+			hintLabel.BackgroundTransparency = 1
+			hintLabel.Text = "(Right-click to use)"
+			hintLabel.TextColor3 = Color3.fromRGB(255, 255, 100)
+			hintLabel.TextScaled = true
+			hintLabel.TextXAlignment = Enum.TextXAlignment.Left
+			hintLabel.Font = Enum.Font.Gotham
+			hintLabel.Parent = itemFrame
+
+			-- Right-click to use potion
+			local inventoryIndex = i
+			itemFrame.MouseButton2Click:Connect(function()
+				if usePotionRemote then
+					local result = usePotionRemote:InvokeServer(inventoryIndex)
+					if result and result.success then
+						-- Brief flash feedback
+						itemFrame.BackgroundColor3 = Color3.fromRGB(50, 200, 80)
+						task.delay(0.3, function()
+							if itemFrame.Parent then
+								itemFrame.BackgroundColor3 = Color3.fromRGB(30, 25, 40)
+							end
+						end)
+					end
+				end
+			end)
+		else
+			-- Regular equipment item
+			local color = rarityColors[item.Rarity] or Color3.new(1, 1, 1)
+
+			local itemBorder = Instance.new("UIStroke")
+			itemBorder.Color = color
+			itemBorder.Thickness = 1
+			itemBorder.Transparency = 0.5
+			itemBorder.Parent = itemFrame
+
+			local nameLabel = Instance.new("TextLabel")
+			nameLabel.Size = UDim2.new(1, -10, 0, 20)
+			nameLabel.Position = UDim2.new(0, 5, 0, 2)
+			nameLabel.BackgroundTransparency = 1
+			nameLabel.Text = item.Name
+			nameLabel.TextColor3 = color
+			nameLabel.TextScaled = true
+			nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+			nameLabel.Font = Enum.Font.GothamBold
+			nameLabel.Parent = itemFrame
+
+			-- Stat boosts text
+			local boostParts = {}
+			if item.StatBoosts then
+				for stat, value in pairs(item.StatBoosts) do
+					if stat == "CritChance" or stat == "CritDamage" then
+						table.insert(boostParts, "+" .. math.floor(value * 100) .. "% " .. stat)
+					else
+						table.insert(boostParts, "+" .. value .. " " .. stat)
+					end
+				end
 			end
-		end
 
-		local boostLabel = Instance.new("TextLabel")
-		boostLabel.Size = UDim2.new(1, -10, 0, 16)
-		boostLabel.Position = UDim2.new(0, 5, 0, 24)
-		boostLabel.BackgroundTransparency = 1
-		boostLabel.Text = table.concat(boostParts, ", ")
-		boostLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
-		boostLabel.TextScaled = true
-		boostLabel.TextXAlignment = Enum.TextXAlignment.Left
-		boostLabel.Font = Enum.Font.Gotham
-		boostLabel.Parent = itemFrame
+			local boostLabel = Instance.new("TextLabel")
+			boostLabel.Size = UDim2.new(1, -10, 0, 16)
+			boostLabel.Position = UDim2.new(0, 5, 0, 24)
+			boostLabel.BackgroundTransparency = 1
+			boostLabel.Text = table.concat(boostParts, ", ")
+			boostLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+			boostLabel.TextScaled = true
+			boostLabel.TextXAlignment = Enum.TextXAlignment.Left
+			boostLabel.Font = Enum.Font.Gotham
+			boostLabel.Parent = itemFrame
+		end
 	end
 
-	-- Update canvas size
-	itemList.CanvasSize = UDim2.new(0, 0, 0, #inventory * 49)
+	-- Calculate canvas size (potions are taller)
+	local totalHeight = 0
+	for _, item in ipairs(inventory) do
+		totalHeight = totalHeight + (item.Type == "Potion" and 62 or 49)
+	end
+
+	itemList.CanvasSize = UDim2.new(0, 0, 0, totalHeight)
 end
 
 function UIController.ShowItemNotification(itemData)
@@ -10958,15 +11107,18 @@ end
 
 function UIController.SetShopMouseFree(free)
 	local player = Players.LocalPlayer
+	shopOpen = free
 	if free then
-		-- Switch out of LockFirstPerson so camera stops overriding mouse
+		-- Must leave LockFirstPerson AND allow zoom so camera releases the mouse
 		player.CameraMode = Enum.CameraMode.Classic
-		player.CameraMaxZoomDistance = 0.5
+		player.CameraMinZoomDistance = 0.5
+		player.CameraMaxZoomDistance = 10
 		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
 		UserInputService.MouseIconEnabled = true
 	else
 		-- Restore first-person lock
 		player.CameraMode = Enum.CameraMode.LockFirstPerson
+		player.CameraMinZoomDistance = 0.5
 		player.CameraMaxZoomDistance = 0.5
 		UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
 		UserInputService.MouseIconEnabled = false
