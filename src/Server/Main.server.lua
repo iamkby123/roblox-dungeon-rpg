@@ -171,9 +171,7 @@ local function BuildLobby()
 	-- Campfire
 	local campfire = mp({Name="Campfire", Size=Vector3.new(2, 1, 2), Position=Vector3.new(0, 1.2, 20),
 		Material=Enum.Material.Wood, BrickColor=BrickColor.new("Reddish brown")})
-	local cfLight = Instance.new("PointLight"); cfLight.Color=Color3.fromRGB(255,140,45)
-	cfLight.Range=45; cfLight.Brightness=2.5; cfLight.Parent=campfire
-	local cfFire = Instance.new("Fire"); cfFire.Size=8; cfFire.Heat=10; cfFire.Parent=campfire
+	-- Fire/lights removed for natural lighting
 
 	-- Sitting logs around campfire
 	for _, logData in ipairs({
@@ -206,11 +204,7 @@ local function BuildLobby()
 		bottle.CFrame = CFrame.new(bottle.Position) * CFrame.Angles(0, 0, math.rad(90))
 	end
 
-	-- Mystical glow
-	local shopLight = Instance.new("PointLight")
-	shopLight.Color = Color3.fromRGB(180, 100, 255)
-	shopLight.Range = 15; shopLight.Brightness = 1.5
-	shopLight.Parent = potionStand
+	-- Shop light removed for natural lighting
 
 	-- Sign above stand
 	mp({Size=Vector3.new(2, 4, 2), Position=Vector3.new(8, 5.7, 16),
@@ -295,10 +289,7 @@ local function BuildLobby()
 		HollowBuilder.StartDescent(player)
 	end)
 
-	-- Subtle glow seeping through door cracks
-	local glowLight = Instance.new("PointLight")
-	glowLight.Color = Color3.fromRGB(120, 40, 200); glowLight.Range = 12
-	glowLight.Brightness = 0.6; glowLight.Parent = door
+	-- Door glow removed for natural lighting
 	-- Light mist from cave
 	local smoke = Instance.new("Smoke")
 	smoke.Size = 4; smoke.Opacity = 0.08; smoke.RiseVelocity = 1.5
@@ -372,9 +363,7 @@ local function BuildLobby()
 		size = size or 5
 		local post = mp({Name="TorchPost", Size=Vector3.new(2, 8, 2), Position=pos + Vector3.new(0, 4, 0),
 			Material=Enum.Material.Wood, BrickColor=BrickColor.new("Dark orange")})
-		local tl = Instance.new("PointLight"); tl.Color=Color3.fromRGB(255,150,45)
-		tl.Range=range; tl.Brightness=3; tl.Parent=post
-		local fi = Instance.new("Fire"); fi.Size=size; fi.Heat=8; fi.Parent=post
+		-- Fire/lights removed for natural lighting
 		return post
 	end
 
@@ -687,9 +676,7 @@ local function BuildLobby()
 		local tp = mp({Name="ColoTorch", Size=Vector3.new(2, 4, 2),
 			Position=Vector3.new(tx, torchY, tz),
 			Material=Enum.Material.Wood, BrickColor=BrickColor.new("Dark orange")})
-		local tl = Instance.new("PointLight"); tl.Color=Color3.fromRGB(255,145,40)
-		tl.Range=50; tl.Brightness=2.5; tl.Parent=tp
-		local fi = Instance.new("Fire"); fi.Size=5; fi.Heat=8; fi.Parent=tp
+		-- Fire/lights removed for natural lighting
 	end
 
 	-- ---- UPPER RING TORCHES (higher up on walls) ----
@@ -703,9 +690,7 @@ local function BuildLobby()
 		local tp = mp({Name="UpperTorch", Size=Vector3.new(2, 4, 2),
 			Position=Vector3.new(tx, torchY, tz),
 			Material=Enum.Material.Wood, BrickColor=BrickColor.new("Dark orange")})
-		local tl = Instance.new("PointLight"); tl.Color=Color3.fromRGB(255,135,35)
-		tl.Range=55; tl.Brightness=2; tl.Parent=tp
-		local fi = Instance.new("Fire"); fi.Size=6; fi.Heat=10; fi.Parent=tp
+		-- Fire/lights removed for natural lighting
 	end
 
 	-- ---- CRUMBLED WALL SECTIONS with vines ----
