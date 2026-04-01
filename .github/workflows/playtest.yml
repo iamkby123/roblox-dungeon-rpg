@@ -14,25 +14,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Rojo
-        run: |
-          # Get the linux release asset URL from GitHub API
-          ASSET_URL=$(curl -fsSL \
-            -H "Accept: application/vnd.github.v3+json" \
-            "https://api.github.com/repos/rojo-rbx/rojo/releases/tags/v7.4.4" \
-            | jq -r '.assets[] | select(.name | test("linux")) | .browser_download_url' \
-            | head -1)
-          echo "Downloading Rojo from: $ASSET_URL"
-          curl -fsSL -o rojo.zip "$ASSET_URL"
-          unzip rojo.zip -d /usr/local/bin
-          chmod +x /usr/local/bin/rojo
-
-      - name: Build place file with Rojo
-        run: rojo build default.project.json -o TheHollow.rbxlx
-
       - name: Upload place file as artifact
         uses: actions/upload-artifact@v4
         with:
           name: TheHollow-Playtest
-          path: TheHollow.rbxlx
+          path: |
+            game.rbxlx
+            TheHollow.rbxlx
           retention-days: 30
